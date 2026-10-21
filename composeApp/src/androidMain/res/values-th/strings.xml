@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">บริการเบื้องหลังของ Maxit</string>
+    <string name="daemon_channel_description">ทำให้ Maxit ทำงานต่อเนื่องเพื่อดำเนินงานที่กำหนดไว้</string>
+    <string name="daemon_notification_text">บริการเบื้องหลังกำลังทำงาน</string>
+    <string name="download_channel_name">การดาวน์โหลดโมเดล</string>
+    <string name="download_channel_description">แสดงความคืบหน้าขณะดาวน์โหลดโมเดล AI</string>
+    <string name="download_notification_text">กำลังดาวน์โหลดโมเดล…</string>
+</resources>

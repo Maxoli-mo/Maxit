@@ -1,0 +1,15 @@
+# Modified for Maxit, 2026-10-20.
+pkgbase = maxit-bin
+	pkgdesc = AI assistant powered by Ollama, Gemini, ChatGPT and more
+	pkgver = 3.3.0
+	pkgrel = 1
+	arch = x86_64
+	license = GPL-3.0-only
+	depends = hicolor-icon-theme
+	provides = maxit
+	conflicts = maxit
+	options = !strip
+	source = Maxit-3.3.0-linux-x86_64.tar.gz
+	sha256sums = SKIP
+
+pkgname = maxit-bin

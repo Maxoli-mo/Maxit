@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Maxit Hintergrunddienst</string>
+    <string name="daemon_channel_description">Hält Maxit im Hintergrund aktiv, um geplante Aufgaben auszuführen</string>
+    <string name="daemon_notification_text">Hintergrunddienst läuft</string>
+    <string name="download_channel_name">Modell-Downloads</string>
+    <string name="download_channel_description">Zeigt den Fortschritt beim Herunterladen von KI-Modellen</string>
+    <string name="download_notification_text">Modell wird heruntergeladen…</string>
+</resources>

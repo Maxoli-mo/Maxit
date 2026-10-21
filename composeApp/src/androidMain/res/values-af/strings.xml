@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Maxit-daemondiens</string>
+    <string name="daemon_channel_description">Hou Maxit aan die gang vir geskeduleerde taakuitvoering</string>
+    <string name="daemon_notification_text">Daemon loop tans</string>
+    <string name="download_channel_name">Modelaflaaie</string>
+    <string name="download_channel_description">Wys vordering tydens aflaai van KI-modelle</string>
+    <string name="download_notification_text">Laai model af…</string>
+</resources>

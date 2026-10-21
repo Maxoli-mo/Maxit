@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Služba démona Maxit</string>
+    <string name="daemon_channel_description">Udržuje Maxit spustený na vykonávanie naplánovaných úloh</string>
+    <string name="daemon_notification_text">Démon beží</string>
+    <string name="download_channel_name">Sťahovanie modelov</string>
+    <string name="download_channel_description">Zobrazuje priebeh počas sťahovania AI modelov</string>
+    <string name="download_notification_text">Sťahovanie modelu…</string>
+</resources>

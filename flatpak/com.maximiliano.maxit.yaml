@@ -1,0 +1,81 @@
+# Modified for Maxit, 2026-10-20.
+app-id: com.maximiliano.maxit
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: maxit-wrapper
+
+finish-args:
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --share=ipc
+  - --device=dri
+  - --socket=pulseaudio
+  - --persist=.kai
+  - --persist=.java
+
+modules:
+  - name: maxit
+    buildsystem: simple
+    build-commands:
+      # Install the locally built application
+      - mkdir -p /app/lib/maxit
+      - cp -r Maxit/* /app/lib/maxit/
+
+      # Preserve the fork license and upstream/third-party notices
+      - install -Dm644 LICENSE.txt /app/share/licenses/maxit/LICENSE.txt
+      - install -Dm644 Apache-2.0.txt /app/share/licenses/maxit/LICENSES/Apache-2.0.txt
+      - install -Dm644 NOTICE.md /app/share/licenses/maxit/NOTICE.md
+      - install -Dm644 THIRD_PARTY_LICENSES.md /app/share/licenses/maxit/THIRD_PARTY_LICENSES.md
+
+      # Install wrapper script
+      - install -Dm755 maxit-wrapper.sh /app/bin/maxit-wrapper
+
+      # Install desktop file
+      - install -Dm644 com.maximiliano.maxit.desktop /app/share/applications/com.maximiliano.maxit.desktop
+
+      # Install metainfo
+      - install -Dm644 com.maximiliano.maxit.metainfo.xml /app/share/metainfo/com.maximiliano.maxit.metainfo.xml
+
+      # Install icons
+      - install -Dm644 icon.svg /app/share/icons/hicolor/scalable/apps/com.maximiliano.maxit.svg
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/com.maximiliano.maxit.png
+
+    sources:
+      # Build locally with ./gradlew :composeApp:createDistributable first.
+      # Maxit has no published binary release to download.
+      - type: dir
+        path: ../composeApp/build/compose/binaries/main/app/Maxit
+        dest: Maxit
+
+      - type: file
+        path: com.maximiliano.maxit.desktop
+
+      - type: file
+        path: ../LICENSE.txt
+
+      - type: file
+        path: ../LICENSES/Apache-2.0.txt
+
+      - type: file
+        path: ../NOTICE.md
+
+      - type: file
+        path: ../THIRD_PARTY_LICENSES.md
+
+      - type: file
+        path: com.maximiliano.maxit.metainfo.xml
+
+      - type: file
+        path: ../composeApp/icon.svg
+
+      - type: file
+        path: ../composeApp/icon.png
+
+      - type: script
+        dest-filename: maxit-wrapper.sh
+        commands:
+          - export PATH="/app/lib/maxit/bin:${PATH}"
+          - export LD_LIBRARY_PATH="/app/lib/maxit/lib/runtime/lib:${LD_LIBRARY_PATH}"
+          - exec /app/lib/maxit/bin/Maxit "$@"

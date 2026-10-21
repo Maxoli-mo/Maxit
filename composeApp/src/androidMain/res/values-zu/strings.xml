@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Isevisi ye-Daemon ye-Maxit</string>
+    <string name="daemon_channel_description">Igcina i-Maxit isebenza ukuze kwenziwe imisebenzi ehleliwe</string>
+    <string name="daemon_notification_text">I-daemon iyasebenza</string>
+    <string name="download_channel_name">Ukulanda Amamodeli</string>
+    <string name="download_channel_description">Ibonisa inqubekelaphambili ngenkathi kulandwa amamodeli e-AI</string>
+    <string name="download_notification_text">Ilanda imodeli…</string>
+</resources>

@@ -1,0 +1,11 @@
+# Modified for Maxit, 2026-10-20.
+[Desktop Entry]
+Name=Maxit
+Comment=AI assistant powered by Ollama, Gemini, ChatGPT and more
+Exec=maxit-wrapper
+Icon=com.maximiliano.maxit
+Type=Application
+Categories=Utility;Network;
+Keywords=AI;Chat;Ollama;Gemini;LLM;Assistant;
+StartupWMClass=compose-window
+Terminal=false

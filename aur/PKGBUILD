@@ -1,0 +1,61 @@
+# Modified for Maxit, 2026-10-20.
+# Original packaging: Simon Schubert <sschubert89@gmail.com>
+# Upstream: https://github.com/SimonSchubert/Kai
+# Local Maxit packaging; no public fork release or AUR listing is assumed.
+
+pkgname=maxit-bin
+pkgver=3.3.0
+pkgrel=1
+pkgdesc='AI assistant powered by Ollama, Gemini, ChatGPT and more'
+arch=('x86_64')
+license=('GPL-3.0-only')
+depends=('hicolor-icon-theme')
+provides=('maxit')
+conflicts=('maxit')
+options=('!strip')
+
+# Stage the distributable and license notices as described in aur/README.md.
+# The archive is a local artifact, not an upstream Kai download.
+source=("Maxit-${pkgver}-linux-x86_64.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+    # Install application files
+    install -dm755 "${pkgdir}/opt/maxit"
+    cp -r "${srcdir}/Maxit/"* "${pkgdir}/opt/maxit/"
+    chmod -R go-w "${pkgdir}/opt/maxit"
+
+    # Install wrapper script
+    install -Dm755 /dev/stdin "${pkgdir}/usr/bin/maxit" << 'EOF'
+#!/bin/sh
+exec /opt/maxit/bin/Maxit "$@"
+EOF
+
+    # Install desktop entry
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/com.maximiliano.maxit.desktop" << EOF
+[Desktop Entry]
+Name=Maxit
+Comment=AI assistant powered by Ollama, Gemini, ChatGPT and more
+Exec=maxit
+Icon=com.maximiliano.maxit
+Type=Application
+Categories=Utility;Network;
+Keywords=AI;Chat;Ollama;Gemini;LLM;Assistant;
+StartupWMClass=compose-window
+Terminal=false
+EOF
+
+    # Install icon
+    install -Dm644 /dev/stdin "${pkgdir}/usr/share/icons/hicolor/scalable/apps/com.maximiliano.maxit.svg" << 'EOF'
+<svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
+   <circle cx="35" cy="45" r="30" fill="#6200ee" />
+   <circle cx="55" cy="45" r="30" fill="#8063C5" />
+</svg>
+EOF
+
+    # Preserve the fork license, upstream Apache license, and attribution notices.
+    install -Dm644 "${srcdir}/Maxit/LICENSE.txt" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.txt"
+    install -Dm644 "${srcdir}/Maxit/LICENSES/Apache-2.0.txt" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSES/Apache-2.0.txt"
+    install -Dm644 "${srcdir}/Maxit/NOTICE.md" "${pkgdir}/usr/share/licenses/${pkgname}/NOTICE.md"
+    install -Dm644 "${srcdir}/Maxit/THIRD_PARTY_LICENSES.md" "${pkgdir}/usr/share/licenses/${pkgname}/THIRD_PARTY_LICENSES.md"
+}

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for Maxit, 2026-10-20. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      SMS read/send are independent user opt-ins at runtime. The feature checks
+      for READ_SMS in the merged manifest before exposing its settings.
+    -->
+    <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+
+    <!--
+      Lets the user tap an .apk in the sandbox file browser and hand it to the system
+      package installer. The sandbox file browser checks the merged manifest for
+      this permission at runtime before offering APK installation.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+    <!--
+      Notification reading is opt-in through Android's notification access settings.
+      The feature checks for this listener service in the merged manifest.
+    -->
+    <application>
+        <service
+            android:name="com.maximiliano.maxit.notifications.KaiNotificationListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

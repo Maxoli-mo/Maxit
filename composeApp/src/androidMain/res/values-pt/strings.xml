@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Serviço daemon do Maxit</string>
+    <string name="daemon_channel_description">Mantém o Maxit em execução para a execução de tarefas agendadas</string>
+    <string name="daemon_notification_text">O daemon está em execução</string>
+    <string name="download_channel_name">Downloads de modelos</string>
+    <string name="download_channel_description">Mostra o progresso ao baixar modelos de IA</string>
+    <string name="download_notification_text">Baixando modelo…</string>
+</resources>

@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Фонова услуга на Maxit</string>
+    <string name="daemon_channel_description">Поддържа Maxit работещ за изпълнение на планирани задачи</string>
+    <string name="daemon_notification_text">Фоновата услуга работи</string>
+    <string name="download_channel_name">Изтегляния на модели</string>
+    <string name="download_channel_description">Показва напредъка при изтегляне на AI модели</string>
+    <string name="download_notification_text">Изтегляне на модел…</string>
+</resources>

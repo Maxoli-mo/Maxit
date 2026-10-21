@@ -1,0 +1,9 @@
+<!-- Modified for Maxit, 2026-10-20. -->
+<resources>
+    <string name="daemon_channel_name">Huduma ya Daemon ya Maxit</string>
+    <string name="daemon_channel_description">Inaweka Maxit ikiendelea kufanya kazi zilizopangwa</string>
+    <string name="daemon_notification_text">Daemon inaendesha</string>
+    <string name="download_channel_name">Upakuaji wa Modeli</string>
+    <string name="download_channel_description">Inaonyesha maendeleo wakati wa kupakua modeli za AI</string>
+    <string name="download_notification_text">Inapakua modeli…</string>
+</resources>

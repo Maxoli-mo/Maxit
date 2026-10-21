@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Modified for Maxit, 2026-10-20. -->
+<component type="desktop-application">
+  <id>com.maximiliano.maxit</id>
+
+  <name>Maxit</name>
+  <summary>AI assistant powered by Ollama, Gemini, ChatGPT and more</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+
+  <developer id="com.maximiliano">
+    <name>Maximiliano</name>
+  </developer>
+
+  <description>
+    <p>
+      Maxit is an AI assistant that connects to multiple AI services including
+      Ollama, Google Gemini, OpenAI ChatGPT, Anthropic Claude, Mistral, Groq,
+      OpenRouter, and any OpenAI-compatible API.
+    </p>
+    <p>Maxit is a GPL-3.0-only derivative of Kai by Simon Schubert and contributors. The upstream Apache-2.0 license and attribution notices are retained.</p>
+    <p>Android, Linux, and Web are maintained. Windows, macOS, and iOS are retained source-only targets.</p>
+    <p>Features:</p>
+    <ul>
+      <li>Chat with multiple AI providers from a single app</li>
+      <li>Run local AI models via Ollama</li>
+      <li>Text-to-speech support</li>
+      <li>Image attachments and analysis</li>
+      <li>Customizable system prompts</li>
+      <li>Multiple conversation management</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.maximiliano.maxit.desktop</launchable>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#e8f5e9</color>
+    <color type="primary" scheme_preference="dark">#1b5e20</color>
+  </branding>
+
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">moderate</content_attribute>
+  </content_rating>
+
+  <requires>
+    <internet>always</internet>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+</component>
