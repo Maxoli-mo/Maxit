@@ -1,4 +1,4 @@
-# Modified for Maxit, 2026-10-20.
+# Modified for Maxit, 2026-10-21: install generated Weft artwork.
 # Original packaging: Simon Schubert <sschubert89@gmail.com>
 # Upstream: https://github.com/SimonSchubert/Kai
 # Local Maxit packaging; no public fork release or AUR listing is assumed.
@@ -16,8 +16,8 @@ options=('!strip')
 
 # Stage the distributable and license notices as described in aur/README.md.
 # The archive is a local artifact, not an upstream Kai download.
-source=("Maxit-${pkgver}-linux-x86_64.tar.gz")
-sha256sums=('SKIP')
+source=("Maxit-${pkgver}-linux-x86_64.tar.gz" 'maxit.svg')
+sha256sums=('SKIP' 'SKIP')
 
 package() {
     # Install application files
@@ -45,13 +45,8 @@ StartupWMClass=compose-window
 Terminal=false
 EOF
 
-    # Install icon
-    install -Dm644 /dev/stdin "${pkgdir}/usr/share/icons/hicolor/scalable/apps/com.maximiliano.maxit.svg" << 'EOF'
-<svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
-   <circle cx="35" cy="45" r="30" fill="#6200ee" />
-   <circle cx="55" cy="45" r="30" fill="#8063C5" />
-</svg>
-EOF
+    # App artwork, kept in sync with composeApp/icon.svg.
+    install -Dm644 "${srcdir}/maxit.svg" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/com.maximiliano.maxit.svg"
 
     # Preserve the fork license, upstream Apache license, and attribution notices.
     install -Dm644 "${srcdir}/Maxit/LICENSE.txt" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.txt"

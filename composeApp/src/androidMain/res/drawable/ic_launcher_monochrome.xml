@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Replaced for Maxit with approved Weft artwork, 2026-10-21. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+  <group android:scaleX="0.3" android:scaleY="0.3" android:translateX="15.6" android:translateY="15.6">
+    <path android:fillColor="#FFFFFF" android:pathData="M48 64H176V96H112V128H80V160H48Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M208 192H80V160H144V128H176V96H208Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M96 112H160V144H96Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M112 112H144V144H112Z"/>
+  </group>
+</vector>

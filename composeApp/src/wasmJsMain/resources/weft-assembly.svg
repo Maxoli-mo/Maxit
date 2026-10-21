@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title"><title id="title">Maxit — block assembly</title>
+<style>
+.part-left { animation: weft-left 2400ms steps(1, end) infinite; }
+@keyframes weft-left { 0% { transform: translate(0px, 0px); } 30% { transform: translate(0px, 0px); } 35% { transform: translate(0px, 0px); } 40% { transform: translate(0px, 0px); } 45% { transform: translate(-8px, 0px); } 50% { transform: translate(-16px, 0px); } 60% { transform: translate(-8px, 0px); } 65% { transform: translate(0px, 0px); } 70% { transform: translate(0px, 0px); } 75% { transform: translate(0px, 0px); } 80% { transform: translate(0px, 0px); } 100% { transform: translate(0px, 0px); } }
+.part-right { animation: weft-right 2400ms steps(1, end) infinite; }
+@keyframes weft-right { 0% { transform: translate(0px, 0px); } 30% { transform: translate(0px, 0px); } 35% { transform: translate(0px, 0px); } 40% { transform: translate(0px, 0px); } 45% { transform: translate(8px, 0px); } 50% { transform: translate(16px, 0px); } 60% { transform: translate(8px, 0px); } 65% { transform: translate(0px, 0px); } 70% { transform: translate(0px, 0px); } 75% { transform: translate(0px, 0px); } 80% { transform: translate(0px, 0px); } 100% { transform: translate(0px, 0px); } }
+.part-key { animation: weft-key 2400ms steps(1, end) infinite; }
+@keyframes weft-key { 0% { transform: translate(0px, 0px); } 30% { transform: translate(0px, -8px); } 35% { transform: translate(0px, -16px); } 40% { transform: translate(0px, -24px); } 45% { transform: translate(0px, -24px); } 50% { transform: translate(0px, -24px); } 60% { transform: translate(0px, -24px); } 65% { transform: translate(0px, -24px); } 70% { transform: translate(0px, -16px); } 75% { transform: translate(0px, -8px); } 80% { transform: translate(0px, 0px); } 100% { transform: translate(0px, 0px); } }
+@media (prefers-reduced-motion: reduce) { .part-left, .part-right, .part-key { animation: none; } }
+</style><rect width="256" height="256" rx="64" fill="#E9E2FA"/><g class="part-left"><path fill="#643CAF" d="M48 64H176V96H112V128H80V160H48Z"/></g>
+<g class="part-right"><path fill="#9471D3" d="M208 192H80V160H144V128H176V96H208Z"/></g>
+<path fill="#643CAF" d="M96 112H160V144H96Z"/>
+<g class="part-key"><path fill="#B79AE6" d="M112 112H144V144H112Z"/></g>
+</svg>

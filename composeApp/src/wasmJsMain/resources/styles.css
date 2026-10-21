@@ -1,3 +1,4 @@
+/* Modified for Maxit, 2026-10-21: replace spinner with Weft's pixel-grid assembly. */
 html, body {
     width: 100%;
     height: 100%;
@@ -21,15 +22,8 @@ html, body {
     height: 100vh;
 }
 
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(128, 128, 128, 0.3);
-    border-top-color: #888;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
+.weft-logo {
+    display: block;
+    width: 96px;
+    height: 96px;
 }

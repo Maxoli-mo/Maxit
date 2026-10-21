@@ -23,6 +23,8 @@ The archive must contain `Maxit/bin/Maxit`, its application/runtime files, and t
 
 Keep any notices already included in the distributable. The package also installs the four files above under `/usr/share/licenses/maxit-bin/`.
 
+Keep `aur/maxit.svg` beside `PKGBUILD`; it is the second local source and replaces the old embedded icon. When deliberately updating the app artwork, keep it synchronized with `composeApp/icon.svg`.
+
 From `aur/`, inspect metadata without building or installing:
 
 ```bash
@@ -35,4 +37,4 @@ When changing `PKGBUILD`, regenerate `.SRCINFO` with the modification notice:
 { printf '# Modified for Maxit, 2026-10-20.\n'; makepkg --printsrcinfo; } > .SRCINFO
 ```
 
-To build the local package, run `makepkg` from `aur/` after staging. `SKIP` is intentional for this locally generated archive; it provides no integrity check. Before distributing a fixed artifact, replace it with that archive's SHA-256 checksum and regenerate `.SRCINFO`. Complete the [Linux smoke test](../docs/desktop-release-smoketest.md) before distributing packages.
+To build the local package, run `makepkg` from `aur/` after staging. `SKIP` is intentional for the local archive and icon; it provides no integrity check. Before distributing fixed artifacts, replace both entries with their SHA-256 checksums and regenerate `.SRCINFO`. Complete the [Linux smoke test](../docs/desktop-release-smoketest.md) before distributing packages.

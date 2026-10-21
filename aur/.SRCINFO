@@ -1,4 +1,4 @@
-# Modified for Maxit, 2026-10-20.
+# Modified for Maxit, 2026-10-21.
 pkgbase = maxit-bin
 	pkgdesc = AI assistant powered by Ollama, Gemini, ChatGPT and more
 	pkgver = 3.3.0
@@ -10,6 +10,8 @@ pkgbase = maxit-bin
 	conflicts = maxit
 	options = !strip
 	source = Maxit-3.3.0-linux-x86_64.tar.gz
+	source = maxit.svg
+	sha256sums = SKIP
 	sha256sums = SKIP
 
 pkgname = maxit-bin

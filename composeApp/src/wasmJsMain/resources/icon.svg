@@ -1,4 +1,6 @@
-<svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
-   <circle cx="35" cy="45" r="30" fill="#6200ee" />
-   <circle cx="55" cy="45" r="30" fill="#8063C5" />
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title"><title id="title">Maxit — rounded app icon</title>
+<rect width="256" height="256" rx="64" fill="#E9E2FA"/><path fill="#643CAF" d="M48 64H176V96H112V128H80V160H48Z"/>
+<path fill="#9471D3" d="M208 192H80V160H144V128H176V96H208Z"/>
+<path fill="#643CAF" d="M96 112H160V144H96Z"/>
+<path fill="#B79AE6" d="M112 112H144V144H112Z"/>
 </svg>

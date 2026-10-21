@@ -68,7 +68,7 @@ class ModelDownloadService : Service() {
         return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.download_notification_text))
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setProgress(100, 0, true)

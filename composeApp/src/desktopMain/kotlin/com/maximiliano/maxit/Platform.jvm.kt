@@ -202,8 +202,9 @@ actual fun sendHeartbeatNotification(title: String, body: String) {
             Platform.Desktop.Windows -> {
                 if (!java.awt.SystemTray.isSupported()) return
                 val tray = java.awt.SystemTray.getSystemTray()
-                // 1×1 transparent placeholder — Windows auto-supplies a fallback icon for the toast.
-                val image = java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+                // Keep notifications working even if the packaged artwork cannot be loaded.
+                val image = DesktopNotificationIcon.image
+                    ?: java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
                 val trayIcon = java.awt.TrayIcon(image, "Maxit")
                 trayIcon.isImageAutoSize = true
                 tray.add(trayIcon)
@@ -217,11 +218,42 @@ actual fun sendHeartbeatNotification(title: String, body: String) {
             }
 
             Platform.Desktop.Linux -> {
+                val command = mutableListOf("notify-send")
+                DesktopNotificationIcon.file?.let { command.addAll(listOf("--icon", it.absolutePath)) }
                 // `--` terminator prevents a title or body starting with `-` from being parsed as a flag.
-                ProcessBuilder("notify-send", "--", title, body).start()
+                command.addAll(listOf("--", title, body))
+                ProcessBuilder(command).start()
             }
         }
     } catch (_: Exception) {
         // notify-send missing, AWT headless, sandboxed osascript, etc. — fall back silently.
+    }
+}
+
+private object DesktopNotificationIcon {
+    // Classpath lookup works both in packaged apps and development runs. Loaded on the
+    // caller's background dispatcher, without changing the notification API or scope.
+    val image: java.awt.image.BufferedImage? by lazy {
+        try {
+            javaClass.getResourceAsStream("/maxit-notification.png")?.use {
+                javax.imageio.ImageIO.read(it)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // notify-send needs a real file, including when the resource lives inside a JAR.
+    // Keep one copy until JVM exit so the notification daemon can read it asynchronously.
+    val file: File? by lazy {
+        try {
+            image?.let { icon ->
+                File.createTempFile("maxit-notification-", ".png")
+                    .also { it.deleteOnExit() }
+                    .takeIf { javax.imageio.ImageIO.write(icon, "png", it) }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 }

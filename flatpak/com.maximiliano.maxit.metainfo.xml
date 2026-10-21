@@ -35,8 +35,8 @@
   <launchable type="desktop-id">com.maximiliano.maxit.desktop</launchable>
 
   <branding>
-    <color type="primary" scheme_preference="light">#e8f5e9</color>
-    <color type="primary" scheme_preference="dark">#1b5e20</color>
+    <color type="primary" scheme_preference="light">#E9E2FA</color>
+    <color type="primary" scheme_preference="dark">#643CAF</color>
   </branding>
 
   <content_rating type="oars-1.1">

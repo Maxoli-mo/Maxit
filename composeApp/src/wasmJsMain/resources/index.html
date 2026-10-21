@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-21: Weft branding and accessible startup animation. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,8 +12,8 @@
     <script type="application/javascript" src="composeApp.js" defer></script>
 </head>
 <body>
-<div id="loader">
-    <div class="spinner"></div>
+<div id="loader" role="status" aria-label="Loading Maxit">
+    <img class="weft-logo" src="weft-assembly.svg" alt="" width="96" height="96" aria-hidden="true">
 </div>
 </body>
 </html>

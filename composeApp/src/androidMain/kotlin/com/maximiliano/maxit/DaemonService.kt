@@ -79,7 +79,7 @@ class DaemonService : Service() {
         return builder
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.daemon_notification_text))
-            .setSmallIcon(android.R.drawable.ic_popup_sync)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()

@@ -1,9 +1,11 @@
-# Modified for Maxit, 2026-10-20.
+# Modified for Maxit, 2026-10-21: Weft documentation logo and favicon.
 site_name: Maxit Documentation
 site_description: Documentation for the Maxit FOSS AI assistant
 
 theme:
   name: material
+  logo: assets/weft-white.svg
+  favicon: assets/favicon.png
   palette:
     - scheme: default
       primary: deep purple

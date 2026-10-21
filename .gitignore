@@ -70,3 +70,6 @@ signing.properties
 /opencode.jsonc
 /.aider*
 /*.log
+
+# Standalone design sources and deliverables live outside the app repository.
+/design/

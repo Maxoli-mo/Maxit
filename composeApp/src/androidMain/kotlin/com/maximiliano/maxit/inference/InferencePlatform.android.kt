@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.StatFs
 import androidx.core.content.ContextCompat
+import com.maximiliano.maxit.shared.R
 import org.koin.java.KoinJavaComponent.inject
 
 private val context: Context by inject(Context::class.java)
@@ -51,7 +52,7 @@ actual fun updateDownloadNotificationProgress(percent: Int) {
         val notification = builder
             .setContentTitle(context.getString(com.maximiliano.maxit.shared.R.string.app_name))
             .setContentText("$percent%")
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setProgress(100, percent, false)
             .build()
