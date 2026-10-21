@@ -57,6 +57,8 @@ import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
+import platform.Foundation.NSFileType
+import platform.Foundation.NSFileTypeRegular
 import platform.Foundation.NSNumber
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.timeIntervalSince1970
@@ -264,11 +266,32 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
 
     private data class ImportedScan(val model: LocalModel, val path: String, val sizeBytes: Long)
 
+    private fun scanRetiredModels(): List<RetiredModelFile> {
+        val fileManager = NSFileManager.defaultManager
+        return discoverRetiredLocalModels(
+            modelsDir = getModelStorageDirectory(),
+            fileSize = { path ->
+                val attrs = fileManager.attributesOfItemAtPath(path, null)
+                if (attrs?.get(NSFileType) == NSFileTypeRegular) {
+                    (attrs[NSFileSize] as? NSNumber)?.longLongValue
+                } else {
+                    null
+                }
+            },
+            moveDirectory = { source, destination ->
+                fileManager.createDirectoryAtPath(destination.substringBeforeLast('/'), true, null, null)
+                // NSFileManager refuses an existing destination; never remove it to make room.
+                fileManager.moveItemAtPath(source, destination, null)
+            },
+        )
+    }
+
     private fun scanImportedModels(): List<ImportedScan> {
+        val retired = scanRetiredModels().map { ImportedScan(it.model, it.path, it.model.sizeBytes) }
         val importsDir = "${getModelStorageDirectory()}/$IMPORTS_DIR"
         val fileManager = NSFileManager.defaultManager
-        val contents = fileManager.contentsOfDirectoryAtPath(importsDir, null) as? List<*> ?: return emptyList()
-        return contents.mapNotNull { nameObj ->
+        val contents = fileManager.contentsOfDirectoryAtPath(importsDir, null) as? List<*> ?: return retired
+        return retired + contents.mapNotNull { nameObj ->
             val name = nameObj as? String ?: return@mapNotNull null
             if (!isLitertlmExtension(name) || name.endsWith(".tmp") || name.endsWith(".importing")) {
                 return@mapNotNull null
@@ -511,7 +534,13 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
             }
             val modelsDir = getModelStorageDirectory()
             val fileManager = NSFileManager.defaultManager
-            if (isCustomModelId(modelId)) {
+            if (RETIRED_LOCAL_MODELS.any { it.id == modelId }) {
+                scanRetiredModels().find { it.model.id == modelId }?.let { retired ->
+                    if (fileManager.removeItemAtPath(retired.path, null)) {
+                        fileManager.removeItemAtPath("${retired.path}.sha256", null)
+                    }
+                }
+            } else if (isCustomModelId(modelId)) {
                 val importsDir = "$modelsDir/$IMPORTS_DIR"
                 val contents = fileManager.contentsOfDirectoryAtPath(importsDir, null) as? List<*>
                 contents?.mapNotNull { it as? String }?.forEach { name ->

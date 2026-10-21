@@ -2,7 +2,7 @@
 
 # On-Device Inference (LiteRT)
 
-**Last verified:** 2026-10-20
+**Last verified:** 2026-10-21
 
 Maxit can run AI models directly on the user's device using Google's LiteRT LM SDK. Once a model is downloaded, inference requires no API key or network connection. The maintained targets for local inference are **Android** and **Linux desktop**. The iOS, macOS, and Windows implementations described below are retained source only.
 
@@ -72,7 +72,6 @@ If the engine throws (e.g. the model does emit malformed tool-call syntax that t
 - **Not available on web** -- the WASM build returns no local engine. iOS uses a platform-specific LiteRT bridge rather than the Android/JVM AAR.
 - **Requires a 64-bit device (Android)** -- the LiteRT-LM AAR only ships `arm64-v8a` and `x86_64` native libraries. On pure 32-bit devices (armeabi-v7a), the LiteRT service card is hidden; the app still works with remote services.
 - **Requires AVX2 on x86_64 Linux** -- the LiteRT native binary is compiled with AVX2+ instructions, so older CPUs (e.g. Intel Ivy Bridge / 3rd-gen Core) would SIGILL on model load. On Linux desktop, the engine probes `/proc/cpuinfo` for the `avx2` flag and hides the LiteRT service card when missing. Remote services are unaffected.
-- **Legacy LFM2.5 downloads are not migrated** -- removing this model from the download catalog does not delete existing files. If you reuse an older Kai data directory, its LFM download can remain on disk without appearing in model management. A saved selection can fall back to another downloaded model or report that no model is available. Back up existing data before migration; fresh Maxit installations are unaffected.
 
 ## Model Management
 
@@ -87,6 +86,8 @@ Users manage models through the LiteRT service card in Settings:
 - **Context size slider** -- each model has a slider to adjust context size (starting at the model's default up to its maximum, in 1K steps); available before download so users can preview performance impact. Gemma 4 12B defaults to 8K (higher than the 4K default used for the smaller E2B/E4B models). Imported custom models default to 4K (max 32K). A model whose maximum equals its default shows a size label without a slider
 - **Performance indicator** -- each model shows a Good/OK/Poor label based on total device RAM vs estimated resident memory at the selected context size. The estimate sums the model file size (proxy for resident weights after mmap/PLE), a per-model baseline for GPU/KV working memory, and a per-token KV cache cost that scales with context. Thresholds: Good >= 2.5x, OK >= 1.85x, Poor < 1.85x of total device RAM -- the extra headroom over 1x accounts for OS reservation and GPU-driver overhead. Custom imports use a size-based heuristic for the GPU baseline
 - **Free space** -- available device storage is shown below the model list
+
+**Legacy LFM2.5 files:** existing downloads and filename-matched imports from older installations are moved, with their marker files, into a dedicated subdirectory under imported-model storage when models are discovered. The saved model selection, context settings, and 4K-token limit are preserved. Existing import files are never overwritten. If the destination is occupied or moving fails, the original remains available for selection and deletion; discovery can retry later. This compatibility path does not restore a download offer for the removed model.
 
 On Android, downloads run in a foreground service with a notification so they continue when the app is backgrounded. The service is only started once the HTTP connection is established, so a pre-connection failure (e.g. offline) surfaces as an inline error without leaving a promised-but-unfulfilled foreground service. On Desktop, downloads run in a background coroutine. Import always copies into app storage (same pattern as Gallery / PocketPal); Maxit cannot silently scan other apps' private model directories.
 
@@ -131,6 +132,9 @@ When the last LiteRT service instance is removed, all downloaded and imported mo
 | `composeApp/src/commonMain/.../inference/LocalModelCatalog.kt` | Bundled model list (pinned revisions, expected digests, sizes, GPU baselines, context defaults) and digest-comparison helpers |
 | `composeApp/src/commonTest/.../inference/LocalModelCatalogTest.kt` | Checks immutable download URLs, digest format, sizes, and catalog invariants |
 | `composeApp/src/commonMain/.../inference/LocalModelImport.kt` | Import path helpers, custom model id/filename sanitization, synthetic metadata |
+| `composeApp/src/commonMain/.../inference/LocalModelMigration.kt` | Retired-model compatibility metadata and id-preserving migration/discovery |
+| `composeApp/src/jvmShared/.../inference/LocalModelMigration.jvmShared.kt` | Non-overwriting filesystem move for Android and desktop |
+| `composeApp/src/desktopTest/.../inference/LocalModelMigrationTest.kt` | File/marker preservation, collision, failure, and repeat-discovery tests |
 | `composeApp/src/commonMain/.../inference/InferencePlatform.kt` | `expect` declarations for platform-specific operations |
 | `composeApp/src/commonMain/.../inference/LocalInferenceEngineProvider.kt` | `expect` factory, returns `null` on unsupported platforms |
 | `composeApp/src/jvmShared/.../inference/LiteRTInferenceEngine.kt` | Shared Android+Desktop implementation wrapping LiteRT LM SDK |

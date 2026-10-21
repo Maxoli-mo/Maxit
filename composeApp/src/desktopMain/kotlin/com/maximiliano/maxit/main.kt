@@ -5,13 +5,14 @@
 
 package com.maximiliano.maxit
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -26,16 +27,9 @@ import org.jetbrains.compose.resources.painterResource
 
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
-    // Help AWT/Skiko pick up HiDPI on Linux/Wayland (Sway, GNOME fractional scaling).
-    // Without this, the JVM ignores GDK_SCALE and renders at 1× on a hi-res monitor.
-    if (System.getProperty("sun.java2d.uiScale.enabled") == null) {
-        System.setProperty("sun.java2d.uiScale.enabled", "true")
-    }
-    if (System.getProperty("sun.java2d.uiScale") == null) {
-        System.setProperty("sun.java2d.uiScale", "auto")
-    }
     application {
-        val windowState = rememberWindowState(size = DpSize(1280.dp, 800.dp))
+        val display = remember { desktopDisplay() }
+        val windowState = rememberWindowState(size = display.windowSize)
         Window(
             onCloseRequest = ::exitApplication,
             state = windowState,
@@ -51,11 +45,15 @@ fun main() {
                 null
             }
 
-            val navController = rememberNavController()
-            App(
-                navController = navController,
-                textToSpeech = textToSpeech,
-            )
+            val nativeDensity = LocalDensity.current
+            val density = Density(display.scaleFor(nativeDensity.density), nativeDensity.fontScale)
+            CompositionLocalProvider(LocalDensity provides density) {
+                val navController = rememberNavController()
+                App(
+                    navController = navController,
+                    textToSpeech = textToSpeech,
+                )
+            }
         }
     }
 }

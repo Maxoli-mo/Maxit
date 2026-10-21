@@ -518,7 +518,7 @@ class RemoteDataRepository(
             ?: downloadedModels.firstOrNull()
             ?: throw NoModelDownloadedException()
 
-        val catalogModel = engine.getAvailableModels().find { it.id == model.id }
+        val catalogModel = (engine.getAvailableModels() + engine.getImportedLocalModels()).find { it.id == model.id }
         val storedContext = appSettings.getModelContextTokens(model.id)
         val contextTokens = if (storedContext > 0) storedContext else catalogModel?.defaultContextTokens ?: 0
 

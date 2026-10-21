@@ -15,7 +15,10 @@ Use JDK 21 and the included Gradle wrapper. Install the Android SDK and configur
 ./gradlew :androidApp:assembleFossDebug
 
 # Linux desktop
-./gradlew :composeApp:run
+./gradlew run
+
+# Optimized desktop release (slower build)
+./gradlew runRelease
 
 # Web development server
 ./gradlew :composeApp:wasmJsBrowserDevelopmentRun
@@ -24,8 +27,10 @@ Use JDK 21 and the included Gradle wrapper. Install the Android SDK and configur
 ./gradlew :composeApp:wasmJsBrowserDistribution
 
 # Desktop unit tests and formatting checks
-./gradlew :composeApp:desktopTest spotlessCheck
+./gradlew desktopTest spotlessCheck
 ```
+
+Use `./gradlew run` for everyday desktop development; it avoids release optimization. An optional Bash wrapper also provides `./run`, `./run test`, `./run check`, `./run web`, and `./run release`. Run `./run help` for usage; additional arguments after a subcommand are forwarded to Gradle.
 
 Android screenshot golden images are not tracked: `screenshotTests/src/test/snapshots/images/` is ignored. On a fresh checkout, first run `./gradlew :screenshotTests:recordPaparazziDebug` and inspect the generated images. Then run `./gradlew :screenshotTests:verifyPaparazziDebug` to compare subsequent changes against that local baseline. Recording and immediately verifying only checks the newly recorded baseline; it does not establish regression coverage against an earlier release. Preserve reviewed images separately for repeatable comparisons. Re-record only for deliberate UI changes. Add `-PincludeLocalizedScreenshots` to either command to include the localized fixture matrix.
 

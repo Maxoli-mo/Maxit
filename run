@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command="${1-desktop}"
+if (( $# > 0 )); then
+    shift
+fi
+
+case "$command" in
+    desktop)
+        set -- :composeApp:desktopRun -DmainClass=com.maximiliano.maxit.MainKt "$@"
+        ;;
+    release)
+        set -- :composeApp:runRelease "$@"
+        ;;
+    test)
+        set -- :composeApp:desktopTest "$@"
+        ;;
+    check)
+        set -- spotlessCheck "$@"
+        ;;
+    web)
+        set -- :composeApp:wasmJsBrowserDevelopmentRun "$@"
+        ;;
+    help|-h|--help)
+        cat <<'EOF'
+Usage: ./run [desktop|release|test|check|web|help] [Gradle arguments...]
+  desktop  Run desktop (default)
+  release  Run optimized desktop release (slow build)
+  test     Run desktop tests
+  check    Check formatting
+  web      Run web development server
+  help     Show this help
+EOF
+        exit 0
+        ;;
+    *)
+        printf 'Unknown command: %s\nRun ./run help for usage.\n' "$command" >&2
+        exit 2
+        ;;
+esac
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+exec ./gradlew "$@"

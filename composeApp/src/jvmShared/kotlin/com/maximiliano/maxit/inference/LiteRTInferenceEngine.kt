@@ -401,9 +401,10 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
     }
 
     private fun scanImportedModels(modelsDir: File): List<Pair<LocalModel, File>> {
+        val retired = discoverRetiredLocalModels(modelsDir).map { it.model to File(it.path) }
         val importsDir = File(modelsDir, IMPORTS_DIR)
-        if (!importsDir.isDirectory) return emptyList()
-        return importsDir.listFiles()
+        if (!importsDir.isDirectory) return retired
+        return retired + importsDir.listFiles()
             ?.filter { it.isFile && isLitertlmExtension(it.name) && !it.name.endsWith(".tmp") && !it.name.endsWith(".importing") }
             ?.sortedBy { it.name.lowercase() }
             ?.map { file ->
@@ -684,7 +685,14 @@ class LiteRTInferenceEngine : LocalInferenceEngine {
                 release()
             }
             val modelsDir = File(getModelStorageDirectory())
-            if (isCustomModelId(modelId)) {
+            if (RETIRED_LOCAL_MODELS.any { it.id == modelId }) {
+                discoverRetiredLocalModels(modelsDir).find { it.model.id == modelId }?.let { retired ->
+                    val file = File(retired.path)
+                    if (file.delete()) {
+                        File(file.parentFile, digestMarkerFileName(file.name)).delete()
+                    }
+                }
+            } else if (isCustomModelId(modelId)) {
                 val fileName = modelId.removePrefix(CUSTOM_MODEL_ID_PREFIX) + ".litertlm"
                 File(modelsDir, "$IMPORTS_DIR/$fileName").delete()
                 // Also remove any collision-suffixed match by id→filename from scan

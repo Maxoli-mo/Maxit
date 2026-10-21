@@ -2,7 +2,7 @@
 
 # Appearance
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-21
 
 Maxit has a four-way theme picker — **System**, **Light**, **Dark**, and **OLED** — exposed in Settings on every platform. The default is System, which follows the operating system's dark/light preference. The other three force a specific theme regardless of system state. Dark uses a soft dark background (`#121212`) with slightly lighter surfaces (`#1E1E1E`); OLED flattens the background and the lowest surface tier to pure black (`#000000`) for users who want to save power on OLED panels.
 
@@ -17,6 +17,7 @@ Cards, dialogs, bottom sheets, and menus stay visually lifted in either dark var
 - **Material You (Android 12+)**: the full wallpaper-derived light/dark schemes replace Maxit's built-in palettes, so on these devices Dark uses the dynamic dark background and surfaces rather than `#121212` / `#1E1E1E`. When OLED is selected, the black override is layered on top of the dynamic dark scheme so accents and buttons continue to track the wallpaper. Older Android versions and all other platforms use Maxit's built-in purple-accented palettes.
 - **System bars (Android)**: status and navigation bars are transparent (edge-to-edge); their icon style follows the resolved theme — Dark and OLED always get light icons, Light always gets dark icons, System follows the OS.
 - **Reactivity**: changing the theme picker recomposes the theme immediately without an app restart.
+- **Desktop sizing**: the initial window targets 1100×720 logical units and fits within the available screen. Content follows the current monitor's native density rather than retaining the startup monitor's scale. On Linux, explicit `GDK_SCALE` / `GDK_DPI_SCALE` values take precedence over automatic Xft hints; Xft compensates only when native HiDPI detection is missing. Display scaling remains separate from the saved in-app zoom.
 
 The picker exists on every platform because system theme detection is unreliable on some desktop window systems (notably Linux/Wayland), so users there need an explicit override.
 
@@ -37,4 +38,6 @@ Many cards (settings list items, service/MCP/skill/tool cards, the heartbeat and
 | `androidApp/.../MainActivity.kt` | Android entry — supplies dynamic-color light/dark schemes; the resolved `isDarkTheme` (from `themeMode` + system) drives the system-bar icon style |
 | `androidApp/.../res/values-night/styles.xml` | Pre-Compose window background set to `#FF121212` to match the default dark frame |
 | `composeApp/.../iosMain/.../MainViewController.kt` | iOS entry — uses common `App` defaults |
-| `composeApp/.../desktopMain/.../main.kt` | Desktop entry — uses common `App` defaults; also configures HiDPI hints and an initial 1280×800 `WindowState` so the window opens at a usable size on Linux/Wayland |
+| `composeApp/.../desktopMain/.../main.kt` | Desktop entry — applies display hints to the current window density |
+| `composeApp/.../desktopMain/.../DesktopDisplay.kt` | Environment/Xft precedence and screen-fitting initial window dimensions |
+| `composeApp/.../desktopTest/.../DesktopDisplayTest.kt` | Density override, monitor-transition, and window-size regression tests |
