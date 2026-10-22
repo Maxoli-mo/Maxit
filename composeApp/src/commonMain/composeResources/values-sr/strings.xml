@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Уреди успомену</string>
     <string name="settings_memories_edit_save">Сачувај</string>
     <string name="settings_memories_edit_cancel">Откажи</string>
-    <string name="settings_soul">Душа</string>
-    <string name="settings_soul_description">Дефинишите како се АИ понаша са системским упитом. АИ ће такође имати приступ својим сачуваним успоменама.</string>
     <string name="settings_soul_save">Сачувај</string>
-    <string name="default_soul">Ниси chatbot. Ти си лични асистент који расте заједно са својим корисником.\n\n## Како бити\n\n**Буди истински користан.** Прескочи „Одлично питање!" и „Радо ћу помоћи!" — само помози. Дела говоре гласније од речи пуниоца.\n\n**Имај мишљења.** Можеш да се не слажеш, да преферираш ствари или да нешто нађеш занимљивим. Асистент без личности је само претраживач са додатним корацима.\n\n**Буди сналажљив.** Покушај да разумеш из контекста и својих успомена пре него што питаш. Врати се са одговорима, а не са питањима.\n\n**Буди сажет.** Кратко и јасно по подразумеваном. Иди дубље када тема то захтева.\n\n## Границе\n\n- Поштуј приватност. Не понављај осетљиве информације непотребно.\n- Питај прво ако си несигуран у вези неке радње.\n- Буди искрен када нешто не знаш.</string>
     <string name="bot_message_regenerate_content_description">Поново генериши</string>
     <string name="error_empty_response">Није примљен одговор. Покушајте да започнете нови разговор или скратите поруку.</string>
     <string name="settings_daemon_mode">Режим демона</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Задаци које је АИ заказао за будуће извршавање. Замолите АИ да вас подсети или покрене нешто касније да бисте креирали заказане задатке.</string>
     <string name="settings_scheduled_tasks_cancel">Откажи задатак</string>
     <string name="settings_soul_reset">Ресетуј</string>
-    <string name="settings_soul_reset_confirm">Ово ће ресетовати душу на подразумевани системски упит. Да ли сте сигурни?</string>
     <string name="settings_soul_reset_cancel">Откажи</string>
     <string name="tool_schedule_task_name">Закажи задатак</string>
     <string name="tool_schedule_task_description">Закажи задатак за будуће извршавање</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Научи сећање</string>
     <string name="tool_memory_reinforce_description">Ојачај сећање које је дало добар резултат</string>
     <string name="tool_memory_reinforce_name">Ојачај сећање</string>
-    <string name="tool_promote_learning_description">Унапреди ојачано учење у системски промпт</string>
-    <string name="tool_promote_learning_name">Унапреди учење</string>
     <string name="tool_web_search_description">Претражи веб за актуелне информације</string>
     <string name="tool_open_url_name">Отвори URL</string>
     <string name="tool_open_url_description">Отворите URL или линк на уређају</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Замени сва постојећа подешавања</string>
     <string name="settings_import_replace_all_description">Неизабрани одељци биће враћени на подразумеване вредности.</string>
     <string name="settings_import_section_services">Сервиси</string>
-    <string name="settings_import_section_soul">Душа</string>
     <string name="settings_import_section_memory">Меморија</string>
     <string name="settings_import_section_scheduling">Заказивање</string>
     <string name="settings_import_section_heartbeat">Откуцај срца</string>

@@ -21,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -30,6 +31,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,9 +56,12 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.offsetAt
 import kotlinx.datetime.toLocalDateTime
 import maxit.composeapp.generated.resources.Res
-import maxit.composeapp.generated.resources.default_soul
 import maxit.composeapp.generated.resources.execution_log_status_fail
 import maxit.composeapp.generated.resources.execution_log_status_ok
+import maxit.composeapp.generated.resources.settings_agent_instructions
+import maxit.composeapp.generated.resources.settings_agent_instructions_description
+import maxit.composeapp.generated.resources.settings_agent_instructions_load_error
+import maxit.composeapp.generated.resources.settings_agent_instructions_reset_confirm
 import maxit.composeapp.generated.resources.settings_heartbeat_recent
 import maxit.composeapp.generated.resources.settings_memories
 import maxit.composeapp.generated.resources.settings_memories_all_title
@@ -69,11 +74,8 @@ import maxit.composeapp.generated.resources.settings_memories_show_all
 import maxit.composeapp.generated.resources.settings_scheduled_tasks
 import maxit.composeapp.generated.resources.settings_scheduled_tasks_cancel
 import maxit.composeapp.generated.resources.settings_scheduled_tasks_description
-import maxit.composeapp.generated.resources.settings_soul
-import maxit.composeapp.generated.resources.settings_soul_description
 import maxit.composeapp.generated.resources.settings_soul_reset
 import maxit.composeapp.generated.resources.settings_soul_reset_cancel
-import maxit.composeapp.generated.resources.settings_soul_reset_confirm
 import maxit.composeapp.generated.resources.settings_soul_save
 import maxit.composeapp.generated.resources.settings_task_details_consecutive_failures
 import maxit.composeapp.generated.resources.settings_task_details_created
@@ -94,7 +96,7 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
     StaggeredSettingsColumns(
         start = {
             SettingsCard {
-                SoulEditor(
+                AgentInstructionsEditor(
                     soulText = uiState.soulText,
                     onSaveSoul = actions.onSaveSoul,
                 )
@@ -190,13 +192,16 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
 }
 
 @Composable
-private fun SoulEditor(
+private fun AgentInstructionsEditor(
     soulText: String,
     onSaveSoul: (String) -> Unit,
 ) {
-    val localizedDefault = stringResource(Res.string.default_soul)
-    val displayText = soulText.ifEmpty { localizedDefault }
-    var editedText by remember(displayText) { mutableStateOf(displayText) }
+    val defaultInstructions by produceState<Result<String>?>(null) {
+        value = loadAgentInstructionsEditorDefault()
+    }
+    val defaultText = defaultInstructions?.getOrNull()
+    val displayText = selectAgentInstructionsEditorText(soulText, defaultInstructions)
+    var editedText by remember(displayText) { mutableStateOf(displayText.orEmpty()) }
     val hasChanges = editedText != displayText
     val maxChars = 4000
 
@@ -208,7 +213,7 @@ private fun SoulEditor(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = stringResource(Res.string.settings_soul),
+                text = stringResource(Res.string.settings_agent_instructions),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
@@ -216,6 +221,7 @@ private fun SoulEditor(
             if (soulText.isNotEmpty()) {
                 IconButton(
                     onClick = { showResetDialog = true },
+                    enabled = defaultText != null,
                     modifier = Modifier.handCursor(),
                 ) {
                     Icon(
@@ -227,11 +233,25 @@ private fun SoulEditor(
             }
         }
         Text(
-            text = stringResource(Res.string.settings_soul_description),
+            text = stringResource(Res.string.settings_agent_instructions_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
+
+        if (defaultInstructions?.isFailure == true) {
+            Text(
+                text = stringResource(Res.string.settings_agent_instructions_load_error),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (displayText == null) {
+            if (defaultInstructions == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            return@Column
+        }
 
         KaiOutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
@@ -241,7 +261,7 @@ private fun SoulEditor(
             maxLines = 8,
             label = {
                 Text(
-                    stringResource(Res.string.settings_soul),
+                    stringResource(Res.string.settings_agent_instructions),
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             },
@@ -266,17 +286,17 @@ private fun SoulEditor(
         }
     }
 
-    if (showResetDialog) {
+    if (showResetDialog && defaultText != null) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
             title = { Text(stringResource(Res.string.settings_soul_reset)) },
-            text = { Text(stringResource(Res.string.settings_soul_reset_confirm)) },
+            text = { Text(stringResource(Res.string.settings_agent_instructions_reset_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showResetDialog = false
                         onSaveSoul("")
-                        editedText = localizedDefault
+                        editedText = defaultText
                     },
                     modifier = Modifier.handCursor(),
                 ) {

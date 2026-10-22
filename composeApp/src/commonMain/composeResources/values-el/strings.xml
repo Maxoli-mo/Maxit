@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Επεξεργασία ανάμνησης</string>
     <string name="settings_memories_edit_save">Αποθήκευση</string>
     <string name="settings_memories_edit_cancel">Ακύρωση</string>
-    <string name="settings_soul">Ψυχή</string>
-    <string name="settings_soul_description">Ορίστε πώς συμπεριφέρεται η τεχνητή νοημοσύνη με ένα σύστημα prompt. Η τεχνητή νοημοσύνη θα έχει επίσης πρόσβαση στις αποθηκευμένες αναμνήσεις της.</string>
     <string name="settings_soul_save">Αποθήκευση</string>
-    <string name="default_soul">Δεν είσαι chatbot. Είσαι ένας προσωπικός βοηθός που μεγαλώνει μαζί με τον χρήστη σου.\n\n## Πώς να είσαι\n\n**Να είσαι πραγματικά χρήσιμος.** Παράλειψε το «Τέλεια ερώτηση!» και το «Χαίρομαι να βοηθήσω!» — απλά βοήθησε. Οι πράξεις μιλούν πιο δυνατά από τις λέξεις-γέμισμα.\n\n**Να έχεις απόψεις.** Επιτρέπεται να διαφωνείς, να προτιμάς πράγματα ή να βρίσκεις κάτι ενδιαφέρον. Ένας βοηθός χωρίς προσωπικότητα είναι απλά μια μηχανή αναζήτησης με επιπλέον βήματα.\n\n**Να είσαι πρακτικός.** Προσπάθησε να το καταλάβεις από το πλαίσιο και τις αναμνήσεις σου πριν ρωτήσεις. Επέστρεψε με απαντήσεις, όχι ερωτήσεις.\n\n**Να είσαι συνοπτικός.** Κοντό και σαφές από προεπιλογή. Πήγαινε πιο βαθιά όταν το θέμα το απαιτεί.\n\n## Όρια\n\n- Σεβάσου την ιδιωτικότητα. Μην επαναλαμβάνεις ευαίσθητες πληροφορίες χωρίς λόγο.\n- Όταν αμφιταλαντεύεσαι για μια ενέργεια, ρώτησε πρώτα.\n- Να είσαι ειλικρινής όταν δεν ξέρεις κάτι.</string>
     <string name="bot_message_regenerate_content_description">Αναδημιουργία</string>
     <string name="error_empty_response">Δεν ελήφθη απάντηση. Δοκιμάστε να ξεκινήσετε μια νέα συνομιλία ή να συντομεύσετε το μήνυμά σας.</string>
     <string name="settings_daemon_mode">Λειτουργία Daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Εργασίες προγραμματισμένες από την τεχνητή νοημοσύνη για μελλοντική εκτέλεση. Ζητήστε από την τεχνητή νοημοσύνη να σας υπενθυμίσει ή να εκτελέσει κάτι αργότερα για να δημιουργήσετε προγραμματισμένες εργασίες.</string>
     <string name="settings_scheduled_tasks_cancel">Ακύρωση εργασίας</string>
     <string name="settings_soul_reset">Επαναφορά</string>
-    <string name="settings_soul_reset_confirm">Αυτό θα επαναφέρει την ψυχή στο προεπιλεγμένο prompt συστήματος. Είστε σίγουροι;</string>
     <string name="settings_soul_reset_cancel">Ακύρωση</string>
     <string name="tool_schedule_task_name">Προγραμματισμός Εργασίας</string>
     <string name="tool_schedule_task_description">Προγραμματισμός εργασίας για μελλοντική εκτέλεση</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Εκμάθηση ανάμνησης</string>
     <string name="tool_memory_reinforce_description">Ενίσχυση μιας ανάμνησης που είχε καλό αποτέλεσμα</string>
     <string name="tool_memory_reinforce_name">Ενίσχυση ανάμνησης</string>
-    <string name="tool_promote_learning_description">Προαγωγή ενισχυμένης γνώσης στο prompt συστήματος</string>
-    <string name="tool_promote_learning_name">Προαγωγή γνώσης</string>
     <string name="tool_web_search_description">Αναζήτηση στο διαδίκτυο για τρέχουσες πληροφορίες</string>
     <string name="tool_open_url_name">Άνοιγμα URL</string>
     <string name="tool_open_url_description">Άνοιγμα URL ή συνδέσμου στη συσκευή</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Αντικατάσταση όλων των υπαρχουσών ρυθμίσεων</string>
     <string name="settings_import_replace_all_description">Οι μη επιλεγμένες ενότητες θα επαναφερθούν στις προεπιλογές.</string>
     <string name="settings_import_section_services">Υπηρεσίες</string>
-    <string name="settings_import_section_soul">Ψυχή</string>
     <string name="settings_import_section_memory">Μνήμη</string>
     <string name="settings_import_section_scheduling">Προγραμματισμός</string>
     <string name="settings_import_section_heartbeat">Παλμός</string>

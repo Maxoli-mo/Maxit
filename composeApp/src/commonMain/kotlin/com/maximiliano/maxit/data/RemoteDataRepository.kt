@@ -94,9 +94,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import maxit.composeapp.generated.resources.Res
-import maxit.composeapp.generated.resources.default_soul
-import org.jetbrains.compose.resources.getString
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Clock
@@ -114,6 +111,11 @@ private const val MAX_HEARTBEAT_MESSAGES = 50
 private const val ESTIMATED_CHARS_PER_TOKEN = 4
 private const val COMPACTION_THRESHOLD = 0.7 // Compact when history exceeds 70% of context window
 private const val COMPACTION_KEEP_RECENT = 4 // Number of recent user exchanges to keep verbatim
+
+internal fun fitsContextWindow(messages: List<History>, systemPrompt: String?, modelId: String): Boolean {
+    val requestChars = messages.sumOf { it.content.length.toLong() } + (systemPrompt?.length ?: 0)
+    return requestChars <= ModelCatalog.estimateContextWindow(modelId).toLong() * ESTIMATED_CHARS_PER_TOKEN
+}
 
 // Explicit allowlist of tools exposed to the on-device (LiteRT) model. We use a
 // hardcoded name list rather than a structural filter because small Gemma models hit
@@ -700,21 +702,26 @@ class RemoteDataRepository(
     private suspend fun askWithService(
         service: Service,
         messages: List<History>,
-        systemPrompt: String?,
         instanceId: String,
         history: MutableStateFlow<List<History>> = chatHistory,
     ): AssistantTurn {
+        val creds = instanceCredentials(instanceId, service)
+        // Build context for the actual dispatch target, not the primary provider before fallback.
+        val systemPrompt = buildActiveSystemPrompt(
+            variant = if (service.isOnDevice) SystemPromptVariant.CHAT_LOCAL else SystemPromptVariant.CHAT_REMOTE,
+            service = service,
+            modelId = if (service.isOnDevice) appSettings.getInstanceModelId(instanceId) else creds.modelId,
+        )
         if (service.isOnDevice) {
             // No retry: local-inference failures are deterministic, and this path mutates
             // chat history through tool execution, so a replay could re-run tools.
-            // Re-fetch the system prompt with the CHAT_LOCAL variant — the caller
-            // (`ask()`/`askWithTools()`) pre-fetched a CHAT_REMOTE prompt, but on-device
-            // needs the trimmed variant.
-            val localPrompt = getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL)
-            return AssistantTurn(askWithLocalEngine(messages, localPrompt, instanceId, history))
+            return AssistantTurn(askWithLocalEngine(messages, systemPrompt, instanceId, history))
         }
 
-        val creds = instanceCredentials(instanceId, service)
+        if (!fitsContextWindow(messages, systemPrompt, creds.modelId)) {
+            throw ContextWindowExceededException()
+        }
+
         val tools = if (supportsTools(creds.modelId)) getAvailableTools() else emptyList()
 
         if (tools.isEmpty()) {
@@ -935,41 +942,22 @@ class RemoteDataRepository(
         compactHistoryIfNeeded()
 
         val messages = chatHistory.value
-        val systemPrompt = getActiveSystemPrompt()
 
         val fallbackEntries = getOrderedFallbackEntries().filter { hasValidInstanceApiKey(it.instanceId, it.service) }
         if (fallbackEntries.isEmpty()) {
             throw GenericNetworkException("Configure a model provider in Settings before sending a message.")
         }
 
-        val historyChars = messages.sumOf { it.content.length } + (systemPrompt?.length ?: 0)
-
         var lastException: Exception? = null
         var fallbackServiceName: String? = null
 
         try {
             for ((index, entry) in fallbackEntries.withIndex()) {
-                // Skip fallback services whose context window is too small for the current history
-                // On-device models handle their own context limits, so skip this check for them
-                if (!entry.service.isOnDevice) {
-                    val creds = instanceCredentials(entry.instanceId, entry.service)
-                    val entryWindowChars = ModelCatalog.estimateContextWindow(creds.modelId) * ESTIMATED_CHARS_PER_TOKEN
-                    if (historyChars > entryWindowChars) {
-                        lastException = ContextWindowExceededException()
-                        _fallbackStatus.value = FallbackStatus(
-                            serviceName = entry.service.displayName,
-                            errorReason = ContextWindowExceededException().toUiError(),
-                            nextServiceName = fallbackEntries.getOrNull(index + 1)?.service?.displayName,
-                        )
-                        continue
-                    }
-                }
-
                 // No retry wrapper here: each network call retries inside askWithService.
                 // Retrying the whole call would re-enter the tool loop against a chat
                 // history already mutated by the failed attempt.
                 val turn = try {
-                    askWithService(entry.service, messages, systemPrompt, entry.instanceId)
+                    askWithService(entry.service, messages, entry.instanceId)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     // On-device services should not silently fall back — surface the error
@@ -1798,15 +1786,21 @@ class RemoteDataRepository(
 
     override suspend fun installGitHubSkill(owner: String, repo: String, ref: String, path: String): Result<SkillManifest> = skillManager.installFromGitHub(owner, repo, ref, path)
 
-    // Soul (system prompt)
+    // Agent instructions (legacy storage/API names retained for compatibility).
     override fun getSoulText(): String = appSettings.getSoulText()
 
     override fun setSoulText(text: String) {
         appSettings.setSoulText(text)
     }
 
-    override suspend fun getActiveSystemPrompt(variant: SystemPromptVariant): String? {
-        val soul = appSettings.getSoulText().ifEmpty { getString(Res.string.default_soul) }
+    override suspend fun getActiveSystemPrompt(variant: SystemPromptVariant): String? = buildActiveSystemPrompt(variant, currentService(), currentModelId())
+
+    private suspend fun buildActiveSystemPrompt(
+        variant: SystemPromptVariant,
+        service: Service,
+        modelId: String,
+    ): String? {
+        val soul = loadAgentInstructions(appSettings.getSoulText())
         val memoryEnabled = appSettings.isMemoryEnabled()
         val schedulingEnabled = appSettings.isSchedulingEnabled()
 
@@ -1841,20 +1835,6 @@ class RemoteDataRepository(
             emptyList()
         }
 
-        val service = currentService()
-        // On-device services store the active model ID per-instance, not globally, so
-        // `getSelectedModelId` comes back blank for LiteRT. Fall back to the first
-        // configured on-device instance's model ID in that case.
-        val modelId = appSettings.getSelectedModelId(service).ifBlank {
-            if (service.isOnDevice) {
-                getConfiguredServiceInstances()
-                    .firstOrNull { Service.fromId(it.serviceId).isOnDevice }
-                    ?.let { appSettings.getInstanceModelId(it.instanceId) }
-                    .orEmpty()
-            } else {
-                ""
-            }
-        }
         val now = Clock.System.now()
         val timeZone = TimeZone.currentSystemDefault()
         val localDateTime = now.toLocalDateTime(timeZone)
@@ -1869,11 +1849,6 @@ class RemoteDataRepository(
         )
 
         val isLimited = !supportsTools(modelId)
-        val uiMode = when {
-            interactiveModeFlag -> ChatPromptUiMode.INTERACTIVE_UI
-            appSettings.isDynamicUiEnabled() && !isLimited -> ChatPromptUiMode.DYNAMIC_UI
-            else -> ChatPromptUiMode.NONE
-        }
 
         // Tool-use guidance is only worth sending when the model is actually given tools.
         // Mirror the tool list the request will carry: remote uses the full set (when the
@@ -1900,7 +1875,6 @@ class RemoteDataRepository(
             heartbeatAdditions = heartbeatAdditions,
             emailAccounts = emailAccounts,
             runtime = runtime,
-            uiMode = uiMode,
             activeSkill = activeSkill,
         ).ifEmpty { null }
     }
@@ -2150,7 +2124,6 @@ class RemoteDataRepository(
             ?: return ""
         val service = Service.fromId(targetInstance.serviceId)
         val messages = listOf(History(role = History.Role.USER, content = prompt))
-        val systemPrompt = getActiveSystemPrompt()
         // Use a local history to avoid polluting the current conversation's chatHistory
         val localHistory = MutableStateFlow(messages)
         // When a conversation override is set (heartbeat / scheduled tasks), bind any
@@ -2160,10 +2133,10 @@ class RemoteDataRepository(
         // that chat's persistent bash session.
         return if (conversationIdOverride != null) {
             withContext(ConversationIdElement(conversationIdOverride)) {
-                askWithService(service, messages, systemPrompt, targetInstance.instanceId, localHistory).content
+                askWithService(service, messages, targetInstance.instanceId, localHistory).content
             }
         } else {
-            askWithService(service, messages, systemPrompt, targetInstance.instanceId, localHistory).content
+            askWithService(service, messages, targetInstance.instanceId, localHistory).content
         }
     }
 

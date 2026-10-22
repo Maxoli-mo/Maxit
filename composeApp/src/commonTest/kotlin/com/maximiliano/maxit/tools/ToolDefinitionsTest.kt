@@ -4,10 +4,13 @@ package com.maximiliano.maxit.tools
 
 import com.maximiliano.maxit.data.AppSettings
 import com.maximiliano.maxit.data.MemoryStore
+import com.maximiliano.maxit.data.TaskStore
+import com.maximiliano.maxit.mcp.McpServerManager
 import com.maximiliano.maxit.network.tools.Tool
 import com.russhwolf.settings.MapSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -44,6 +47,25 @@ class ToolDefinitionsTest {
     }
 
     @Test
+    fun learningPromotionIsAbsentFromEnabledToolsAndDefinitions() {
+        val appSettings = AppSettings(MapSettings()).apply {
+            setMemoryEnabled(true)
+            setSchedulingEnabled(true)
+        }
+        val toolNames = buildAgentToolSet(
+            appSettings = appSettings,
+            memoryStore = MemoryStore(appSettings),
+            taskStore = TaskStore(appSettings),
+            mcpServerManager = McpServerManager(appSettings),
+        ).map { it.schema.name }
+
+        assertFalse("promote_learning" in toolNames)
+        assertFalse("promote_learning" in definitionIds)
+        assertTrue(toolNames.containsAll(listOf("memory_store", "memory_forget", "memory_learn", "memory_reinforce")))
+        assertTrue("schedule_task" in toolNames)
+    }
+
+    @Test
     fun notificationToolDefinitionsAreRegistered() {
         val missing = NotificationTools.notificationToolDefinitions
             .map { it.id }
@@ -62,7 +84,6 @@ class ToolDefinitionsTest {
         // These are gated by a single switch in Settings → Agent, so the Tools tab must not
         // offer per-tool switches for them — nothing would read the value back.
         val masterToggled = SchedulingTools.schedulingToolDefinitions +
-            HeartbeatTools.heartbeatToolDefinitions +
             EmailTools.emailToolDefinitions +
             SmsTools.smsToolDefinitions +
             NotificationTools.notificationToolDefinitions

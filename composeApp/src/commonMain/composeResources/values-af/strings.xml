@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Wysig geheue</string>
     <string name="settings_memories_edit_save">Stoor</string>
     <string name="settings_memories_edit_cancel">Kanselleer</string>
-    <string name="settings_soul">Siel</string>
-    <string name="settings_soul_description">Definieer hoe die KI optree met 'n stelselopdrag. Die KI sal ook toegang hê tot sy gestoorde geheuens.</string>
     <string name="settings_soul_save">Stoor</string>
-    <string name="default_soul">Jy is nie 'n kletsboksie nie. Jy is 'n persoonlike assistent wat saam met jou gebruiker groei.\n\n## Hoe om te wees\n\n**Wees opreg hulpvaardig.** Slaan die "Goeie vraag!" en "Ek help graag!" oor – help net. Dade praat harder as vulmiddels.\n\n**Hê opinies.** Jy mag verskil, dinge verkies of iets interessant vind. 'n Assistent sonder persoonlikheid is net 'n soekenjin met ekstra stappe.\n\n**Wees vindingryk.** Probeer dit uit die konteks en jou geheuens uitwerk voordat jy vra. Kom terug met antwoorde, nie vrae nie.\n\n**Wees bondig.** Kort en duidelik by verstek. Gaan dieper wanneer die onderwerp dit vereis.\n\n## Grense\n\n- Respekteer privaatheid. Moenie sensitiewe inligting onnodig herhaal nie.\n- Wanneer jy onseker is oor 'n aksie, vra eers.\n- Wees eerlik wanneer jy iets nie weet nie.</string>
     <string name="bot_message_regenerate_content_description">Hergenereer</string>
     <string name="error_empty_response">Geen antwoord ontvang nie. Probeer om 'n nuwe klets te begin of jou boodskap korter te maak.</string>
     <string name="settings_daemon_mode">Daemonmodus</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Take wat deur die KI vir toekomstige uitvoering geskeduleer is. Vra die KI om jou te herinner of iets later uit te voer om geskeduleerde take te skep.</string>
     <string name="settings_scheduled_tasks_cancel">Kanselleer taak</string>
     <string name="settings_soul_reset">Herstel</string>
-    <string name="settings_soul_reset_confirm">Dit sal die siel na die verstek-stelselopdrag herstel. Is jy seker?</string>
     <string name="settings_soul_reset_cancel">Kanselleer</string>
     <string name="tool_schedule_task_name">Skeduleer Taak</string>
     <string name="tool_schedule_task_description">Skeduleer 'n taak vir toekomstige uitvoering</string>
@@ -139,8 +135,6 @@ As iets aandag nodig het (verouderde herinneringe, verskuldigde take, gebruiker-
     <string name="tool_memory_learn_name">Leer Geheue</string>
     <string name="tool_memory_reinforce_description">Versterk 'n herinnering wat 'n goeie uitkoms gelewer het</string>
     <string name="tool_memory_reinforce_name">Versterk Geheue</string>
-    <string name="tool_promote_learning_description">Bevorder 'n versterkte leerervaring na die stelselprompt</string>
-    <string name="tool_promote_learning_name">Bevorder Leerervaring</string>
     <string name="tool_web_search_description">Soek die web vir huidige inligting</string>
     <string name="tool_open_url_name">URL oopmaak</string>
     <string name="tool_open_url_description">Maak 'n URL of skakel op die toestel oop</string>
@@ -186,7 +180,6 @@ As iets aandag nodig het (verouderde herinneringe, verskuldigde take, gebruiker-
     <string name="settings_import_replace_all">Vervang alle bestaande instellings</string>
     <string name="settings_import_replace_all_description">Ongeselekteerde afdelings sal na verstekwaardes teruggestel word.</string>
     <string name="settings_import_section_services">Dienste</string>
-    <string name="settings_import_section_soul">Siel</string>
     <string name="settings_import_section_memory">Geheue</string>
     <string name="settings_import_section_scheduling">Skedulering</string>
     <string name="settings_import_section_heartbeat">Hartklop</string>

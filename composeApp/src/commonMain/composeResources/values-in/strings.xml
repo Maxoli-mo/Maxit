@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Edit kenangan</string>
     <string name="settings_memories_edit_save">Simpan</string>
     <string name="settings_memories_edit_cancel">Batal</string>
-    <string name="settings_soul">Jiwa</string>
-    <string name="settings_soul_description">Tentukan bagaimana AI berperilaku dengan prompt sistem. AI juga akan memiliki akses ke kenangan yang tersimpan.</string>
     <string name="settings_soul_save">Simpan</string>
-    <string name="default_soul">Kamu bukan chatbot. Kamu adalah asisten pribadi yang berkembang bersama penggunamu.\n\n## Cara Menjadi\n\n**Jadilah sungguh-sungguh membantu.** Lewati "Pertanyaan bagus!" dan "Saya senang membantu!" — langsung bantu saja. Tindakan berbicara lebih keras dari kata-kata pengisi.\n\n**Miliki pendapat.** Kamu boleh tidak setuju, menyukai sesuatu, atau menemukan sesuatu yang menarik. Asisten tanpa kepribadian hanyalah mesin pencari dengan langkah tambahan.\n\n**Jadilah kreatif.** Coba pahami dari konteks dan kenanganmu sebelum bertanya. Kembalilah dengan jawaban, bukan pertanyaan.\n\n**Jadilah ringkas.** Singkat dan jelas secara default. Pergi lebih dalam ketika topiknya membutuhkan.\n\n## Batasan\n\n- Hormati privasi. Jangan ulangi informasi sensitif tanpa perlu.\n- Saat ragu tentang suatu tindakan, tanya dulu.\n- Jujurlah ketika tidak tahu sesuatu.</string>
     <string name="bot_message_regenerate_content_description">Regenerasi</string>
     <string name="error_empty_response">Tidak ada respons yang diterima. Coba mulai obrolan baru atau persingkat pesan Anda.</string>
     <string name="settings_daemon_mode">Mode Daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Tugas yang dijadwalkan oleh AI untuk dijalankan di masa depan. Minta AI untuk mengingatkan Anda atau menjalankan sesuatu nanti untuk membuat tugas terjadwal.</string>
     <string name="settings_scheduled_tasks_cancel">Batalkan tugas</string>
     <string name="settings_soul_reset">Atur Ulang</string>
-    <string name="settings_soul_reset_confirm">Ini akan mengatur ulang jiwa ke prompt sistem default. Apakah Anda yakin?</string>
     <string name="settings_soul_reset_cancel">Batal</string>
     <string name="tool_schedule_task_name">Jadwalkan Tugas</string>
     <string name="tool_schedule_task_description">Jadwalkan tugas untuk dijalankan di masa depan</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Pelajari Memori</string>
     <string name="tool_memory_reinforce_description">Perkuat memori yang menghasilkan hasil baik</string>
     <string name="tool_memory_reinforce_name">Perkuat Memori</string>
-    <string name="tool_promote_learning_description">Promosikan pembelajaran yang diperkuat ke prompt sistem</string>
-    <string name="tool_promote_learning_name">Promosikan Pembelajaran</string>
     <string name="tool_web_search_description">Cari informasi terkini di web</string>
     <string name="tool_open_url_name">Buka URL</string>
     <string name="tool_open_url_description">Buka URL atau tautan di perangkat</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Ganti semua pengaturan yang ada</string>
     <string name="settings_import_replace_all_description">Bagian yang tidak dipilih akan direset ke default.</string>
     <string name="settings_import_section_services">Layanan</string>
-    <string name="settings_import_section_soul">Jiwa</string>
     <string name="settings_import_section_memory">Memori</string>
     <string name="settings_import_section_scheduling">Penjadwalan</string>
     <string name="settings_import_section_heartbeat">Detak Jantung</string>

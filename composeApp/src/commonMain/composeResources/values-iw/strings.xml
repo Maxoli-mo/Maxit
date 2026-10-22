@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">ערוך זיכרון</string>
     <string name="settings_memories_edit_save">שמור</string>
     <string name="settings_memories_edit_cancel">ביטול</string>
-    <string name="settings_soul">נשמה</string>
-    <string name="settings_soul_description">הגדר כיצד הבינה המלאכותית מתנהגת עם הנחיית מערכת. לבינה המלאכותית תהיה גם גישה לזיכרונות השמורים שלה.</string>
     <string name="settings_soul_save">שמור</string>
-    <string name="default_soul">אתה לא צ'אטבוט. אתה עוזר אישי שגדל עם המשתמש שלו.\n\n## איך להיות\n\n**היה מועיל באמת.** דלג על "שאלה מעולה!" ועל "אשמח לעזור!" — פשוט עזור. מעשים מדברים בקול רם יותר ממילות מילוי.\n\n**יהיו לך דעות.** מותר לך לא להסכים, להעדיף דברים, או למצוא משהו מעניין. עוזר ללא אישיות הוא רק מנוע חיפוש עם שלבים נוספים.\n\n**היה רב-תחבולות.** נסה להבין מהקשר ומהזיכרונות שלך לפני שאתה שואל. חזור עם תשובות, לא עם שאלות.\n\n**היה תמציתי.** קצר וברור כברירת מחדל. הלך לעומק כשהנושא דורש זאת.\n\n## גבולות\n\n- כבד פרטיות. אל תחזור על מידע רגיש ללא צורך.\n- כשאתה מטיל ספק בפעולה, שאל תחילה.\n- היה כנה כשאתה לא יודע משהו.</string>
     <string name="bot_message_regenerate_content_description">יצירה מחדש</string>
     <string name="error_empty_response">לא התקבלה תשובה. נסה להתחיל צ'אט חדש או לקצר את ההודעה שלך.</string>
     <string name="settings_daemon_mode">מצב שירות רקע</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">משימות שתוזמנו על ידי הבינה המלאכותית לביצוע עתידי. בקש מהבינה המלאכותית להזכיר לך או להריץ משהו מאוחר יותר כדי ליצור משימות מתוזמנות.</string>
     <string name="settings_scheduled_tasks_cancel">בטל משימה</string>
     <string name="settings_soul_reset">איפוס</string>
-    <string name="settings_soul_reset_confirm">פעולה זו תאפס את הנשמה להנחיית המערכת המוגדרת כברירת מחדל. האם אתה בטוח?</string>
     <string name="settings_soul_reset_cancel">ביטול</string>
     <string name="tool_schedule_task_name">תזמן משימה</string>
     <string name="tool_schedule_task_description">תזמן משימה לביצוע עתידי</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">למד זיכרון</string>
     <string name="tool_memory_reinforce_description">חזק זיכרון שהניב תוצאה טובה</string>
     <string name="tool_memory_reinforce_name">חזק זיכרון</string>
-    <string name="tool_promote_learning_description">קדם למידה מחוזקת לפרומפט המערכת</string>
-    <string name="tool_promote_learning_name">קדם למידה</string>
     <string name="tool_web_search_description">חפש באינטרנט מידע עדכני</string>
     <string name="tool_open_url_name">פתח URL</string>
     <string name="tool_open_url_description">פתח URL או קישור במכשיר</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">החלף את כל ההגדרות הקיימות</string>
     <string name="settings_import_replace_all_description">מקטעים שלא נבחרו יאופסו לברירות מחדל.</string>
     <string name="settings_import_section_services">שירותים</string>
-    <string name="settings_import_section_soul">נשמה</string>
     <string name="settings_import_section_memory">זיכרון</string>
     <string name="settings_import_section_scheduling">תזמון</string>
     <string name="settings_import_section_heartbeat">פעימת לב</string>

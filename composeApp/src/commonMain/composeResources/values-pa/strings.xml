@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">ਯਾਦ ਸੰਪਾਦਿਤ ਕਰੋ</string>
     <string name="settings_memories_edit_save">ਸੇਵ ਕਰੋ</string>
     <string name="settings_memories_edit_cancel">ਰੱਦ ਕਰੋ</string>
-    <string name="settings_soul">ਰੂਹ</string>
-    <string name="settings_soul_description">ਸਿਸਟਮ ਪ੍ਰੋਂਪਟ ਨਾਲ AI ਕਿਵੇਂ ਵਿਹਾਰ ਕਰਦਾ ਹੈ ਇਹ ਪਰਿਭਾਸ਼ਿਤ ਕਰੋ। AI ਨੂੰ ਆਪਣੀਆਂ ਸਟੋਰ ਕੀਤੀਆਂ ਯਾਦਾਂ ਤੱਕ ਵੀ ਪਹੁੰਚ ਹੋਵੇਗੀ।</string>
     <string name="settings_soul_save">ਸੇਵ ਕਰੋ</string>
-    <string name="default_soul">ਤੁਸੀਂ ਚੈਟਬੋਟ ਨਹੀਂ ਹੋ। ਤੁਸੀਂ ਇੱਕ ਨਿੱਜੀ ਸਹਾਇਕ ਹੋ ਜੋ ਆਪਣੇ ਉਪਭੋਗਤਾ ਨਾਲ ਵਧਦਾ ਹੈ।\n\n## ਕਿਵੇਂ ਹੋਣਾ ਹੈ\n\n**ਸੱਚਮੁੱਚ ਮਦਦਗਾਰ ਬਣੋ।** "ਬਹੁਤ ਵਧੀਆ ਸਵਾਲ!" ਅਤੇ "ਮੈਨੂੰ ਮਦਦ ਕਰਨ ਵਿੱਚ ਖੁਸ਼ੀ ਹੋਵੇਗੀ!" ਛੱਡੋ — ਬੱਸ ਮਦਦ ਕਰੋ। ਕੰਮ ਭਰਾਊ ਸ਼ਬਦਾਂ ਨਾਲੋਂ ਉੱਚੀ ਅਵਾਜ਼ ਵਿੱਚ ਬੋਲਦੇ ਹਨ।\n\n**ਰਾਏ ਰੱਖੋ।** ਤੁਸੀਂ ਅਸਹਿਮਤ ਹੋ ਸਕਦੇ ਹੋ, ਚੀਜ਼ਾਂ ਪਸੰਦ ਕਰ ਸਕਦੇ ਹੋ, ਜਾਂ ਕੁਝ ਦਿਲਚਸਪ ਲੱਭ ਸਕਦੇ ਹੋ। ਬਿਨਾਂ ਸ਼ਖਸੀਅਤ ਵਾਲਾ ਸਹਾਇਕ ਸਿਰਫ਼ ਵਾਧੂ ਕਦਮਾਂ ਵਾਲਾ ਖੋਜ ਇੰਜਨ ਹੈ।\n\n**ਸਾਧਨਾਂ ਨਾਲ ਭਰਪੂਰ ਬਣੋ।** ਪੁੱਛਣ ਤੋਂ ਪਹਿਲਾਂ ਸੰਦਰਭ ਅਤੇ ਆਪਣੀਆਂ ਯਾਦਾਂ ਤੋਂ ਸਮਝਣ ਦੀ ਕੋਸ਼ਿਸ਼ ਕਰੋ। ਸਵਾਲਾਂ ਨਾਲ ਨਹੀਂ, ਜਵਾਬਾਂ ਨਾਲ ਵਾਪਸ ਆਓ।\n\n**ਸੰਖੇਪ ਰਹੋ।** ਮੂਲ ਰੂਪ ਵਿੱਚ ਛੋਟੇ ਅਤੇ ਸਪੱਸ਼ਟ। ਜਦੋਂ ਵਿਸ਼ਾ ਮੰਗਦਾ ਹੋਵੇ ਤਾਂ ਡੂੰਘੇ ਜਾਓ।\n\n## ਸੀਮਾਵਾਂ\n\n- ਗੋਪਨੀਯਤਾ ਦਾ ਸਤਿਕਾਰ ਕਰੋ। ਸੰਵੇਦਨਸ਼ੀਲ ਜਾਣਕਾਰੀ ਨੂੰ ਬੇਲੋੜੀ ਦੁਹਰਾਓ ਨਾ।\n- ਕਿਸੇ ਕੰਮ ਬਾਰੇ ਸ਼ੱਕ ਹੋਣ ਤੇ ਪਹਿਲਾਂ ਪੁੱਛੋ।\n- ਜਦੋਂ ਕੁਝ ਨਾ ਜਾਣੋ ਤਾਂ ਇਮਾਨਦਾਰ ਰਹੋ।</string>
     <string name="bot_message_regenerate_content_description">ਦੁਬਾਰਾ ਤਿਆਰ ਕਰੋ</string>
     <string name="error_empty_response">ਕੋਈ ਜਵਾਬ ਨਹੀਂ ਮਿਲਿਆ। ਨਵੀਂ ਚੈਟ ਸ਼ੁਰੂ ਕਰਨ ਜਾਂ ਆਪਣਾ ਸੁਨੇਹਾ ਛੋਟਾ ਕਰਨ ਦੀ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
     <string name="settings_daemon_mode">ਡੈਮਨ ਮੋਡ</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI ਦੁਆਰਾ ਭਵਿੱਖ ਵਿੱਚ ਚਲਾਉਣ ਲਈ ਨਿਯਤ ਕੀਤੇ ਕਾਰਜ। ਨਿਯਤ ਕਾਰਜ ਬਣਾਉਣ ਲਈ AI ਨੂੰ ਯਾਦ ਦਿਵਾਉਣ ਜਾਂ ਬਾਅਦ ਵਿੱਚ ਕੁਝ ਚਲਾਉਣ ਲਈ ਕਹੋ।</string>
     <string name="settings_scheduled_tasks_cancel">ਕਾਰਜ ਰੱਦ ਕਰੋ</string>
     <string name="settings_soul_reset">ਰੀਸੈੱਟ</string>
-    <string name="settings_soul_reset_confirm">ਇਹ ਰੂਹ ਨੂੰ ਡਿਫੌਲਟ ਸਿਸਟਮ ਪ੍ਰੋਂਪਟ ਤੇ ਰੀਸੈੱਟ ਕਰੇਗਾ। ਕੀ ਤੁਸੀਂ ਪੱਕੇ ਹੋ?</string>
     <string name="settings_soul_reset_cancel">ਰੱਦ ਕਰੋ</string>
     <string name="tool_schedule_task_name">ਕਾਰਜ ਨਿਯਤ ਕਰੋ</string>
     <string name="tool_schedule_task_description">ਭਵਿੱਖ ਵਿੱਚ ਚਲਾਉਣ ਲਈ ਕਾਰਜ ਨਿਯਤ ਕਰੋ</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">ਯਾਦ ਸਿੱਖੋ</string>
     <string name="tool_memory_reinforce_description">ਚੰਗਾ ਨਤੀਜਾ ਦੇਣ ਵਾਲੀ ਯਾਦ ਨੂੰ ਮਜ਼ਬੂਤ ਕਰੋ</string>
     <string name="tool_memory_reinforce_name">ਯਾਦ ਮਜ਼ਬੂਤ ਕਰੋ</string>
-    <string name="tool_promote_learning_description">ਮਜ਼ਬੂਤ ਕੀਤੀ ਸਿਖਲਾਈ ਨੂੰ ਸਿਸਟਮ ਪ੍ਰੋਂਪਟ ਵਿੱਚ ਤਰੱਕੀ ਦਿਓ</string>
-    <string name="tool_promote_learning_name">ਸਿਖਲਾਈ ਤਰੱਕੀ ਦਿਓ</string>
     <string name="tool_web_search_description">ਮੌਜੂਦਾ ਜਾਣਕਾਰੀ ਲਈ ਵੈੱਬ ਖੋਜੋ</string>
     <string name="tool_open_url_name">URL ਖੋਲੋ</string>
     <string name="tool_open_url_description">ਡਿਵਾਈਸ ਤੇ URL ਜਾਂ ਲਿੰਕ ਖੋਲੋ</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">ਸਾਰੀਆਂ ਮੌਜੂਦਾ ਸੈਟਿੰਗਾਂ ਬਦਲੋ</string>
     <string name="settings_import_replace_all_description">ਅਣਚੁਣੇ ਭਾਗ ਡਿਫ਼ੌਲਟ ਤੇ ਰੀਸੈੱਟ ਹੋ ਜਾਣਗੇ।</string>
     <string name="settings_import_section_services">ਸੇਵਾਵਾਂ</string>
-    <string name="settings_import_section_soul">ਰੂਹ</string>
     <string name="settings_import_section_memory">ਯਾਦਦਾਸ਼ਤ</string>
     <string name="settings_import_section_scheduling">ਸਮਾਂ-ਸੂਚੀ</string>
     <string name="settings_import_section_heartbeat">ਦਿਲ ਦੀ ਧੜਕਣ</string>

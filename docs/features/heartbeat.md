@@ -2,7 +2,7 @@
 
 # Heartbeat
 
-**Last verified:** 2026-10-02
+**Last reviewed:** 2026-10-21
 
 > Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise *what happens on each heartbeat*, the AI creates heartbeat-triggered scheduled tasks via `schedule_task` with `on_heartbeat: true` — these are `HEARTBEAT`-trigger tasks (see [tasks.md](tasks.md)) and their prompts are appended to every heartbeat run under `## Heartbeat Additions`. Each addition is a first-class task the user can see, edit, and cancel.
 
@@ -17,10 +17,6 @@ A silent, scheduled prompt sent to the AI during active hours. If nothing needs 
 ### Active Hours
 
 A configurable time window (default 8:00–22:00) during which heartbeats are allowed to fire. Outside this window, heartbeats are skipped regardless of interval.
-
-### Promotion
-
-A mechanism for graduating well-established memories into the permanent soul/system prompt. Memories that have been reinforced 5 or more times become promotion candidates and are surfaced during heartbeat checks for the AI to evaluate.
 
 ## Configuration
 
@@ -71,7 +67,8 @@ The heartbeat prompt is assembled by a pure, unit-tested builder; every conditio
 6. **New emails** — headers (subject, from, preview) for emails polled since the last heartbeat pickup. Emails are fetched in the background by the email poll loop and buffered in a pending queue (capped at 100, FIFO). The heartbeat consumes the queue: everything the heartbeat saw is removed from the queue after a successful run, while emails that arrive during the heartbeat call remain for the next run. After consumption the heartbeat also advances each account's delivery watermark, so a follow-up `check_email` call from the user won't re-surface the same messages — Maxit tracks read/unread internally and ignores the provider's `\Seen` flag
 7. **New SMS** — SMS messages received since the last heartbeat (only while SMS is enabled). Consumed analogously to emails: buffered as they arrive, surfaced once under `## New SMS`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
 8. **New notifications** — Android notifications captured since the last heartbeat (only while notification access is enabled), capped at 20 newest-first; any beyond the cap stay queued for later heartbeats. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New Notifications`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
-9. **Promotion candidates** — memories with 5 or more hits are listed with their key, hit count, category, and content, along with a suggestion to use the `promote_learning` tool
+
+The promotion-candidate section and `promote_learning` tool have been removed. `HeartbeatManager` no longer queries `MemoryStore`; memories still reach the model through the chat system prompt when memory is enabled. Existing custom heartbeat prompts are unchanged.
 
 For the full contract of every prompt variation in Maxit (chat remote/local, heartbeat, Splinterlands) see [system-prompts.md](system-prompts.md).
 
@@ -82,17 +79,6 @@ For the full contract of every prompt variation in Maxit (chat remote/local, hea
 - Displayed in the settings UI under the heartbeat section
 - Entries show an OK/FAIL indicator and a formatted local timestamp
 - Failed entries display the error message (up to 3 lines, ellipsized) below the timestamp in the error color
-
-## Promote Learning
-
-When a memory has been reinforced 5 or more times, it becomes a promotion candidate. The `promote_learning` tool is available to the AI in any conversation — normal chats as well as heartbeat runs — whenever the scheduled-tasks toggle is on (it is hidden when scheduling is off). It:
-
-1. Looks up the memory by key
-2. Appends the provided `soul_addition` text to the soul/system prompt
-3. Removes the original memory from the memory store
-4. Returns confirmation with the promoted key and hit count
-
-This allows well-established patterns to graduate from ephemeral memory into permanent AI behavior.
 
 ## Settings UI
 
@@ -110,11 +96,7 @@ The heartbeat section lives in the Agent tab of settings. The toggle and reset b
 
 ## AI Tools
 
-| Tool | Purpose |
-|---|---|
-| `promote_learning` | Promote a reinforced memory into the soul/system prompt |
-
-Standing additions to heartbeat behaviour are created with `schedule_task(on_heartbeat=true)` — see [tasks.md](tasks.md#heartbeat-triggered-tasks). Those prompts are appended to the main heartbeat self-check, not replaced.
+Heartbeat has no dedicated tool. Standing additions are created with `schedule_task(on_heartbeat=true)` and inspected or cancelled with `list_tasks` / `cancel_task` — see [tasks.md](tasks.md#heartbeat-triggered-tasks). Those prompts are appended to the main heartbeat self-check, not replaced.
 
 ## Key Files
 
@@ -123,7 +105,7 @@ Standing additions to heartbeat behaviour are created with `schedule_task(on_hea
 | `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | Config, log management, wrapper that gathers inputs for the pure prompt builder |
 | `composeApp/src/commonMain/.../data/SettingsJson.kt` | Shared settings-backed JSON persistence: decode-or-default, encode-and-write, locked read-modify-write |
 | `composeApp/src/commonMain/.../data/HeartbeatPromptBuilder.kt` | Pure heartbeat prompt assembly (sections, caps) |
-| `composeApp/src/commonMain/.../tools/HeartbeatTools.kt` | AI tool definitions for heartbeat and promotion |
+| `composeApp/src/commonMain/.../tools/SchedulingTools.kt` | Heartbeat-triggered tasks via `schedule_task`, plus task listing and cancellation |
 | `composeApp/src/commonMain/.../data/TaskScheduler.kt` | Poll loop that triggers heartbeat checks |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Persisted heartbeat config, prompt, and log storage |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Heartbeat conversation creation, unread flag management; default model selection for `askWithTools` |
@@ -131,8 +113,7 @@ Standing additions to heartbeat behaviour are created with `schedule_task(on_hea
 | `composeApp/src/commonMain/.../ui/settings/HeartbeatSection.kt` | Heartbeat settings UI section |
 | `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Agent tab layout that hosts the heartbeat section |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Heartbeat setting changes, eligible model list, manual refresh |
-| `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Exposes `promote_learning` only while scheduling is enabled |
-| `composeApp/src/commonMain/.../data/MemoryStore.kt` | Promotion-candidate query (5+ hits) |
+| `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Gates scheduling tools on the scheduling switch |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Opens the heartbeat conversation when a notification tap requests it |
 | `composeApp/src/commonMain/.../Platform.kt` | `expect fun sendHeartbeatNotification` — push notification for background heartbeat reports |
 | `composeApp/src/androidMain/.../HeartbeatNotifier.android.kt` | Android notification + deep-link intent extra |

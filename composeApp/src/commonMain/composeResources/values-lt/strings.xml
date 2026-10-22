@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Redaguoti prisiminimą</string>
     <string name="settings_memories_edit_save">Išsaugoti</string>
     <string name="settings_memories_edit_cancel">Atšaukti</string>
-    <string name="settings_soul">Siela</string>
-    <string name="settings_soul_description">Nustatykite, kaip AI elgiasi naudodamas sistemos nurodymą. AI taip pat turės prieigą prie savo išsaugotų prisiminimų.</string>
     <string name="settings_soul_save">Išsaugoti</string>
-    <string name="default_soul">Tu nesi pokalbių robotas. Tu esi asmeninis padėjėjas, kuris auga kartu su savo vartotoju.\n\n## Kaip elgtis\n\n**Būk tikrai naudingas.** Praleisk „Puikus klausimas!" ir „Noriai padėsiu!" — tiesiog padėk. Veiksmai kalba garsiau nei tuščiažodžiai.\n\n**Turėk nuomonę.** Tau leidžiama nesutikti, teikti pirmenybę dalykams arba rasti ką nors įdomaus. Padėjėjas be asmenybės yra tiesiog paieškos sistema su papildomais žingsniais.\n\n**Būk išradingas.** Bandyk suprasti iš konteksto ir savo prisiminimų, prieš klausdamas. Grįžk su atsakymais, o ne klausimais.\n\n**Būk glaustas.** Pagal numatytuosius nustatymus – trumpai ir aiškiai. Gilink, kai tema to reikalauja.\n\n## Ribos\n\n- Gerbk privatumą. Nereikalingai nekartok neskelbtinos informacijos.\n- Suabejojęs dėl veiksmo, pirmiausia paklausk.\n- Būk sąžiningas, kai ko nors nežinai.</string>
     <string name="bot_message_regenerate_content_description">Pergeneruoti</string>
     <string name="error_empty_response">Atsakymas negautas. Pabandykite pradėti naują pokalbį arba sutrumpinti savo žinutę.</string>
     <string name="settings_daemon_mode">Daemon režimas</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI suplanuotos užduotys būsimam vykdymui. Paprašykite AI priminti jums arba paleisti ką nors vėliau, kad sukurtumėte suplanuotas užduotis.</string>
     <string name="settings_scheduled_tasks_cancel">Atšaukti užduotį</string>
     <string name="settings_soul_reset">Atkurti</string>
-    <string name="settings_soul_reset_confirm">Tai atkurs sielą į numatytąjį sistemos nurodymą. Ar tikrai norite?</string>
     <string name="settings_soul_reset_cancel">Atšaukti</string>
     <string name="tool_schedule_task_name">Suplanuoti užduotį</string>
     <string name="tool_schedule_task_description">Suplanuoti užduotį būsimam vykdymui</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Išmokti prisiminimą</string>
     <string name="tool_memory_reinforce_description">Sustiprinti prisiminimą, davusį gerą rezultatą</string>
     <string name="tool_memory_reinforce_name">Sustiprinti prisiminimą</string>
-    <string name="tool_promote_learning_description">Pakelti sustiprintą mokymąsi į sistemos raginimą</string>
-    <string name="tool_promote_learning_name">Pakelti mokymąsi</string>
     <string name="tool_web_search_description">Ieškoti internete naujausios informacijos</string>
     <string name="tool_open_url_name">Atidaryti URL</string>
     <string name="tool_open_url_description">Atidaryti URL arba nuorodą įrenginyje</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Pakeisti visus esamus nustatymus</string>
     <string name="settings_import_replace_all_description">Nepažymėtos skiltys bus atstatytos į numatytąsias reikšmes.</string>
     <string name="settings_import_section_services">Paslaugos</string>
-    <string name="settings_import_section_soul">Siela</string>
     <string name="settings_import_section_memory">Atmintis</string>
     <string name="settings_import_section_scheduling">Planavimas</string>
     <string name="settings_import_section_heartbeat">Širdies ritmas</string>

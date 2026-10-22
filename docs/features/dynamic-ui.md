@@ -1,8 +1,8 @@
 # Dynamic UI (kai-ui)
 
-**Last verified:** 2026-10-02
+**Status reviewed:** 2026-10-21 — generation is parked pending a future skills system.
 
-AI-generated interactive UI layouts rendered inline in chat messages. The AI produces JSON-based layout definitions wrapped in `kai-ui` code fences. Compose renders them natively with support for forms, buttons, and multi-step flows. Enabled by default; users can disable it in Settings, which removes the instructions from the system prompt. Because the system prompt is rebuilt per request, toggling the setting takes effect on the next message in any conversation. Parsing and rendering stay active regardless so existing messages with kai-ui blocks always render.
+The full UI instructions are archived in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources, and are no longer injected into model requests. Interactive-mode entry and the Dynamic UI settings toggle are hidden. Existing conversations reopen in normal chat; no UI-repair retries are sent. The parser and Compose renderer remain active so old messages with `kai-ui` JSON layouts still render. No new skill loader was added.
 
 ## Concepts
 
@@ -24,7 +24,7 @@ A `kai-ui` code fence inside an assistant message contains a JSON object describ
 
 Buttons carry an action that fires on click (chip groups are form inputs, not action carriers):
 
-- **callback** — collects form data from specified input IDs and sends a structured message back to the AI via the normal chat flow (e.g. "Pressed: event_name" or "Responded with: key: value"). The AI then responds with text or more UI. The prompt explicitly tells the AI to only offer callback buttons for actions it can fulfill — callbacks do not trigger system operations like printing, file export, or downloads. Clipboard access is available via the dedicated copy action below.
+- **callback** — collects form data from specified input IDs and sends a structured message back to the AI via the normal chat flow (e.g. "Pressed: event_name" or "Responded with: key: value"). The AI then responds with text or more UI. Callbacks do not trigger system operations like printing, file export, or downloads; the archived instructions retain this limitation for future integration. Clipboard access is available via the dedicated copy action below.
 - **toggle** — shows/hides a target element locally without AI roundtrip
 - **open_url** — opens a link in the browser
 - **copy_to_clipboard** — writes a literal string to the system clipboard locally, no AI roundtrip. A button carrying this action always renders as a compact clipboard icon button regardless of its variant; the button's label is ignored. Intended for surfacing copyable values (snippets, commands, tokens) alongside the content they belong to.
@@ -45,11 +45,11 @@ Errors are absorbed as locally as possible so a single bad field never kills a w
 
 ### Settings
 
-The feature is controlled by the Dynamic UI toggle in Settings (General tab). When disabled, the system prompt omits kai-ui instructions so the AI stops generating them. Parsing and rendering remain active unconditionally.
+The former Dynamic UI toggle is hidden. Its saved preference is retained but no longer controls prompt injection. Parsing and rendering remain active unconditionally.
 
-## Interactive UI Mode
+## Interactive UI Mode (historical reference)
 
-A dedicated full-screen mode where the AI produces complete screen layouts via kai-ui. The user navigates between screens by clicking buttons — no chat scrolling, no markdown visible.
+The following describes the parked full-screen design, not currently available UI. Its screen renderer remains in the source for future work, but chat no longer routes into it.
 
 ### Entering Interactive Mode
 
@@ -69,15 +69,15 @@ The back button removes the last exchange (user message + assistant response) fr
 
 ### Auto-Retry on Parse Failure
 
-If the AI responds without valid kai-ui blocks, the system automatically retries up to 2 times, sending the parse error details back to the AI so it can fix its JSON.
+Previously, a reply without valid kai-ui blocks triggered up to two repair requests. That retry path has been removed so normal text replies cannot consume extra turns while UI generation is parked.
 
 ### Conversation Persistence
 
-Interactive sessions are saved with type `interactive`. Loading an interactive conversation from history automatically re-enters interactive mode.
+Existing sessions retain their `interactive` type and message content, but load in normal chat. Stale persisted mode flags do not restore full-screen mode.
 
 ### System Prompt
 
-In interactive mode, the system prompt instructs the AI to respond ONLY with a single kai-ui code fence — no markdown text outside the fence. The AI is told the user cannot see anything outside the rendered UI.
+The archived scheme requires one kai-ui fence per screen and prohibits text outside it. Those instructions are not sent to the model now; see [system-prompts.md](system-prompts.md).
 
 ## Key Files
 
@@ -92,10 +92,10 @@ In interactive mode, the system prompt instructs the AI to respond ONLY with a s
 | `composeApp/.../ui/markdown/MarkdownParser.kt` | Unified markdown parser; emits `KaiUiBlock` AST nodes for kai-ui fences |
 | `composeApp/.../ui/markdown/MarkdownRenderer.kt` | Compose renderer that dispatches each block (including kai-ui) to its composable |
 | `composeApp/.../ui/chat/composables/BotMessage.kt` | Integration point — runs the parser, renders frozen/edit-enabled snapshots for paired user submissions, and renders past kai-ui read-only via `isInteractive = false` |
-| `composeApp/.../ui/chat/ChatScreen.kt` | Branches between chat mode and interactive mode |
-| `composeApp/.../ui/chat/composables/EmptyState.kt` | "Start Interactive UI" button |
+| `composeApp/.../ui/chat/ChatScreen.kt` | Normal chat routing; retained full-screen renderer is not entered |
+| `composeApp/.../ui/chat/composables/EmptyState.kt` | Optional interactive-entry button, no longer supplied by chat |
 | `composeApp/.../ui/chat/ChatActions.kt` | submitUiCallback, enterInteractiveMode, exitInteractiveMode, goBackInteractiveMode |
-| `composeApp/.../ui/chat/ChatViewModel.kt` | Interactive mode lifecycle, auto-retry on parse failure |
+| `composeApp/.../ui/chat/ChatViewModel.kt` | Restores old interactive conversations as normal chat; no UI-repair retries |
 | `composeApp/.../ui/chat/ChatUiState.kt` | isInteractiveMode state flag |
 | `composeApp/.../data/DataRepository.kt` | popLastExchange, setInteractiveMode/isInteractiveModeActive |
 | `composeApp/.../data/RemoteDataRepository.kt` | Interactive mode system prompt, TYPE_INTERACTIVE conversation saving |

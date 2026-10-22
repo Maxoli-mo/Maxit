@@ -2,6 +2,8 @@
 
 package com.maximiliano.maxit.data
 
+import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -38,7 +40,6 @@ class HeartbeatPromptBuilderTest {
         pendingEmails: List<HeartbeatPendingEmail> = emptyList(),
         pendingSms: List<HeartbeatPendingSms> = emptyList(),
         pendingNotifications: List<HeartbeatPendingNotification> = emptyList(),
-        promotionCandidates: List<HeartbeatPromotionCandidate> = emptyList(),
     ) = buildHeartbeatPrompt(
         customOrDefaultPrompt = customOrDefaultPrompt,
         heartbeatAdditions = heartbeatAdditions,
@@ -48,7 +49,6 @@ class HeartbeatPromptBuilderTest {
         pendingEmails = pendingEmails,
         pendingSms = pendingSms,
         pendingNotifications = pendingNotifications,
-        promotionCandidates = promotionCandidates,
     )
 
     @Test
@@ -218,27 +218,26 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
-    fun `includes Promotion Candidates with hit count and category`() {
-        val out = build(
-            promotionCandidates = listOf(
-                HeartbeatPromotionCandidate(
-                    key = "commit_style",
-                    hitCount = 7,
-                    category = MemoryCategory.LEARNING,
-                    content = "gerund verbs",
-                ),
-            ),
-        )
-        assertTrue("## Promotion Candidates" in out)
-        assertTrue("reinforced 7+ times" in out)
-        assertTrue("promote_learning" in out)
-        assertTrue("- **commit_style** (hits: 7, category: LEARNING): gerund verbs" in out)
-    }
+    fun `heartbeat never promotes reinforced memories or rewrites saved prompts`() = runTest {
+        val appSettings = AppSettings(MapSettings())
+        appSettings.setSoulText("Keep my custom instructions.")
+        val memoryStore = MemoryStore(appSettings)
+        memoryStore.store("commit_style", "gerund verbs", MemoryCategory.LEARNING)
+        repeat(6) { memoryStore.reinforceMemory("commit_style") }
+        val savedMemories = appSettings.getMemoriesJson()
+        val manager = HeartbeatManager(appSettings, TaskStore(appSettings))
 
-    @Test
-    fun `omits Promotion Candidates when empty`() {
-        val out = build()
-        assertFalse("## Promotion Candidates" in out)
+        for (customPrompt in listOf("", "Run my custom check.")) {
+            appSettings.setHeartbeatPrompt(customPrompt)
+            val out = manager.buildHeartbeatPrompt()
+
+            assertEquals("${customPrompt.ifEmpty { HeartbeatManager.DEFAULT_HEARTBEAT_PROMPT }}\n", out)
+            assertFalse("## Promotion Candidates" in out)
+            assertFalse("promote_learning" in out)
+            assertEquals(customPrompt, appSettings.getHeartbeatPrompt())
+        }
+        assertEquals(savedMemories, appSettings.getMemoriesJson())
+        assertEquals("Keep my custom instructions.", appSettings.getSoulText())
     }
 
     @Test
@@ -261,14 +260,6 @@ class HeartbeatPromptBuilderTest {
             pendingSms = listOf(
                 HeartbeatPendingSms(id = 99L, from = "+15551234", preview = "code 4242"),
             ),
-            promotionCandidates = listOf(
-                HeartbeatPromotionCandidate(
-                    key = "style",
-                    hitCount = 5,
-                    category = MemoryCategory.PREFERENCE,
-                    content = "concise",
-                ),
-            ),
         )
         // Section headers in the exact order they must appear.
         val order = listOf(
@@ -283,9 +274,6 @@ class HeartbeatPromptBuilderTest {
             "- **Hi** — sender@example.com [me@example.com]: hello",
             "## New SMS",
             "- **+15551234** (id: 99): code 4242",
-            "## Promotion Candidates",
-            "reinforced 5+ times",
-            "- **style** (hits: 5, category: PREFERENCE): concise",
         )
         var lastIdx = -1
         for (header in order) {

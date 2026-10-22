@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Erinnerung bearbeiten</string>
     <string name="settings_memories_edit_save">Speichern</string>
     <string name="settings_memories_edit_cancel">Abbrechen</string>
-    <string name="settings_soul">Seele</string>
-    <string name="settings_soul_description">Definiere das Verhalten der KI mit einem Systembefehl. Die KI hat auch Zugriff auf ihre gespeicherten Erinnerungen.</string>
     <string name="settings_soul_save">Speichern</string>
-    <string name="default_soul">Du bist kein Chatbot. Du bist ein persönlicher Assistent, der mit deinem Nutzer wächst.\n\n## Wie du sein sollst\n\n**Sei wirklich hilfreich.** Lass das "Tolle Frage!" und "Ich helfe gerne!" weg – hilf einfach. Taten sprechen lauter als Füllwörter.\n\n**Hab eine Meinung.** Du darfst widersprechen, Dinge bevorzugen oder etwas interessant finden. Ein Assistent ohne Persönlichkeit ist nur eine Suchmaschine mit extra Schritten.\n\n**Sei einfallsreich.** Versuche, es aus dem Kontext und deinen Erinnerungen herauszufinden, bevor du fragst. Komm mit Antworten, nicht mit Fragen zurück.\n\n**Sei prägnant.** Kurz und klar als Standard. Geh tiefer, wenn das Thema es erfordert.\n\n## Grenzen\n\n- Respektiere die Privatsphäre. Wiederhole keine sensiblen Informationen unnötigerweise.\n- Frage zuerst, wenn du dir bei einer Aktion nicht sicher bist.\n- Sei ehrlich, wenn du etwas nicht weißt.</string>
     <string name="bot_message_regenerate_content_description">Neu generieren</string>
     <string name="error_empty_response">Keine Antwort erhalten. Versuche einen neuen Chat zu starten oder deine Nachricht zu kürzen.</string>
     <string name="settings_daemon_mode">Hintergrundmodus</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Aufgaben, die von der KI für die zukünftige Ausführung geplant wurden. Bitte die KI, dich zu erinnern oder etwas später auszuführen, um geplante Aufgaben zu erstellen.</string>
     <string name="settings_scheduled_tasks_cancel">Aufgabe abbrechen</string>
     <string name="settings_soul_reset">Zurücksetzen</string>
-    <string name="settings_soul_reset_confirm">Dies setzt die Seele auf den Standard-Systembefehl zurück. Bist du sicher?</string>
     <string name="settings_soul_reset_cancel">Abbrechen</string>
     <string name="tool_schedule_task_name">Aufgabe planen</string>
     <string name="tool_schedule_task_description">Eine Aufgabe für die zukünftige Ausführung planen</string>
@@ -139,8 +135,6 @@ Wenn etwas Aufmerksamkeit erfordert (veraltete Erinnerungen, fällige Aufgaben, 
     <string name="tool_memory_learn_name">Erinnerung lernen</string>
     <string name="tool_memory_reinforce_description">Eine Erinnerung verstärken, die ein gutes Ergebnis erzielt hat</string>
     <string name="tool_memory_reinforce_name">Erinnerung verstärken</string>
-    <string name="tool_promote_learning_description">Ein verstärktes Lernergebnis in den Systemprompt befördern</string>
-    <string name="tool_promote_learning_name">Lernergebnis befördern</string>
     <string name="tool_web_search_description">Das Web nach aktuellen Informationen durchsuchen</string>
     <string name="tool_open_url_name">URL öffnen</string>
     <string name="tool_open_url_description">Eine URL oder einen Link auf dem Gerät öffnen</string>
@@ -186,7 +180,6 @@ Wenn etwas Aufmerksamkeit erfordert (veraltete Erinnerungen, fällige Aufgaben, 
     <string name="settings_import_replace_all">Alle bestehenden Einstellungen ersetzen</string>
     <string name="settings_import_replace_all_description">Nicht ausgewählte Bereiche werden auf Standardwerte zurückgesetzt.</string>
     <string name="settings_import_section_services">Dienste</string>
-    <string name="settings_import_section_soul">Seele</string>
     <string name="settings_import_section_memory">Erinnerungen</string>
     <string name="settings_import_section_scheduling">Planung</string>
     <string name="settings_import_section_heartbeat">Herzschlag</string>

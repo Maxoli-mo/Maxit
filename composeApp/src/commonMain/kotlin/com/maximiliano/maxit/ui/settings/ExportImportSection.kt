@@ -49,6 +49,7 @@ import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonObject
 import maxit.composeapp.generated.resources.Res
+import maxit.composeapp.generated.resources.settings_agent_instructions
 import maxit.composeapp.generated.resources.settings_export
 import maxit.composeapp.generated.resources.settings_export_import_description
 import maxit.composeapp.generated.resources.settings_export_import_title
@@ -66,7 +67,6 @@ import maxit.composeapp.generated.resources.settings_import_section_mcp
 import maxit.composeapp.generated.resources.settings_import_section_memory
 import maxit.composeapp.generated.resources.settings_import_section_scheduling
 import maxit.composeapp.generated.resources.settings_import_section_services
-import maxit.composeapp.generated.resources.settings_import_section_soul
 import maxit.composeapp.generated.resources.settings_import_section_tools
 import maxit.composeapp.generated.resources.settings_import_success
 import maxit.composeapp.generated.resources.settings_mcp_cancel
@@ -379,7 +379,7 @@ private fun ExportPreviewDialog(
 @Composable
 private fun sectionDisplayName(section: ImportSection): String = when (section) {
     ImportSection.SERVICES -> stringResource(Res.string.settings_import_section_services)
-    ImportSection.SOUL -> stringResource(Res.string.settings_import_section_soul)
+    ImportSection.SOUL -> stringResource(Res.string.settings_agent_instructions)
     ImportSection.MEMORY -> stringResource(Res.string.settings_import_section_memory)
     ImportSection.SCHEDULING -> stringResource(Res.string.settings_import_section_scheduling)
     ImportSection.HEARTBEAT -> stringResource(Res.string.settings_import_section_heartbeat)

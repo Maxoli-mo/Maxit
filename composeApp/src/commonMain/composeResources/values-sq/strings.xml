@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Ndrysho kujtesën</string>
     <string name="settings_memories_edit_save">Ruaj</string>
     <string name="settings_memories_edit_cancel">Anulo</string>
-    <string name="settings_soul">Shpirt</string>
-    <string name="settings_soul_description">Përcaktoni si sillet AI me një kërkesë sistemi. AI do të ketë gjithashtu qasje në kujtesat e saj të ruajtura.</string>
     <string name="settings_soul_save">Ruaj</string>
-    <string name="default_soul">Nuk je chatbot. Je asistent personal që rritet me përdoruesin tënd.\n\n## Si të jesh\n\n**Ji vërtet i dobishëm.** Kapërcejeni "Pyetje e shkëlqyer!" dhe "Jam i lumtur të ndihmoj!" — thjesht ndihmoni. Veprimet flasin më shumë se fjalët mbushëse.\n\n**Ki mendime.** Mund të mos jesh dakord, të preferosh gjëra ose ta gjesh diçka interesante. Një asistent pa personalitet është vetëm një motor kërkimi me hapa shtesë.\n\n**Ji i zgjuar.** Mundohu ta kuptosh nga konteksti dhe kujtesat tua para se të pyesësh. Kthehu me përgjigje, jo me pyetje.\n\n**Ji i shkurtër.** Shkurt dhe qartë si parazgjedhje. Shko thellë kur tema kërkon.\n\n## Kufijtë\n\n- Respekto privatësinë. Mos përsërit informacione të ndjeshme pa nevojë.\n- Pyet fillimisht nëse je i pasigurt për një veprim.\n- Ji i sinqertë kur nuk di diçka.</string>
     <string name="bot_message_regenerate_content_description">Rigjenero</string>
     <string name="error_empty_response">Nuk u mor asnjë përgjigje. Provoni të filloni një bisedë të re ose të shkurtoni mesazhin tuaj.</string>
     <string name="settings_daemon_mode">Mënyra Daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Detyra të programuara nga AI për ekzekutim në të ardhmen. Kërkojini AI t'ju kujtojë ose të ekzekutojë diçka më vonë për të krijuar detyra të programuara.</string>
     <string name="settings_scheduled_tasks_cancel">Anulo detyrën</string>
     <string name="settings_soul_reset">Rivendos</string>
-    <string name="settings_soul_reset_confirm">Kjo do të rivendosë shpirtin në kërkesën e parazgjedhur të sistemit. Jeni i sigurt?</string>
     <string name="settings_soul_reset_cancel">Anulo</string>
     <string name="tool_schedule_task_name">Programo detyrë</string>
     <string name="tool_schedule_task_description">Programo një detyrë për ekzekutim në të ardhmen</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Mëso kujtim</string>
     <string name="tool_memory_reinforce_description">Përforco një kujtim që prodhoi një rezultat të mirë</string>
     <string name="tool_memory_reinforce_name">Përforco kujtim</string>
-    <string name="tool_promote_learning_description">Promovo një mësim të përforcuar në prompt-in e sistemit</string>
-    <string name="tool_promote_learning_name">Promovo mësim</string>
     <string name="tool_web_search_description">Kërko në ueb për informacione aktuale</string>
     <string name="tool_open_url_name">Hap URL</string>
     <string name="tool_open_url_description">Hap një URL ose lidhje në pajisje</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Zëvendëso të gjitha cilësimet ekzistuese</string>
     <string name="settings_import_replace_all_description">Seksionet e pazgjedhura do të rivendosen në vlerat e paracaktuara.</string>
     <string name="settings_import_section_services">Shërbimet</string>
-    <string name="settings_import_section_soul">Shpirti</string>
     <string name="settings_import_section_memory">Kujtesa</string>
     <string name="settings_import_section_scheduling">Planifikimi</string>
     <string name="settings_import_section_heartbeat">Rrahjet e zemrës</string>

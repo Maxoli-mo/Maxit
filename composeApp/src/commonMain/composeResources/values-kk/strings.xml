@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Жадты өңдеу</string>
     <string name="settings_memories_edit_save">Сақтау</string>
     <string name="settings_memories_edit_cancel">Болдырмау</string>
-    <string name="settings_soul">Жан</string>
-    <string name="settings_soul_description">Жүйелік нұсқаулықпен AI қалай әрекет ететінін анықтаңыз. AI сақталған жадтарына да қол жеткізе алады.</string>
     <string name="settings_soul_save">Сақтау</string>
-    <string name="default_soul">Сіз чатбот емессіз. Сіз пайдаланушыңызбен бірге өсетін жеке көмекшісіз.\n\n## Қалай болу керек\n\n**Шынымен пайдалы болыңыз.** «Тамаша сұрақ!» және «Көмектесуге қуаныштымын!» деген сөздерді өткізіп жіберіңіз — жай ғана көмектесіңіз. Іс-әрекеттер толтырушы сөздерден жоғары дауыспен сөйлейді.\n\n**Пікіріңіз болсын.** Сізге қарсы болуға, нәрселерді жақсы көруге немесе бірдеңені қызықты деп табуға рұқсат берілген. Тұлғасыз көмекші — бұл тек қосымша қадамдары бар іздеу жүйесі.\n\n**Тапқыр болыңыз.** Сұрамас бұрын мәтінмән мен жадтарыңыздан түсінуге тырысыңыз. Сұрақтармен емес, жауаптармен оралыңыз.\n\n**Қысқа болыңыз.** Әдепкі ретінде қысқа және нақты. Тақырып талап еткенде тереңірек кіріңіз.\n\n## Шекаралар\n\n- Жеке өмірді құрметтеңіз. Құпия ақпаратты қажетсіз қайталамаңыз.\n- Әрекет туралы күмән туса, алдымен сұраңыз.\n- Бірдеңені білмесеңіз, шынайы болыңыз.</string>
     <string name="bot_message_regenerate_content_description">Қайта жасау</string>
     <string name="error_empty_response">Жауап алынбады. Жаңа чат бастаңыз немесе хабарламаңызды қысқартыңыз.</string>
     <string name="settings_daemon_mode">Daemon режимі</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI болашақта орындау үшін жоспарлаған тапсырмалар. Жоспарланған тапсырмалар жасау үшін AI-дан есіңізге салуды немесе кейінірек бірдеңе орындауды сұраңыз.</string>
     <string name="settings_scheduled_tasks_cancel">Тапсырманы болдырмау</string>
     <string name="settings_soul_reset">Қалпына келтіру</string>
-    <string name="settings_soul_reset_confirm">Бұл жанды әдепкі жүйелік нұсқаулыққа қалпына келтіреді. Сенімдісіз бе?</string>
     <string name="settings_soul_reset_cancel">Болдырмау</string>
     <string name="tool_schedule_task_name">Тапсырма жоспарлау</string>
     <string name="tool_schedule_task_description">Болашақта орындау үшін тапсырма жоспарлау</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Естелік үйрену</string>
     <string name="tool_memory_reinforce_description">Жақсы нәтиже берген естелікті күшейту</string>
     <string name="tool_memory_reinforce_name">Естелікті күшейту</string>
-    <string name="tool_promote_learning_description">Күшейтілген білімді жүйелік промптқа көтеру</string>
-    <string name="tool_promote_learning_name">Білімді көтеру</string>
     <string name="tool_web_search_description">Ағымдағы ақпарат үшін вебті іздеу</string>
     <string name="tool_open_url_name">URL ашу</string>
     <string name="tool_open_url_description">Құрылғыда URL немесе сілтемені ашу</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Барлық бар параметрлерді ауыстыру</string>
     <string name="settings_import_replace_all_description">Таңдалмаған бөлімдер әдепкі мәндерге қалпына келтіріледі.</string>
     <string name="settings_import_section_services">Қызметтер</string>
-    <string name="settings_import_section_soul">Жан</string>
     <string name="settings_import_section_memory">Жады</string>
     <string name="settings_import_section_scheduling">Жоспарлау</string>
     <string name="settings_import_section_heartbeat">Жүрек соғысы</string>

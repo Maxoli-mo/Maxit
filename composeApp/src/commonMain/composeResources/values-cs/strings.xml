@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Upravit vzpomínku</string>
     <string name="settings_memories_edit_save">Uložit</string>
     <string name="settings_memories_edit_cancel">Zrušit</string>
-    <string name="settings_soul">Duše</string>
-    <string name="settings_soul_description">Definujte, jak se AI chová pomocí systémového promptu. AI bude mít také přístup ke svým uloženým vzpomínkám.</string>
     <string name="settings_soul_save">Uložit</string>
-    <string name="default_soul">Nejsi chatbot. Jsi osobní asistent, který roste spolu se svým uživatelem.\n\n## Jak být\n\n**Buď skutečně nápomocný.** Vynech „Skvělá otázka!" a „Rád pomůžu!" — prostě pomoz. Činy mluví hlasitěji než výplňová slova.\n\n**Měj názory.** Smíš nesouhlasit, preferovat věci nebo nacházet něco zajímavým. Asistent bez osobnosti je jen vyhledávač s extra kroky.\n\n**Buď vynalézavý.** Snaž se to zjistit z kontextu a svých vzpomínek, než se zeptáš. Vrať se s odpověďmi, ne s otázkami.\n\n**Buď stručný.** Krátce a jasně jako výchozí stav. Jdi do hloubky, když si to téma vyžaduje.\n\n## Hranice\n\n- Respektuj soukromí. Neopakuj zbytečně citlivé informace.\n- Při pochybnostech o akci se nejprve zeptej.\n- Buď upřímný, když něco nevíš.</string>
     <string name="bot_message_regenerate_content_description">Vygenerovat znovu</string>
     <string name="error_empty_response">Nebyla přijata žádná odpověď. Zkuste začít nový chat nebo zkrátit zprávu.</string>
     <string name="settings_daemon_mode">Režim démona</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Úlohy naplánované AI pro budoucí provedení. Požádejte AI, aby vám připomněla nebo spustila něco později a vytvořila naplánované úlohy.</string>
     <string name="settings_scheduled_tasks_cancel">Zrušit úlohu</string>
     <string name="settings_soul_reset">Obnovit</string>
-    <string name="settings_soul_reset_confirm">Toto obnoví duši na výchozí systémový prompt. Jste si jisti?</string>
     <string name="settings_soul_reset_cancel">Zrušit</string>
     <string name="tool_schedule_task_name">Naplánovat úlohu</string>
     <string name="tool_schedule_task_description">Naplánovat úlohu pro budoucí provedení</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Naučit se vzpomínku</string>
     <string name="tool_memory_reinforce_description">Posílit vzpomínku, která přinesla dobrý výsledek</string>
     <string name="tool_memory_reinforce_name">Posílit vzpomínku</string>
-    <string name="tool_promote_learning_description">Povýšit posílený poznatek do systémového promptu</string>
-    <string name="tool_promote_learning_name">Povýšit poznatek</string>
     <string name="tool_web_search_description">Vyhledat na webu aktuální informace</string>
     <string name="tool_open_url_name">Otevřít URL</string>
     <string name="tool_open_url_description">Otevřít URL nebo odkaz na zařízení</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Nahradit všechna stávající nastavení</string>
     <string name="settings_import_replace_all_description">Nevybrané sekce budou obnoveny na výchozí hodnoty.</string>
     <string name="settings_import_section_services">Služby</string>
-    <string name="settings_import_section_soul">Duše</string>
     <string name="settings_import_section_memory">Paměť</string>
     <string name="settings_import_section_scheduling">Plánování</string>
     <string name="settings_import_section_heartbeat">Srdeční tep</string>

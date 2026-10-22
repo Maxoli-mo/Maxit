@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Rediger minne</string>
     <string name="settings_memories_edit_save">Lagre</string>
     <string name="settings_memories_edit_cancel">Avbryt</string>
-    <string name="settings_soul">Sjel</string>
-    <string name="settings_soul_description">Definer hvordan AI oppfører seg med en systemprompt. AI vil også ha tilgang til sine lagrede minner.</string>
     <string name="settings_soul_save">Lagre</string>
-    <string name="default_soul">Du er ikke en chatbot. Du er en personlig assistent som vokser med brukeren din.\n\n## Slik bør du være\n\n**Vær genuint hjelpsom.** Hopp over «Godt spørsmål!» og «Jeg hjelper gjerne!» — bare hjelp. Handlinger taler høyere enn fyllord.\n\n**Ha meninger.** Du har lov til å være uenig, foretrekke ting eller finne noe interessant. En assistent uten personlighet er bare en søkemotor med ekstra trinn.\n\n**Vær oppfinnsom.** Prøv å forstå det fra kontekst og minnane dine før du spør. Kom tilbake med svar, ikke spørsmål.\n\n**Vær kortfattet.** Kort og tydelig som standard. Gå dypere når temaet krever det.\n\n## Grenser\n\n- Respekter personvern. Ikke gjenta sensitiv informasjon unødvendig.\n- Spør alltid først hvis du er i tvil om en handling.\n- Vær ærlig når du ikke vet noe.</string>
     <string name="bot_message_regenerate_content_description">Regenerer</string>
     <string name="error_empty_response">Intet svar mottatt. Prøv å starte en ny chat eller forkorte meldingen din.</string>
     <string name="settings_daemon_mode">Daemon-modus</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Oppgaver planlagt av AI-en for fremtidig utførelse. Be AI-en om å minne deg på eller kjøre noe senere for å opprette planlagte oppgaver.</string>
     <string name="settings_scheduled_tasks_cancel">Avbryt oppgave</string>
     <string name="settings_soul_reset">Tilbakestill</string>
-    <string name="settings_soul_reset_confirm">Dette vil tilbakestille sjelen til standard systemprompt. Er du sikker?</string>
     <string name="settings_soul_reset_cancel">Avbryt</string>
     <string name="tool_schedule_task_name">Planlegg oppgave</string>
     <string name="tool_schedule_task_description">Planlegg en oppgave for fremtidig utførelse</string>
@@ -139,8 +135,6 @@ Hvis noe trenger oppmerksomhet (utdaterte minner, forfalte oppgaver, brukeroppf�
     <string name="tool_memory_learn_name">Lær hukommelse</string>
     <string name="tool_memory_reinforce_description">Forsterke et minne som ga et godt resultat</string>
     <string name="tool_memory_reinforce_name">Forsterk hukommelse</string>
-    <string name="tool_promote_learning_description">Forfremme en forsterket lærdom til systemprompt</string>
-    <string name="tool_promote_learning_name">Forfrem lærdom</string>
     <string name="tool_web_search_description">Søk på nettet etter aktuell informasjon</string>
     <string name="tool_open_url_name">Åpne URL</string>
     <string name="tool_open_url_description">Åpne en URL eller lenke på enheten</string>
@@ -186,7 +180,6 @@ Hvis noe trenger oppmerksomhet (utdaterte minner, forfalte oppgaver, brukeroppf�
     <string name="settings_import_replace_all">Erstatt alle eksisterende innstillinger</string>
     <string name="settings_import_replace_all_description">Ikke-valgte seksjoner tilbakestilles til standardverdier.</string>
     <string name="settings_import_section_services">Tjenester</string>
-    <string name="settings_import_section_soul">Sjel</string>
     <string name="settings_import_section_memory">Minne</string>
     <string name="settings_import_section_scheduling">Planlegging</string>
     <string name="settings_import_section_heartbeat">Hjerteslag</string>

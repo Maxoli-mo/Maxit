@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">تعديل الذاكرة</string>
     <string name="settings_memories_edit_save">حفظ</string>
     <string name="settings_memories_edit_cancel">إلغاء</string>
-    <string name="settings_soul">الروح</string>
-    <string name="settings_soul_description">حدد كيفية تصرف الذكاء الاصطناعي باستخدام موجه النظام. سيتمكن الذكاء الاصطناعي أيضاً من الوصول إلى ذكرياته المخزنة.</string>
     <string name="settings_soul_save">حفظ</string>
-    <string name="default_soul">أنت لست روبوت محادثة. أنت مساعد شخصي يتطور مع مستخدمك.\n\n## كيف تكون\n\n**كن مفيداً حقاً.** تخطَّ "سؤال رائع!" و"يسعدني مساعدتك!" — فقط ساعد. الأفعال تتحدث بصوت أعلى من الكلمات الزائدة.\n\n**امتلك آراء.** يمكنك الاختلاف وتفضيل الأشياء أو الاهتمام بشيء ما. المساعد بلا شخصية هو مجرد محرك بحث بخطوات إضافية.\n\n**كن مبدعاً.** حاول معرفة الإجابة من السياق وذكرياتك قبل السؤال. عُد بإجابات وليس أسئلة.\n\n**كن موجزاً.** قصير وواضح بشكل افتراضي. اذهب إلى العمق عندما يتطلب الموضوع ذلك.\n\n## الحدود\n\n- احترم الخصوصية. لا تكرر المعلومات الحساسة دون داعٍ.\n- عند الشك في إجراء ما، اسأل أولاً.\n- كن صادقاً عندما لا تعرف شيئاً.</string>
     <string name="bot_message_regenerate_content_description">إعادة التوليد</string>
     <string name="error_empty_response">لم يتم تلقي أي رد. حاول بدء محادثة جديدة أو تقصير رسالتك.</string>
     <string name="settings_daemon_mode">وضع الخلفية</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">مهام جدولها الذكاء الاصطناعي للتنفيذ المستقبلي. اطلب من الذكاء الاصطناعي تذكيرك أو تشغيل شيء لاحقاً لإنشاء مهام مجدولة.</string>
     <string name="settings_scheduled_tasks_cancel">إلغاء المهمة</string>
     <string name="settings_soul_reset">إعادة تعيين</string>
-    <string name="settings_soul_reset_confirm">سيؤدي هذا إلى إعادة تعيين الروح إلى موجه النظام الافتراضي. هل أنت متأكد؟</string>
     <string name="settings_soul_reset_cancel">إلغاء</string>
     <string name="tool_schedule_task_name">جدولة مهمة</string>
     <string name="tool_schedule_task_description">جدولة مهمة للتنفيذ المستقبلي</string>
@@ -139,8 +135,6 @@
     <string name="tool_memory_learn_name">تعلم الذاكرة</string>
     <string name="tool_memory_reinforce_description">تعزيز ذاكرة أنتجت نتيجة جيدة</string>
     <string name="tool_memory_reinforce_name">تعزيز الذاكرة</string>
-    <string name="tool_promote_learning_description">ترقية تعلم معزز إلى موجه النظام</string>
-    <string name="tool_promote_learning_name">ترقية التعلم</string>
     <string name="tool_web_search_description">البحث في الويب عن معلومات حالية</string>
     <string name="tool_open_url_name">فتح رابط</string>
     <string name="tool_open_url_description">فتح رابط أو عنوان URL على الجهاز</string>
@@ -186,7 +180,6 @@
     <string name="settings_import_replace_all">استبدال جميع الإعدادات الحالية</string>
     <string name="settings_import_replace_all_description">سيتم إعادة تعيين الأقسام غير المحددة إلى القيم الافتراضية.</string>
     <string name="settings_import_section_services">الخدمات</string>
-    <string name="settings_import_section_soul">الروح</string>
     <string name="settings_import_section_memory">الذاكرة</string>
     <string name="settings_import_section_scheduling">الجدولة</string>
     <string name="settings_import_section_heartbeat">نبض القلب</string>

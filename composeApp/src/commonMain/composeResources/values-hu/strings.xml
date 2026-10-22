@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Emlék szerkesztése</string>
     <string name="settings_memories_edit_save">Mentés</string>
     <string name="settings_memories_edit_cancel">Mégse</string>
-    <string name="settings_soul">Lélek</string>
-    <string name="settings_soul_description">Határozza meg, hogyan viselkedik a mesterséges intelligencia egy rendszerparancs segítségével. A mesterséges intelligencia hozzáférhet a mentett emlékezeteihez is.</string>
     <string name="settings_soul_save">Mentés</string>
-    <string name="default_soul">Nem vagy chatbot. Egy személyes asszisztens vagy, aki együtt nő a felhasználóddal.\n\n## Hogyan légy\n\n**Legyél igazán hasznos.** Hagyd el a „Remek kérdés!" és a „Örömmel segítek!" fordulatokat — csak segíts. A tettek hangosabban beszélnek a töltőszavaknál.\n\n**Legyenek véleményeid.** Megengedheted magadnak, hogy egyet nem érts, dolgokat preferálj, vagy érdekesnek találj valamit. A személyiség nélküli asszisztens csak egy keresőmotor extra lépésekkel.\n\n**Legyél találékony.** Próbáld meg a kontextusból és az emlékezetedből kitalálni, mielőtt kérdezel. Térj vissza válaszokkal, ne kérdésekkel.\n\n**Legyél tömör.** Alapértelmezetten rövid és egyértelmű. Mélyülj el, ha a téma megkívánja.\n\n## Határok\n\n- Tiszteld a magánéletet. Ne ismételj érzékeny információkat feleslegesen.\n- Ha egy tevékenység kapcsán kétséged van, először kérdezz.\n- Légy őszinte, ha nem tudsz valamit.</string>
     <string name="bot_message_regenerate_content_description">Újragenerálás</string>
     <string name="error_empty_response">Nem érkezett válasz. Próbálj meg új csevegést indítani vagy rövidítsd az üzenetedet.</string>
     <string name="settings_daemon_mode">Daemon mód</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">A mesterséges intelligencia által jövőbeli végrehajtásra ütemezett feladatok. Kérd a mesterséges intelligenciát, hogy emlékeztessen vagy futtasson valamit később, hogy ütemezett feladatokat hozz létre.</string>
     <string name="settings_scheduled_tasks_cancel">Feladat törlése</string>
     <string name="settings_soul_reset">Visszaállítás</string>
-    <string name="settings_soul_reset_confirm">Ez visszaállítja a lelket az alapértelmezett rendszerparanccsra. Biztos vagy benne?</string>
     <string name="settings_soul_reset_cancel">Mégse</string>
     <string name="tool_schedule_task_name">Feladat ütemezése</string>
     <string name="tool_schedule_task_description">Feladat ütemezése jövőbeli végrehajtásra</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Emlék tanulása</string>
     <string name="tool_memory_reinforce_description">Jó eredményt hozó emlék megerősítése</string>
     <string name="tool_memory_reinforce_name">Emlék megerősítése</string>
-    <string name="tool_promote_learning_description">Megerősített tanulság előléptetése a rendszerpromptba</string>
-    <string name="tool_promote_learning_name">Tanulság előléptetése</string>
     <string name="tool_web_search_description">Keresés a weben aktuális információkért</string>
     <string name="tool_open_url_name">URL megnyitása</string>
     <string name="tool_open_url_description">URL vagy hivatkozás megnyitása az eszközön</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Összes meglévő beállítás cseréje</string>
     <string name="settings_import_replace_all_description">A nem kijelölt szakaszok visszaállnak az alapértékekre.</string>
     <string name="settings_import_section_services">Szolgáltatások</string>
-    <string name="settings_import_section_soul">Lélek</string>
     <string name="settings_import_section_memory">Memória</string>
     <string name="settings_import_section_scheduling">Ütemezés</string>
     <string name="settings_import_section_heartbeat">Szívverés</string>

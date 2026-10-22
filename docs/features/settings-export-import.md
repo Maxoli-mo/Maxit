@@ -2,9 +2,11 @@
 
 # Settings Export / Import
 
-**Last verified:** 2026-10-02
+**Last reviewed:** 2026-10-21
 
-Users can back up and restore their Maxit configuration and data (services, soul, memory, tasks, heartbeat, email, SMS, Splinterlands, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
+Users can back up and restore their Maxit configuration and data (services, agent instructions, memory, tasks, heartbeat, email, SMS, Splinterlands, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
+
+The **Agent instructions** setting retains the legacy `soul_text` JSON key, `ImportSection.SOUL`, and `getSoulText()` / `setSoulText()` APIs. The label and default changed; storage was not migrated. Saved nonempty overrides are loaded verbatim. An empty value selects the [bundled Markdown default](system-prompts.md#editable-agent-instructions), which is not copied into exports.
 
 ## Behavior
 
@@ -12,7 +14,7 @@ Users can back up and restore their Maxit configuration and data (services, soul
 - Tapping **Export** opens an **Export Preview Dialog** that lists each settings section currently holding real user data, with item counts where applicable (e.g. "Services (2)", "Memory (5)"). All sections are checked by default; the user can untick any section to leave it out of the file.
 - A section is only listed when it actually has data. Pure feature-toggle flags (e.g. SMS turned off, Splinterlands without a configured account, an empty MCP server list) do not appear in the dialog. Specifically:
   - SERVICES — only if at least one service is configured
-  - SOUL — only if soul text is non-empty
+  - SOUL — only if saved agent instructions are nonblank
   - MEMORY / SCHEDULING / CONVERSATIONS — only if at least one entry exists
   - HEARTBEAT — only if a custom prompt, config, or log entries exist
   - EMAIL — only if at least one account is configured
@@ -43,7 +45,7 @@ Users can back up and restore their Maxit configuration and data (services, soul
 | Section | Display Name | JSON keys detected |
 |---------|-------------|-------------------|
 | SERVICES | Services | `configured_services`, `current_service_id`, `free_fallback_enabled`, `instance_settings` |
-| SOUL | Soul | `soul_text` |
+| SOUL | Agent instructions | `soul_text` |
 | MEMORY | Memory | `memory_enabled`, `agent_memories` |
 | SCHEDULING | Scheduling | `scheduling_enabled`, `scheduled_tasks` |
 | HEARTBEAT | Heartbeat | `heartbeat_config`, `heartbeat_prompt`, `heartbeat_log` |
@@ -59,7 +61,7 @@ Users can back up and restore their Maxit configuration and data (services, soul
 | Category | Keys |
 |----------|------|
 | Services | `configured_services`, `current_service_id`, `free_fallback_enabled`, per-instance `api_key` / `model_id` / `base_url` / optional `use_custom_model` / `custom_model_id` |
-| Soul | `soul_text` |
+| Agent instructions | `soul_text` (legacy key) |
 | Memory | `memory_enabled`, `agent_memories` |
 | Scheduling | `scheduling_enabled`, `scheduled_tasks` |
 | Heartbeat | `heartbeat_config`, `heartbeat_prompt`, `heartbeat_log` |

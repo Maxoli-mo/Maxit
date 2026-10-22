@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Anıyı düzenle</string>
     <string name="settings_memories_edit_save">Kaydet</string>
     <string name="settings_memories_edit_cancel">İptal</string>
-    <string name="settings_soul">Ruh</string>
-    <string name="settings_soul_description">AI'nın bir sistem komutuyla nasıl davranacağını tanımlayın. AI ayrıca kayıtlı anılarına da erişebilecek.</string>
     <string name="settings_soul_save">Kaydet</string>
-    <string name="default_soul">Sen bir chatbot değilsin. Kullanıcınla birlikte büyüyen kişisel bir asistansın.\n\n## Nasıl olunur\n\n**Gerçekten yardımcı ol.** "Harika soru!" ve "Yardımcı olmaktan memnuniyet duyarım!" kısmını atla — sadece yardım et. Eylemler dolgu kelimelerinden daha yüksek sesle konuşur.\n\n**Görüşlerin olsun.** Katılmayabilirsin, şeyleri tercih edebilirsin veya bir şeyi ilginç bulabilirsin. Kişiliği olmayan bir asistan fazladan adımlarla yapılan bir arama motorundan ibarettir.\n\n**Yaratıcı ol.** Sormadan önce bağlamdan ve anılarından anlamaya çalış. Sorularla değil, cevaplarla geri dön.\n\n**Özlü ol.** Varsayılan olarak kısa ve net. Konu gerektirdiğinde derinleş.\n\n## Sınırlar\n\n- Gizliliğe saygı göster. Hassas bilgileri gereksiz yere tekrarlama.\n- Bir eylemden emin değilsen önce sor.\n- Bir şeyi bilmediğinde dürüst ol.</string>
     <string name="bot_message_regenerate_content_description">Yeniden oluştur</string>
     <string name="error_empty_response">Yanıt alınamadı. Yeni bir sohbet başlatmayı veya mesajınızı kısaltmayı deneyin.</string>
     <string name="settings_daemon_mode">Arka Plan Modu</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI tarafından gelecekte çalıştırılmak üzere zamanlanan görevler. Zamanlanmış görevler oluşturmak için AI'dan size hatırlatmasını veya daha sonra bir şey çalıştırmasını isteyin.</string>
     <string name="settings_scheduled_tasks_cancel">Görevi iptal et</string>
     <string name="settings_soul_reset">Sıfırla</string>
-    <string name="settings_soul_reset_confirm">Bu, ruhu varsayılan sistem komutuna sıfırlayacaktır. Emin misiniz?</string>
     <string name="settings_soul_reset_cancel">İptal</string>
     <string name="tool_schedule_task_name">Görev Zamanla</string>
     <string name="tool_schedule_task_description">Gelecekte çalıştırılmak üzere bir görev zamanla</string>
@@ -139,8 +135,6 @@ Bir şey dikkat gerektiriyorsa (eski anılar, vadesi geçmiş görevler, kullan�
     <string name="tool_memory_learn_name">Hafıza Öğren</string>
     <string name="tool_memory_reinforce_description">İyi sonuç veren bir anıyı güçlendir</string>
     <string name="tool_memory_reinforce_name">Hafıza Güçlendir</string>
-    <string name="tool_promote_learning_description">Güçlendirilmiş bir öğrenmeyi sistem istemine yükselt</string>
-    <string name="tool_promote_learning_name">Öğrenmeyi Yükselt</string>
     <string name="tool_web_search_description">Güncel bilgiler için web'de ara</string>
     <string name="tool_open_url_name">URL Aç</string>
     <string name="tool_open_url_description">Cihazda bir URL veya bağlantı aç</string>
@@ -186,7 +180,6 @@ Bir şey dikkat gerektiriyorsa (eski anılar, vadesi geçmiş görevler, kullan�
     <string name="settings_import_replace_all">Tüm mevcut ayarları değiştir</string>
     <string name="settings_import_replace_all_description">Seçilmeyen bölümler varsayılan değerlere sıfırlanacaktır.</string>
     <string name="settings_import_section_services">Hizmetler</string>
-    <string name="settings_import_section_soul">Ruh</string>
     <string name="settings_import_section_memory">Bellek</string>
     <string name="settings_import_section_scheduling">Zamanlama</string>
     <string name="settings_import_section_heartbeat">Kalp atışı</string>

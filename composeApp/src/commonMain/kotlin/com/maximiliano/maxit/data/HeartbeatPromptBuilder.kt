@@ -33,14 +33,6 @@ internal data class HeartbeatPendingNotification(
     val preview: String,
 )
 
-/** Memory promotion candidate rendered into the `## Promotion Candidates` section. */
-internal data class HeartbeatPromotionCandidate(
-    val key: String,
-    val hitCount: Int,
-    val category: MemoryCategory,
-    val content: String,
-)
-
 /**
  * Composes the heartbeat prompt.
  *
@@ -52,7 +44,6 @@ internal data class HeartbeatPromotionCandidate(
  * @param pendingEmails new emails polled since the last heartbeat pickup; empty list = section omitted
  * @param pendingSms new SMS polled since the last heartbeat pickup; empty list = section omitted
  * @param pendingNotifications new notifications captured since the last heartbeat pickup; empty list = section omitted
- * @param promotionCandidates memory promotion candidates; empty list = section omitted
  */
 internal fun buildHeartbeatPrompt(
     customOrDefaultPrompt: String,
@@ -63,7 +54,6 @@ internal fun buildHeartbeatPrompt(
     pendingEmails: List<HeartbeatPendingEmail>,
     pendingSms: List<HeartbeatPendingSms>,
     pendingNotifications: List<HeartbeatPendingNotification>,
-    promotionCandidates: List<HeartbeatPromotionCandidate>,
 ): String = buildString {
     append(customOrDefaultPrompt)
     append("\n")
@@ -182,25 +172,6 @@ internal fun buildHeartbeatPrompt(
                 append(": ")
                 append(notif.preview)
             }
-            append('\n')
-        }
-    }
-
-    if (promotionCandidates.isNotEmpty()) {
-        append("\n## Promotion Candidates\n")
-        append("These memories have been reinforced ")
-        append(promotionCandidates.first().hitCount)
-        append("+ times. ")
-        append("Consider using the promote_learning tool to add well-established patterns to your soul/system prompt:\n")
-        for (entry in promotionCandidates) {
-            append("- **")
-            append(entry.key)
-            append("** (hits: ")
-            append(entry.hitCount)
-            append(", category: ")
-            append(entry.category)
-            append("): ")
-            append(entry.content)
             append('\n')
         }
     }

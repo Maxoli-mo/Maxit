@@ -77,7 +77,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maximiliano.maxit.BackIcon
 import com.maximiliano.maxit.TerminalLine
-import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.supportsAgenticFlows
 import com.maximiliano.maxit.getBackgroundDispatcher
 import com.maximiliano.maxit.onDragAndDropEventDropped
@@ -175,11 +174,8 @@ fun ChatScreenContent(
         }
     }
 
+    // Full-screen interactive UI is parked for a future skill; see docs/skills/interactive-ui/SKILL.md.
     when {
-        uiState.isInteractiveMode && !uiState.isRestoring -> InteractiveModeScreen(
-            uiState = uiState,
-        )
-
         isKaiBuildOpen -> KaiBuildScreen(onExit = { isKaiBuildOpen = false })
 
         else -> ChatModeScreen(
@@ -656,16 +652,8 @@ private fun ChatModeScreen(
                             ),
                     ) {
                         if (uiState.history.isEmpty()) {
-                            // Interactive UI mode isn't offered on on-device LiteRT: the kai-ui
-                            // component schema is too large for small Gemma models to coherently
-                            // attend to, and even the minimal variant we tried was unreliable.
-                            val primaryIsOnDevice = uiState.availableServices
-                                .firstOrNull()
-                                ?.let { Service.fromId(it.serviceId).isOnDevice } == true
                             EmptyState(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
-                                onStartInteractiveMode = uiState.actions.enterInteractiveMode
-                                    .takeUnless { primaryIsOnDevice },
                                 onOpenKaiBuild = onOpenKaiBuild,
                             )
                         } else {

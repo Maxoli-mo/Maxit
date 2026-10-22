@@ -550,11 +550,13 @@ class KaiUiValidationTest {
 
     // endregion
 
-    // region System prompt (mirror of RemoteDataRepository.getActiveSystemPrompt) --------------
+    // region Archived UI prompt (opt-in legacy validation, not the current app prompt) --------
 
     /**
      * Duplicates the kai-ui portion of the app's system prompt. Mirrors
      * `RemoteDataRepository.getActiveSystemPrompt()` lines 1417-1495 (as of 2026-04-05).
+     * UI prompt injection was parked on 2026-10-21; the preserved scheme is in
+     * docs/skills/interactive-ui/SKILL.md. This harness still tests legacy renderer output.
      * Keep in sync manually if the real prompt changes — there is no automated drift check.
      */
     private fun buildSystemPrompt(mode: TestPrompt.Mode): String = buildString {

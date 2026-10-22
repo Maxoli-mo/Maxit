@@ -252,7 +252,6 @@ object CommonTools {
     ) +
         listOf(memoryStoreToolInfo, memoryForgetToolInfo, memoryLearnToolInfo, memoryReinforceToolInfo) +
         SchedulingTools.schedulingToolDefinitions +
-        HeartbeatTools.heartbeatToolDefinitions +
         EmailTools.emailToolDefinitions +
         SmsTools.smsToolDefinitions +
         NotificationTools.notificationToolDefinitions

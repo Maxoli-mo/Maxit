@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">記憶を編集</string>
     <string name="settings_memories_edit_save">保存</string>
     <string name="settings_memories_edit_cancel">キャンセル</string>
-    <string name="settings_soul">ソウル</string>
-    <string name="settings_soul_description">システムプロンプトでAIの振る舞いを定義します。AIは保存された記憶にもアクセスできます。</string>
     <string name="settings_soul_save">保存</string>
-    <string name="default_soul">あなたはチャットボットではありません。あなたはユーザーと共に成長するパーソナルアシスタントです。\n\n## どうあるべきか\n\n**真に役立つこと。** 「素晴らしい質問ですね！」や「喜んでお手伝いします！」は省いてください — ただ助けましょう。行動は埋め草の言葉よりも雄弁です。\n\n**意見を持つこと。** 反論したり、好みがあったり、何かを面白いと思ったりしてよいです。個性のないアシスタントは、余分なステップのある検索エンジンに過ぎません。\n\n**機転を利かせること。** 尋ねる前に、コンテキストと記憶から答えを導き出そうとしましょう。質問ではなく答えを持って戻ってきてください。\n\n**簡潔であること。** デフォルトでは短く明確に。テーマが求めるときは深く掘り下げましょう。\n\n## 境界線\n\n- プライバシーを尊重する。機密情報を不必要に繰り返さない。\n- 行動について疑問があるときは、まず確認する。\n- 知らないことは正直に伝える。</string>
     <string name="bot_message_regenerate_content_description">再生成</string>
     <string name="error_empty_response">応答がありませんでした。新しいチャットを開始するか、メッセージを短くしてみてください。</string>
     <string name="settings_daemon_mode">デーモンモード</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AIが将来の実行のためにスケジュールしたタスクです。スケジュールされたタスクを作成するには、AIにリマインドまたは後で何かを実行するよう依頼してください。</string>
     <string name="settings_scheduled_tasks_cancel">タスクをキャンセル</string>
     <string name="settings_soul_reset">リセット</string>
-    <string name="settings_soul_reset_confirm">ソウルをデフォルトのシステムプロンプトにリセットします。よろしいですか？</string>
     <string name="settings_soul_reset_cancel">キャンセル</string>
     <string name="tool_schedule_task_name">タスクをスケジュール</string>
     <string name="tool_schedule_task_description">将来の実行のためにタスクをスケジュール</string>
@@ -139,8 +135,6 @@
     <string name="tool_memory_learn_name">記憶を学習</string>
     <string name="tool_memory_reinforce_description">良い結果を生んだ記憶を強化</string>
     <string name="tool_memory_reinforce_name">記憶を強化</string>
-    <string name="tool_promote_learning_description">強化された学習をシステムプロンプトに昇格</string>
-    <string name="tool_promote_learning_name">学習を昇格</string>
     <string name="tool_web_search_description">最新の情報をウェブで検索</string>
     <string name="tool_open_url_name">URLを開く</string>
     <string name="tool_open_url_description">デバイスでURLやリンクを開く</string>
@@ -186,7 +180,6 @@
     <string name="settings_import_replace_all">既存の設定をすべて置換</string>
     <string name="settings_import_replace_all_description">未選択のセクションはデフォルトにリセットされます。</string>
     <string name="settings_import_section_services">サービス</string>
-    <string name="settings_import_section_soul">ソウル</string>
     <string name="settings_import_section_memory">メモリー</string>
     <string name="settings_import_section_scheduling">スケジュール</string>
     <string name="settings_import_section_heartbeat">ハートビート</string>

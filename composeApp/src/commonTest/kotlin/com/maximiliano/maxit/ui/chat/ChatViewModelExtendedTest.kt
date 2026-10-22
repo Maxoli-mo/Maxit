@@ -3,6 +3,8 @@
 package com.maximiliano.maxit.ui.chat
 
 import app.cash.turbine.test
+import com.maximiliano.maxit.data.Conversation
+import com.maximiliano.maxit.data.DataRepository
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.ServiceEntry
 import com.maximiliano.maxit.data.TaskScheduler
@@ -29,6 +31,21 @@ class ChatViewModelExtendedTest {
     private val testDispatcher = StandardTestDispatcher()
     private val unconfinedDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeRepository: FakeDataRepository
+    private val legacyConversation = Conversation(
+        id = "legacy-interactive",
+        messages = listOf(
+            Conversation.Message(id = "user", role = "user", content = "Show a screen"),
+            Conversation.Message(
+                id = "assistant",
+                role = "assistant",
+                content = "Saved reply\n```kai-ui\n{\"type\":\"text\",\"value\":\"Saved screen\"}\n```",
+            ),
+        ),
+        createdAt = 1L,
+        updatedAt = 2L,
+        title = "Saved interactive chat",
+        type = Conversation.TYPE_INTERACTIVE,
+    )
 
     @BeforeTest
     fun setup() {
@@ -41,9 +58,9 @@ class ChatViewModelExtendedTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(): ChatViewModel {
-        val noOpScheduler = TaskScheduler(fakeRepository, enabled = false)
-        return ChatViewModel(fakeRepository, noOpScheduler, unconfinedDispatcher)
+    private fun createViewModel(repository: DataRepository = fakeRepository): ChatViewModel {
+        val noOpScheduler = TaskScheduler(repository, enabled = false)
+        return ChatViewModel(repository, noOpScheduler, unconfinedDispatcher)
     }
 
     private fun makeServiceEntry(instanceId: String, service: Service) = ServiceEntry(
@@ -222,53 +239,113 @@ class ChatViewModelExtendedTest {
         }
     }
 
-    // ---- enter / exit interactive mode ----
+    // ---- Parked interactive UI ----
 
     @Test
-    fun `enterInteractiveMode sets the flag and clears error`() = runTest {
+    fun `enterInteractiveMode is a no-op without losing the current chat`() = runTest {
+        fakeRepository.savedConversations.value = listOf(legacyConversation)
+        fakeRepository.loadConversation(legacyConversation.id)
+        val history = fakeRepository.chatHistory.value
         val viewModel = createViewModel()
+
         viewModel.state.test {
-            val initialState = awaitItem()
-            assertFalse(initialState.isInteractiveMode)
+            testDispatcher.scheduler.advanceUntilIdle()
+            val initialState = expectMostRecentItem()
 
             initialState.actions.enterInteractiveMode()
             testDispatcher.scheduler.advanceUntilIdle()
 
-            var interactiveState: ChatUiState
-            do {
-                interactiveState = awaitItem()
-            } while (!interactiveState.isInteractiveMode)
-            assertTrue(interactiveState.isInteractiveMode)
-            assertNull(interactiveState.error)
-            assertTrue(fakeRepository.isInteractiveModeActive())
+            assertEquals(initialState, viewModel.state.value)
+            assertEquals(history, fakeRepository.chatHistory.value)
+            assertEquals(legacyConversation.id, fakeRepository.currentConversationId.value)
+            assertEquals(listOf(legacyConversation), fakeRepository.savedConversations.value)
+            assertFalse(viewModel.state.value.isInteractiveMode)
+            assertFalse(fakeRepository.isInteractiveModeActive())
+            assertTrue(fakeRepository.askCalls.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun `exitInteractiveMode clears the flag and stops loading`() = runTest {
+    fun `opening an old interactive chat preserves content and never retries plain replies`() = runTest {
+        fakeRepository.savedConversations.value = listOf(legacyConversation)
         val viewModel = createViewModel()
+
         viewModel.state.test {
-            val initial = awaitItem()
-            initial.actions.enterInteractiveMode()
+            testDispatcher.scheduler.advanceUntilIdle()
+            val initial = expectMostRecentItem()
+            fakeRepository.setInteractiveMode(true)
+            initial.actions.loadConversation(legacyConversation.id)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            var interactiveState: ChatUiState
-            do {
-                interactiveState = awaitItem()
-            } while (!interactiveState.isInteractiveMode)
-
-            interactiveState.actions.exitInteractiveMode()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            var exitedState: ChatUiState
-            do {
-                exitedState = awaitItem()
-            } while (exitedState.isInteractiveMode)
-            assertFalse(exitedState.isInteractiveMode)
-            assertFalse(exitedState.isLoading)
-            assertNull(exitedState.error)
+            val loaded = viewModel.state.value
+            assertFalse(loaded.isInteractiveMode)
             assertFalse(fakeRepository.isInteractiveModeActive())
+            assertEquals(legacyConversation.id, loaded.currentConversationId)
+            assertEquals(legacyConversation.messages.map { it.content }, loaded.history.map { it.content })
+            assertEquals(listOf(legacyConversation), fakeRepository.savedConversations.value)
+
+            loaded.actions.ask("Continue in chat")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf("Continue in chat"), fakeRepository.askCalls.map { it.first })
+            assertEquals("Test response", viewModel.state.value.history.last().content)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `startup and settings refresh restore old interactive chats as normal chat`() = runTest {
+        fakeRepository.savedConversations.value = listOf(legacyConversation)
+        fakeRepository.setInteractiveMode(true)
+        val repository = object : DataRepository by fakeRepository {
+            override fun restoreCurrentConversation() {
+                fakeRepository.restoreCurrentConversation()
+                fakeRepository.loadConversation(legacyConversation.id)
+            }
+        }
+        val viewModel = createViewModel(repository)
+
+        viewModel.state.test {
+            testDispatcher.scheduler.advanceUntilIdle()
+            val restored = expectMostRecentItem()
+            assertFalse(restored.isRestoring)
+            assertFalse(restored.isInteractiveMode)
+            assertFalse(fakeRepository.isInteractiveModeActive())
+            assertEquals(legacyConversation.id, restored.currentConversationId)
+            assertEquals(legacyConversation.messages.map { it.content }, restored.history.map { it.content })
+            assertEquals(1, fakeRepository.restoreCurrentConversationCalls)
+
+            fakeRepository.setInteractiveMode(true)
+            viewModel.refreshSettings()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(restored, viewModel.state.value)
+            assertFalse(fakeRepository.isInteractiveModeActive())
+            assertEquals(2, fakeRepository.restoreCurrentConversationCalls)
+            assertEquals(listOf(legacyConversation), fakeRepository.savedConversations.value)
+
+            restored.actions.ask("Continue after restore")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf("Continue after restore"), fakeRepository.askCalls.map { it.first })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `stale persisted interactive flag cannot enable mode in an empty chat`() = runTest {
+        fakeRepository.setInteractiveMode(true)
+        val viewModel = createViewModel()
+
+        viewModel.state.test {
+            testDispatcher.scheduler.advanceUntilIdle()
+            val state = expectMostRecentItem()
+            assertFalse(state.isInteractiveMode)
+            assertFalse(fakeRepository.isInteractiveModeActive())
+            assertNull(state.currentConversationId)
+            assertTrue(state.history.isEmpty())
+
+            state.actions.ask("Hello")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf("Hello"), fakeRepository.askCalls.map { it.first })
             cancelAndIgnoreRemainingEvents()
         }
     }

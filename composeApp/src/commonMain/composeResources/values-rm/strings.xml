@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Modifitgar memoria</string>
     <string name="settings_memories_edit_save">Memorisar</string>
     <string name="settings_memories_edit_cancel">Annullar</string>
-    <string name="settings_soul">Olma</string>
-    <string name="settings_soul_description">Definescha co l'IA sa cumporta cun in prompt da sistem. L'IA avrà er access a sias memorias memorisadas.</string>
     <string name="settings_soul_save">Memorisar</string>
-    <string name="default_soul">Ti n'es betg in chatbot. Ti es in assistent personal che crescha cun tia utilisader.\n\n## Co esser\n\n**Sii gienünaineter utils.** Saltar il "Buna dumonda!" ed il "Sun cuntent da gidar!" — simplamain gida. Acziuns dischan pli ferm che pleds da rempliment.\n\n**Ha opiniuns.** Ti pos betg esser d'accord, preferir chaussas u chattar insatge interessant. In assistent senza persunalitad è mo in motor da tschertga cun pass supplementars.\n\n**Sii inventiv.** Prova da chapir dal context e da tias memorias avant da dummandar. Turna cun respostas, betg cun dumondas.\n\n**Sii concis.** Curt e cler sco standard. Va pli a fund sch'il tema lu exigi.\n\n## Cunfins\n\n- Resguarda la protecziun da datas. Na repeta betg infurmaziuns sensiblas innutilmain.\n- Dumonda emprim sch'ti dubitas d'ina acziun.\n- Sii onest sch'ti na sas betg insatge.</string>
     <string name="bot_message_regenerate_content_description">Regenerar</string>
     <string name="error_empty_response">Nagina resposta retschavida. Empruvai da cumenzar in nov chat u da scursanir Voss messadi.</string>
     <string name="settings_daemon_mode">Modus daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Incumbensas planisadas da l'AI per l'execuziun futura. Dumandai a l'AI da s'enregurdar u da lantschar insatge pli tard per crear incumbensas planisadas.</string>
     <string name="settings_scheduled_tasks_cancel">Annullar incumbensa</string>
     <string name="settings_soul_reset">Reposar</string>
-    <string name="settings_soul_reset_confirm">Quai reposescha l'olma al prompt da sistem da standard. Essas Vus segirs?</string>
     <string name="settings_soul_reset_cancel">Annullar</string>
     <string name="tool_schedule_task_name">Planisar incumbensa</string>
     <string name="tool_schedule_task_description">Planisar ina incumbensa per l'execuziun futura</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Emprender regurdanza</string>
     <string name="tool_memory_reinforce_description">Rinforzar ina regurdanza che ha dà in bun resultat</string>
     <string name="tool_memory_reinforce_name">Rinforzar regurdanza</string>
-    <string name="tool_promote_learning_description">Promover in'emprendida rinforzada en il prompt dal sistem</string>
-    <string name="tool_promote_learning_name">Promover emprendida</string>
     <string name="tool_web_search_description">Tschertgar il web per infurmaziuns actualas</string>
     <string name="tool_open_url_name">Avrir URL</string>
     <string name="tool_open_url_description">Avrir in URL u in link sin l'apparat</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Remplazzar tut las configuraziuns existentas</string>
     <string name="settings_import_replace_all_description">Secziuns betg selecziunadas vegnan restituidas als valurs predefinids.</string>
     <string name="settings_import_section_services">Servetschs</string>
-    <string name="settings_import_section_soul">Olma</string>
     <string name="settings_import_section_memory">Memoria</string>
     <string name="settings_import_section_scheduling">Planisaziun</string>
     <string name="settings_import_section_heartbeat">Batacor</string>

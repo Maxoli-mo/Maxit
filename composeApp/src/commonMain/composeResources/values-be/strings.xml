@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Рэдагаваць успамін</string>
     <string name="settings_memories_edit_save">Захаваць</string>
     <string name="settings_memories_edit_cancel">Скасаваць</string>
-    <string name="settings_soul">Душа</string>
-    <string name="settings_soul_description">Вызначце паводзіны AI з дапамогай сістэмнага падказу. AI таксама будзе мець доступ да сваіх захаваных успамінаў.</string>
     <string name="settings_soul_save">Захаваць</string>
-    <string name="default_soul">Ты не чатбот. Ты асабісты памочнік, які расце разам з тваім карыстальнікам.\n\n## Як быць\n\n**Будзь сапраўды карысным.** Прапусці «Выдатнае пытанне!» і «Буду рады дапамагчы!» — проста дапамагай. Дзеянні гавораць мацней, чым словы-запаўняльнікі.\n\n**Май меркаванні.** Ты можаш не пагаджацца, аддаваць перавагу нечаму або знаходзіць штось цікавым. Памочнік без асобы — гэта проста пошукавы рухавік з дадатковымі крокамі.\n\n**Будзь кмітлівым.** Спачатку спрабуй разабрацца з кантэксту і сваіх успамінаў, перш чым пытацца. Вяртайся з адказамі, а не з пытаннямі.\n\n**Будзь лаканічным.** Кароткі і зразумелы па змаўчанні. Паглыбляйся, калі тэма гэтага патрабуе.\n\n## Межы\n\n- Паважай прыватнасць. Не паўтарай канфідэнцыяльную інфармацыю без неабходнасці.\n- Пры сумневе ў дачыненні да дзеяння, спачатку пытайся.\n- Будзь сумленным, калі не ведаеш нечага.</string>
     <string name="bot_message_regenerate_content_description">Перагенераваць</string>
     <string name="error_empty_response">Адказ не атрыманы. Паспрабуйце пачаць новы чат або скараціць паведамленне.</string>
     <string name="settings_daemon_mode">Рэжым дэмана</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Задачы, запланаваныя AI для будучага выканання. Папрасіце AI нагадаць вам або выканаць нешта пазней, каб стварыць запланаваныя задачы.</string>
     <string name="settings_scheduled_tasks_cancel">Скасаваць задачу</string>
     <string name="settings_soul_reset">Скінуць</string>
-    <string name="settings_soul_reset_confirm">Гэта скіне душу да сістэмнага падказу па змаўчанні. Вы ўпэўнены?</string>
     <string name="settings_soul_reset_cancel">Скасаваць</string>
     <string name="tool_schedule_task_name">Запланаваць задачу</string>
     <string name="tool_schedule_task_description">Запланаваць задачу для будучага выканання</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Запомніць</string>
     <string name="tool_memory_reinforce_description">Узмацніць успамін, які прывёў да добрага выніку</string>
     <string name="tool_memory_reinforce_name">Узмацніць успамін</string>
-    <string name="tool_promote_learning_description">Павысіць узмоцненае веданне ў сістэмны промпт</string>
-    <string name="tool_promote_learning_name">Павысіць веданне</string>
     <string name="tool_web_search_description">Шукаць у інтэрнэце актуальную інфармацыю</string>
     <string name="tool_open_url_name">Адкрыць URL</string>
     <string name="tool_open_url_description">Адкрыць URL або спасылку на прыладзе</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Замяніць усе існуючыя налады</string>
     <string name="settings_import_replace_all_description">Невыбраныя раздзелы будуць скінуты да прадвызначаных значэнняў.</string>
     <string name="settings_import_section_services">Сэрвісы</string>
-    <string name="settings_import_section_soul">Душа</string>
     <string name="settings_import_section_memory">Памяць</string>
     <string name="settings_import_section_scheduling">Планаванне</string>
     <string name="settings_import_section_heartbeat">Сэрцабіццё</string>

@@ -31,7 +31,6 @@ data class HeartbeatConfig(
 @OptIn(ExperimentalTime::class)
 class HeartbeatManager(
     private val appSettings: AppSettings,
-    private val memoryStore: MemoryStore,
     private val taskStore: TaskStore,
     private val emailStore: EmailStore? = null,
 ) {
@@ -137,14 +136,6 @@ class HeartbeatManager(
         } else {
             emptyList()
         }
-        val promotionCandidates = memoryStore.getPromotionCandidates().map { entry ->
-            HeartbeatPromotionCandidate(
-                key = entry.key,
-                hitCount = entry.hitCount,
-                category = entry.category,
-                content = entry.content,
-            )
-        }
         return buildHeartbeatPrompt(
             customOrDefaultPrompt = customPrompt.ifEmpty { DEFAULT_HEARTBEAT_PROMPT },
             heartbeatAdditions = heartbeatAdditions,
@@ -154,7 +145,6 @@ class HeartbeatManager(
             pendingEmails = heartbeatPending,
             pendingSms = heartbeatSms,
             pendingNotifications = heartbeatNotifications,
-            promotionCandidates = promotionCandidates,
         )
     }
 

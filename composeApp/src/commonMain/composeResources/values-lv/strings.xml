@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Rediģēt atmiņu</string>
     <string name="settings_memories_edit_save">Saglabāt</string>
     <string name="settings_memories_edit_cancel">Atcelt</string>
-    <string name="settings_soul">Dvēsele</string>
-    <string name="settings_soul_description">Nosakiet, kā AI uzvedas ar sistēmas uzvedni. AI arī varēs piekļūt savām saglabātajām atmiņām.</string>
     <string name="settings_soul_save">Saglabāt</string>
-    <string name="default_soul">Tu neesi čatbots. Tu esi personīgais palīgs, kas aug kopā ar savu lietotāju.\n\n## Kā būt\n\n**Esi patiesi noderīgs.** Izlaidi «Lielisks jautājums!» un «Ar prieku palīdzēšu!» — vienkārši palīdzi. Darbības runā skaļāk par aizpildījuma vārdiem.\n\n**Turi viedokļus.** Tev ir atļauts nepiekrist, dot priekšroku lietām vai atrast kaut ko interesantu. Palīgs bez personības ir tikai meklētājprogramma ar papildu soļiem.\n\n**Esi atjautīgs.** Mēģini saprast no konteksta un savām atmiņām, pirms jautāsi. Atgriezies ar atbildēm, nevis jautājumiem.\n\n**Esi kodolīgs.** Īss un skaidrs pēc noklusējuma. Ej dziļāk, kad tēma to prasa.\n\n## Robežas\n\n- Cieni privātumu. Nevajadzīgi neatkārto sensitīvu informāciju.\n- Kad šaubies par darbību, vispirms jautā.\n- Esi godīgs, kad nezini kaut ko.</string>
     <string name="bot_message_regenerate_content_description">Ģenerēt atkārtoti</string>
     <string name="error_empty_response">Netika saņemta atbilde. Mēģiniet sākt jaunu tērzēšanu vai saīsināt savu ziņojumu.</string>
     <string name="settings_daemon_mode">Daemon režīms</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI ieplānotie uzdevumi turpmākai izpildei. Lūdziet AI atgādināt jums vai palaist kaut ko vēlāk, lai izveidotu ieplānotos uzdevumus.</string>
     <string name="settings_scheduled_tasks_cancel">Atcelt uzdevumu</string>
     <string name="settings_soul_reset">Atiestatīt</string>
-    <string name="settings_soul_reset_confirm">Tas atiestatīs dvēseli uz noklusējuma sistēmas uzvedni. Vai esat pārliecināts?</string>
     <string name="settings_soul_reset_cancel">Atcelt</string>
     <string name="tool_schedule_task_name">Ieplānot uzdevumu</string>
     <string name="tool_schedule_task_description">Ieplānot uzdevumu turpmākai izpildei</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Apgūt atmiņu</string>
     <string name="tool_memory_reinforce_description">Pastiprināt atmiņu, kas deva labu rezultātu</string>
     <string name="tool_memory_reinforce_name">Pastiprināt atmiņu</string>
-    <string name="tool_promote_learning_description">Paaugstināt pastiprinātu mācību sistēmas uzvednē</string>
-    <string name="tool_promote_learning_name">Paaugstināt mācību</string>
     <string name="tool_web_search_description">Meklēt tīmeklī aktuālu informāciju</string>
     <string name="tool_open_url_name">Atvērt URL</string>
     <string name="tool_open_url_description">Atvērt URL vai saiti ierīcē</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Aizstāt visus esošos iestatījumus</string>
     <string name="settings_import_replace_all_description">Neatlasītās sadaļas tiks atiestatītas uz noklusējuma vērtībām.</string>
     <string name="settings_import_section_services">Pakalpojumi</string>
-    <string name="settings_import_section_soul">Dvēsele</string>
     <string name="settings_import_section_memory">Atmiņa</string>
     <string name="settings_import_section_scheduling">Plānošana</string>
     <string name="settings_import_section_heartbeat">Sirdspuksts</string>

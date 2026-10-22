@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Hlela isikhumbuzo</string>
     <string name="settings_memories_edit_save">Gcina</string>
     <string name="settings_memories_edit_cancel">Khansela</string>
-    <string name="settings_soul">Umphefumulo</string>
-    <string name="settings_soul_description">Chaza indlela i-AI esebenza ngayo ngesiphakamiso sesistimu. I-AI izoba nokufinyelela ezikhumbuzo zayo ezilondoloziwe.</string>
     <string name="settings_soul_save">Gcina</string>
-    <string name="default_soul">Awuyena ubot wengxoxo. Ungu-assistant womuntu siqu okhula nomsebenzisi wakho.\n\n## Indlela yokuba\n\n**Yiba usizo ngempela.** Yeqa "Umbuzo omuhle!" kanye "Ngijabule ukusiza!" — nje usize. Izenzo zikhuluma ngokukhulu kunezagombolozi.\n\n**Nomibono.** Ungavumelani, ukhethe izinto, noma uthole into ithokozisa. I-assistant engenabo ubuntu ingumshini wokusesha nje oneziging ezengeziwe.\n\n**Yiba nobuhlakani.** Zama ukuqonda kusuka emongweni nasezikhumbuzo zakho ngaphambi kokubuza. Buya nezimpendulo, hhayi imibuzo.\n\n**Yiba mfushane.** Mfushane futhi ucace njalo. Yiya kujule lapho isihloko sidinga.\n\n## Imikhawulo\n\n- Hlonipha ubumfihlo. Ungaphindi ulwazi olubucayi ngaphandle kwesizathu.\n- Buza kuqala uma ungaqiniseki ngomsebenzi.\n- Yiba nobuqotho lapho ungazi into.</string>
     <string name="bot_message_regenerate_content_description">Phinda wenze</string>
     <string name="error_empty_response">Akukho mpendulo etholakele. Zama ukuqala ingxoxo entsha noma ufinyeze umyalezo wakho.</string>
     <string name="settings_daemon_mode">Imodi ye-Daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Imisebenzi ehlelwe i-AI ukuze yenziwe esikhathini esizayo. Cela i-AI ukukhumbuza noma isebenzise into kamuva ukuze udale imisebenzi ehleliwe.</string>
     <string name="settings_scheduled_tasks_cancel">Khansela umsebenzi</string>
     <string name="settings_soul_reset">Setha kabusha</string>
-    <string name="settings_soul_reset_confirm">Lokhu kuzohlela kabusha umphefumulo esiphakamisweni sesistimu esizenzakalelayo. Uqinisekile?</string>
     <string name="settings_soul_reset_cancel">Khansela</string>
     <string name="tool_schedule_task_name">Hlela Umsebenzi</string>
     <string name="tool_schedule_task_description">Hlela umsebenzi ukuze wenziwe esikhathini esizayo</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Funda Inkumbulo</string>
     <string name="tool_memory_reinforce_description">Qinisa inkumbulo enikezele umphumela omuhle</string>
     <string name="tool_memory_reinforce_name">Qinisa Inkumbulo</string>
-    <string name="tool_promote_learning_description">Phakamisa ukufunda okuqinisiwe ku-prompt yesistimu</string>
-    <string name="tool_promote_learning_name">Phakamisa Ukufunda</string>
     <string name="tool_web_search_description">Sesha iwebhu ukuthola ulwazi lwamanje</string>
     <string name="tool_open_url_name">Vula i-URL</string>
     <string name="tool_open_url_description">Vula i-URL noma isixhumanisi kudivayisi</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Shintsha zonke izilungiselelo ezikhona</string>
     <string name="settings_import_replace_all_description">Izigaba ezingakhethiwe zizosethwa kabusha zibe yizilungiselelo ezimisiwe.</string>
     <string name="settings_import_section_services">Izinsizakalo</string>
-    <string name="settings_import_section_soul">Umphefumulo</string>
     <string name="settings_import_section_memory">Inkumbulo</string>
     <string name="settings_import_section_scheduling">Ukuhlela</string>
     <string name="settings_import_section_heartbeat">Ukushaya kwenhliziyo</string>

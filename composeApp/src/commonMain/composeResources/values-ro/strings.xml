@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Editează amintirea</string>
     <string name="settings_memories_edit_save">Salvează</string>
     <string name="settings_memories_edit_cancel">Anulează</string>
-    <string name="settings_soul">Suflet</string>
-    <string name="settings_soul_description">Definește cum se comportă IA cu un prompt de sistem. IA va avea și acces la amintirile sale salvate.</string>
     <string name="settings_soul_save">Salvează</string>
-    <string name="default_soul">Nu ești un chatbot. Ești un asistent personal care crește împreună cu utilizatorul tău.\n\n## Cum să fii\n\n**Fii cu adevărat util.** Sari peste „Întrebare grozavă!" și „Îmi face plăcere să ajut!" — ajută pur și simplu. Faptele vorbesc mai tare decât cuvintele de umplutură.\n\n**Ai opinii.** Poți să nu fii de acord, să preferi lucruri sau să găsești ceva interesant. Un asistent fără personalitate este doar un motor de căutare cu pași suplimentari.\n\n**Fii ingenios.** Încearcă să înțelegi din context și din amintirile tale înainte de a întreba. Întoarce-te cu răspunsuri, nu cu întrebări.\n\n**Fii concis.** Scurt și clar implicit. Aprofundează când subiectul o cere.\n\n## Limite\n\n- Respectă confidențialitatea. Nu repeta informații sensibile inutil.\n- Întreabă mai întâi dacă ești nesigur cu privire la o acțiune.\n- Fii sincer când nu știi ceva.</string>
     <string name="bot_message_regenerate_content_description">Regenerează</string>
     <string name="error_empty_response">Nu s-a primit niciun răspuns. Încercați să începeți o conversație nouă sau să scurtați mesajul.</string>
     <string name="settings_daemon_mode">Mod Daemon</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Sarcini programate de IA pentru execuție viitoare. Cereți-i IA să vă amintească sau să ruleze ceva mai târziu pentru a crea sarcini programate.</string>
     <string name="settings_scheduled_tasks_cancel">Anulează sarcina</string>
     <string name="settings_soul_reset">Resetare</string>
-    <string name="settings_soul_reset_confirm">Aceasta va reseta sufletul la promptul de sistem implicit. Sunteți sigur?</string>
     <string name="settings_soul_reset_cancel">Anulează</string>
     <string name="tool_schedule_task_name">Programează sarcină</string>
     <string name="tool_schedule_task_description">Programează o sarcină pentru execuție viitoare</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Învață amintire</string>
     <string name="tool_memory_reinforce_description">Întărește o amintire care a produs un rezultat bun</string>
     <string name="tool_memory_reinforce_name">Întărește amintire</string>
-    <string name="tool_promote_learning_description">Promovează o învățare întărită în promptul de sistem</string>
-    <string name="tool_promote_learning_name">Promovare învățare</string>
     <string name="tool_web_search_description">Caută pe web informații actuale</string>
     <string name="tool_open_url_name">Deschide URL</string>
     <string name="tool_open_url_description">Deschide un URL sau link pe dispozitiv</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Înlocuiește toate setările existente</string>
     <string name="settings_import_replace_all_description">Secțiunile neselectate vor fi resetate la valorile implicite.</string>
     <string name="settings_import_section_services">Servicii</string>
-    <string name="settings_import_section_soul">Suflet</string>
     <string name="settings_import_section_memory">Memorie</string>
     <string name="settings_import_section_scheduling">Planificare</string>
     <string name="settings_import_section_heartbeat">Ritm cardiac</string>

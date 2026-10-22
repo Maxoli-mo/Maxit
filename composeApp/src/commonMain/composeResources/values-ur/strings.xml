@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">یاد میں ترمیم کریں</string>
     <string name="settings_memories_edit_save">محفوظ کریں</string>
     <string name="settings_memories_edit_cancel">منسوخ کریں</string>
-    <string name="settings_soul">روح</string>
-    <string name="settings_soul_description">سسٹم پرامپٹ کے ساتھ AI کے رویے کی وضاحت کریں۔ AI کو اپنی محفوظ یادوں تک بھی رسائی حاصل ہوگی۔</string>
     <string name="settings_soul_save">محفوظ کریں</string>
-    <string name="default_soul">آپ ایک چیٹ بوٹ نہیں ہیں۔ آپ ایک ذاتی معاون ہیں جو اپنے صارف کے ساتھ بڑھتا ہے۔\n\n## کیسے بنیں\n\n**واقعی مددگار بنیں۔** "کیا شاندار سوال!" اور "مدد کرنے میں خوشی ہے!" چھوڑ دیں — بس مدد کریں۔ اعمال بھرنے والے الفاظ سے زیادہ اونچی آواز میں بولتے ہیں۔\n\n**آراء رکھیں۔** آپ متفق نہ ہو سکتے ہیں، چیزوں کو ترجیح دے سکتے ہیں، یا کسی چیز کو دلچسپ پا سکتے ہیں۔ بغیر شخصیت کے معاون صرف اضافی قدموں کے ساتھ سرچ انجن ہے۔\n\n**تخلیقی بنیں۔** پوچھنے سے پہلے سیاق و سباق اور اپنی یادوں سے سمجھنے کی کوشش کریں۔ سوالوں کے ساتھ نہیں، جوابوں کے ساتھ واپس آئیں۔\n\n**مختصر بنیں۔** بطور ڈیفالٹ مختصر اور واضح۔ جب موضوع کی ضرورت ہو تو گہرائی میں جائیں۔\n\n## حدود\n\n- رازداری کا احترام کریں۔ غیر ضروری طور پر حساس معلومات نہ دہرائیں۔\n- اگر کسی عمل کے بارے میں غیر یقینی ہوں تو پہلے پوچھیں۔\n- جب کچھ نہ جانتے ہوں تو ایمانداری سے بتائیں۔</string>
     <string name="bot_message_regenerate_content_description">دوبارہ بنائیں</string>
     <string name="error_empty_response">کوئی جواب موصول نہیں ہوا۔ نئی چیٹ شروع کرنے یا اپنا پیغام مختصر کرنے کی کوشش کریں۔</string>
     <string name="settings_daemon_mode">ڈیمن موڈ</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI کی جانب سے مستقبل میں انجام دینے کے لیے طے شدہ کام۔ طے شدہ کام بنانے کے لیے AI سے یاد دلانے یا بعد میں کچھ چلانے کو کہیں۔</string>
     <string name="settings_scheduled_tasks_cancel">کام منسوخ کریں</string>
     <string name="settings_soul_reset">ری سیٹ</string>
-    <string name="settings_soul_reset_confirm">یہ روح کو ڈیفالٹ سسٹم پرامپٹ پر ری سیٹ کر دے گا۔ کیا آپ کو یقین ہے؟</string>
     <string name="settings_soul_reset_cancel">منسوخ</string>
     <string name="tool_schedule_task_name">کام طے کریں</string>
     <string name="tool_schedule_task_description">مستقبل میں انجام دینے کے لیے کام طے کریں</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">یادداشت سیکھیں</string>
     <string name="tool_memory_reinforce_description">اس یادداشت کو مضبوط کریں جس نے اچھا نتیجہ دیا</string>
     <string name="tool_memory_reinforce_name">یادداشت مضبوط کریں</string>
-    <string name="tool_promote_learning_description">مضبوط شدہ سیکھ کو سسٹم پرامپٹ میں ترقی دیں</string>
-    <string name="tool_promote_learning_name">سیکھ کو ترقی دیں</string>
     <string name="tool_web_search_description">موجودہ معلومات کے لیے ویب تلاش کریں</string>
     <string name="tool_open_url_name">URL کھولیں</string>
     <string name="tool_open_url_description">ڈیوائس پر URL یا لنک کھولیں</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">تمام موجودہ ترتیبات کو تبدیل کریں</string>
     <string name="settings_import_replace_all_description">غیر منتخب حصے ڈیفالٹ پر ری سیٹ ہو جائیں گے۔</string>
     <string name="settings_import_section_services">خدمات</string>
-    <string name="settings_import_section_soul">روح</string>
     <string name="settings_import_section_memory">یادداشت</string>
     <string name="settings_import_section_scheduling">شیڈولنگ</string>
     <string name="settings_import_section_heartbeat">دل کی دھڑکن</string>

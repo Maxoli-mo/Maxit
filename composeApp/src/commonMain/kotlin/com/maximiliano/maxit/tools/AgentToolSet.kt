@@ -32,10 +32,8 @@ fun buildAgentToolSet(
         addAll(CommonTools.getMemoryTools(memoryStore))
     }
 
-    // Heartbeat tools ride the scheduling switch — they are only reachable from a scheduled run.
     if (appSettings.isSchedulingEnabled()) {
         addAll(SchedulingTools.getSchedulingTools(taskStore))
-        addAll(HeartbeatTools.getHeartbeatTools(memoryStore, appSettings))
     }
 
     if (emailStore != null && appSettings.isEmailEnabled()) {

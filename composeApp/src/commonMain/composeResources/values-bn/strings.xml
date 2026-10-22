@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">স্মৃতি সম্পাদনা</string>
     <string name="settings_memories_edit_save">সংরক্ষণ করুন</string>
     <string name="settings_memories_edit_cancel">বাতিল</string>
-    <string name="settings_soul">আত্মা</string>
-    <string name="settings_soul_description">সিস্টেম প্রম্পটের মাধ্যমে AI কীভাবে আচরণ করবে তা নির্ধারণ করুন। AI তার সংরক্ষিত স্মৃতিতেও অ্যাক্সেস পাবে।</string>
     <string name="settings_soul_save">সংরক্ষণ করুন</string>
-    <string name="default_soul">তুমি কোনো চ্যাটবট নও। তুমি একজন ব্যক্তিগত সহকারী যে তোমার ব্যবহারকারীর সাথে বেড়ে ওঠে।\n\n## কীভাবে থাকতে হবে\n\n**সত্যিকারভাবে সহায়ক হও।** "দারুণ প্রশ্ন!" এবং "আমি সাহায্য করতে পেরে খুশি!" বাদ দাও — শুধু সাহায্য করো। কাজ, কথার চেয়ে বেশি কথা বলে।\n\n**মতামত রাখো।** তুমি দ্বিমত পোষণ করতে পারো, জিনিস পছন্দ করতে পারো, বা কিছু আকর্ষণীয় মনে করতে পারো। ব্যক্তিত্বহীন সহকারী শুধু অতিরিক্ত পদক্ষেপ সহ একটি সার্চ ইঞ্জিন।\n\n**সম্পদশালী হও।** জিজ্ঞেস করার আগে প্রসঙ্গ এবং তোমার স্মৃতি থেকে বোঝার চেষ্টা করো। প্রশ্ন নয়, উত্তর নিয়ে ফিরে এসো।\n\n**সংক্ষিপ্ত হও।** ডিফল্টে সংক্ষিপ্ত ও স্পষ্ট। বিষয় যখন দাবি করে তখন গভীরে যাও।\n\n## সীমানা\n\n- গোপনীয়তাকে সম্মান করো। অপ্রয়োজনে সংবেদনশীল তথ্য পুনরাবৃত্তি করো না।\n- কোনো পদক্ষেপ নিয়ে সন্দেহ হলে আগে জিজ্ঞেস করো।\n- কিছু না জানলে সৎ থাকো।</string>
     <string name="bot_message_regenerate_content_description">পুনরায় তৈরি করুন</string>
     <string name="error_empty_response">কোনো প্রতিক্রিয়া পাওয়া যায়নি। নতুন চ্যাট শুরু করার বা আপনার বার্তা সংক্ষিপ্ত করার চেষ্টা করুন।</string>
     <string name="settings_daemon_mode">ডেমন মোড</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI দ্বারা ভবিষ্যতে সম্পাদনের জন্য নির্ধারিত কাজ। নির্ধারিত কাজ তৈরি করতে AI কে আপনাকে মনে করিয়ে দিতে বা পরে কিছু চালাতে বলুন।</string>
     <string name="settings_scheduled_tasks_cancel">কাজ বাতিল করুন</string>
     <string name="settings_soul_reset">রিসেট</string>
-    <string name="settings_soul_reset_confirm">এটি আত্মাকে ডিফল্ট সিস্টেম প্রম্পটে রিসেট করবে। আপনি কি নিশ্চিত?</string>
     <string name="settings_soul_reset_cancel">বাতিল</string>
     <string name="tool_schedule_task_name">কাজ নির্ধারণ করুন</string>
     <string name="tool_schedule_task_description">ভবিষ্যতে সম্পাদনের জন্য একটি কাজ নির্ধারণ করুন</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">স্মৃতি শিখুন</string>
     <string name="tool_memory_reinforce_description">ভালো ফলাফল দেওয়া একটি স্মৃতি শক্তিশালী করুন</string>
     <string name="tool_memory_reinforce_name">স্মৃতি শক্তিশালী করুন</string>
-    <string name="tool_promote_learning_description">একটি শক্তিশালীকৃত শিক্ষাকে সিস্টেম প্রম্পটে উন্নীত করুন</string>
-    <string name="tool_promote_learning_name">শিক্ষা উন্নীত করুন</string>
     <string name="tool_web_search_description">বর্তমান তথ্যের জন্য ওয়েবে অনুসন্ধান করুন</string>
     <string name="tool_open_url_name">URL খুলুন</string>
     <string name="tool_open_url_description">ডিভাইসে একটি URL বা লিঙ্ক খুলুন</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">সমস্ত বিদ্যমান সেটিংস প্রতিস্থাপন করুন</string>
     <string name="settings_import_replace_all_description">অনির্বাচিত বিভাগগুলি ডিফল্টে রিসেট হবে।</string>
     <string name="settings_import_section_services">পরিষেবা</string>
-    <string name="settings_import_section_soul">আত্মা</string>
     <string name="settings_import_section_memory">স্মৃতি</string>
     <string name="settings_import_section_scheduling">সময়সূচী</string>
     <string name="settings_import_section_heartbeat">হৃৎস্পন্দন</string>

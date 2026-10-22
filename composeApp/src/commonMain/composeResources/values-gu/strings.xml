@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">યાદ સંપાદિત કરો</string>
     <string name="settings_memories_edit_save">સ્ટોર કરો</string>
     <string name="settings_memories_edit_cancel">રદ કરો</string>
-    <string name="settings_soul">આત્મા</string>
-    <string name="settings_soul_description">સિસ્ટમ પ્રોમ્પ્ટ સાથે AI કેવી રીતે વર્તે છે તે નક્કી કરો. AI ને તેની સ્ટોર કરેલ યાદોની ઍક્સેસ પણ રહેશે.</string>
     <string name="settings_soul_save">સ્ટોર કરો</string>
-    <string name="default_soul">તમે ચેટ-બોટ નથી. તમે એક વ્યક્તિગત સહાયક છો જે તમારા ઉપયોગકર્તા સાથે વધે છે.\n\n## કેવી રીતે બનવું\n\n**ખरेखरा ઉપયોગી બનો.** "ઉત્તમ સવાલ!" અને "મને ખૂબ ખુશી છે મદદ કરવા!" ભૂલો — ફક્ત મદદ કરો. ક્રિયાઓ ભરણ-શબ્દો કરતાં ઊંચા સ્વરે બોલે છે.\n\n**અભિપ્રાય ધરાવો.** તમે અસહમત થઈ શકો, વસ્તુઓ પ્રાધાન્ય આપી શકો, અથવા કંઈ રસ-પ્રદ લાગે. વ્યક્તિત્વ વગર ના સહાયક માત્ર વધારાના પગલાં સાથે સર્ચ એન્જિન છે.\n\n**ઉપાયયોગ્ય બનો.** પૂછતા પહેલા સંદર્ભ અને તમારી યાદોમાંથી સમજવાનો પ્રયત્ન કરો. સવાલ નહીં, જવાબ સાથે પાછા ફરો.\n\n**સંક્ષિપ્ત બનો.** ડિફૉલ્ટ રૂપે ટૂંકા અને સ્પષ્ટ. જ્યારે વિષય માગે ત્યારે ઊંડો ઊતરો.\n\n## સીમાઓ\n\n- ખાનગીનો આદર કરો. સંવેદનશીલ માહિતી અનાવશ્યક રીતે ન ઊઠો.\n- ક્રિયા વિષે શંકા હોય ત્યારે, પ્રથમ પૂછો.\n- જ્યારે કંઈ ન જાણો ત્યારે પ્રામાણિક રહો.</string>
     <string name="bot_message_regenerate_content_description">ફરીથી જનરેટ કરો</string>
     <string name="error_empty_response">કોઈ જવાબ મળ્યો નથી. નવી ચેટ શરૂ કરવાનો અથવા તમારો સંદેશ ટૂંકો કરવાનો પ્રયાસ કરો.</string>
     <string name="settings_daemon_mode">ડેમન મોડ</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI દ્વારા ભવિષ્યના અમલ માટે શેડ્યૂલ કરેલ કાર્યો. શેડ્યૂલ કરેલ કાર્યો બનાવવા માટે AI ને તમને યાદ અપાવવા અથવા પછીથી કંઈક ચલાવવા કહો.</string>
     <string name="settings_scheduled_tasks_cancel">કાર્ય રદ કરો</string>
     <string name="settings_soul_reset">રીસેટ</string>
-    <string name="settings_soul_reset_confirm">આ આત્માને ડિફૉલ્ટ સિસ્ટમ પ્રોમ્પ્ટ પર રીસેટ કરશે. શું તમે ખાતરી છો?</string>
     <string name="settings_soul_reset_cancel">રદ કરો</string>
     <string name="tool_schedule_task_name">કાર્ય શેડ્યૂલ કરો</string>
     <string name="tool_schedule_task_description">ભવિષ્યના અમલ માટે કાર્ય શેડ્યૂલ કરો</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">યાદ શીખો</string>
     <string name="tool_memory_reinforce_description">સારું પરિણામ આપનાર યાદને મજબૂત કરો</string>
     <string name="tool_memory_reinforce_name">યાદ મજબૂત કરો</string>
-    <string name="tool_promote_learning_description">મજબૂત કરેલ શીખને સિસ્ટમ પ્રોમ્પ્ટમાં પ્રમોટ કરો</string>
-    <string name="tool_promote_learning_name">શીખ પ્રમોટ કરો</string>
     <string name="tool_web_search_description">વર્તમાન માહિતી માટે વેબ શોધો</string>
     <string name="tool_open_url_name">URL ખોલો</string>
     <string name="tool_open_url_description">ઉપકરણ પર URL અથવા લિંક ખોલો</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">બધી હાલની સેટિંગ્સ બદલો</string>
     <string name="settings_import_replace_all_description">પસંદ ન કરેલા વિભાગો ડિફૉલ્ટ પર રીસેટ થશે.</string>
     <string name="settings_import_section_services">સેવાઓ</string>
-    <string name="settings_import_section_soul">આત્મા</string>
     <string name="settings_import_section_memory">મેમરી</string>
     <string name="settings_import_section_scheduling">શેડ્યુલિંગ</string>
     <string name="settings_import_section_heartbeat">ધબકારા</string>

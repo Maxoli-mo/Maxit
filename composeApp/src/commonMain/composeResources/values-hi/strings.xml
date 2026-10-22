@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">याद संपादित करें</string>
     <string name="settings_memories_edit_save">सहेजें</string>
     <string name="settings_memories_edit_cancel">रद्द करें</string>
-    <string name="settings_soul">आत्मा</string>
-    <string name="settings_soul_description">सिस्टम प्रॉम्प्ट के साथ AI कैसे व्यवहार करता है इसे परिभाषित करें। AI को अपनी सहेजी गई यादों तक भी पहुंच होगी।</string>
     <string name="settings_soul_save">सहेजें</string>
-    <string name="default_soul">आप चैटबॉट नहीं हैं। आप एक व्यक्तिगत सहायक हैं जो अपने उपयोगकर्ता के साथ बढ़ता है।\n\n## कैसे रहें\n\n**सच में मददगार बनें।** "बहुत अच्छा सवाल!" और "मुझे मदद करके खुशी होगी!" छोड़ें — बस मदद करें। कार्य भराव शब्दों से ऊंचा बोलते हैं।\n\n**राय रखें।** आप असहमत हो सकते हैं, चीजें पसंद कर सकते हैं, या कुछ रोचक पा सकते हैं। बिना व्यक्तित्व के सहायक सिर्फ अतिरिक्त चरणों वाला सर्च इंजन है।\n\n**संसाधनशाली बनें।** पूछने से पहले संदर्भ और अपनी यादों से समझने की कोशिश करें। सवालों के साथ नहीं, जवाबों के साथ वापस आएं।\n\n**संक्षिप्त रहें।** डिफ़ॉल्ट रूप से छोटे और स्पष्ट। जब विषय की मांग हो तो गहरे जाएं।\n\n## सीमाएं\n\n- गोपनीयता का सम्मान करें। संवेदनशील जानकारी को अनावश्यक रूप से न दोहराएं।\n- किसी कार्य के बारे में संदेह होने पर पहले पूछें।\n- जब कुछ न जानें तो ईमानदार रहें।</string>
     <string name="bot_message_regenerate_content_description">पुनः उत्पन्न करें</string>
     <string name="error_empty_response">कोई प्रतिक्रिया नहीं मिली। नई चैट शुरू करने या अपना संदेश छोटा करने का प्रयास करें।</string>
     <string name="settings_daemon_mode">डेमन मोड</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI द्वारा भविष्य में निष्पादन के लिए शेड्यूल किए गए कार्य। शेड्यूल किए गए कार्य बनाने के लिए AI से आपको याद दिलाने या बाद में कुछ चलाने को कहें।</string>
     <string name="settings_scheduled_tasks_cancel">कार्य रद्द करें</string>
     <string name="settings_soul_reset">रीसेट</string>
-    <string name="settings_soul_reset_confirm">यह आत्मा को डिफ़ॉल्ट सिस्टम प्रॉम्प्ट पर रीसेट कर देगा। क्या आप सुनिश्चित हैं?</string>
     <string name="settings_soul_reset_cancel">रद्द करें</string>
     <string name="tool_schedule_task_name">कार्य शेड्यूल करें</string>
     <string name="tool_schedule_task_description">भविष्य में निष्पादन के लिए कार्य शेड्यूल करें</string>
@@ -139,8 +135,6 @@
     <string name="tool_memory_learn_name">स्मृति सीखें</string>
     <string name="tool_memory_reinforce_description">अच्छा परिणाम देने वाली स्मृति को मजबूत करें</string>
     <string name="tool_memory_reinforce_name">स्मृति मजबूत करें</string>
-    <string name="tool_promote_learning_description">मजबूत की गई सीख को सिस्टम प्रॉम्प्ट में बढ़ावा दें</string>
-    <string name="tool_promote_learning_name">सीख बढ़ावा दें</string>
     <string name="tool_web_search_description">वर्तमान जानकारी के लिए वेब पर खोजें</string>
     <string name="tool_open_url_name">URL खोलें</string>
     <string name="tool_open_url_description">डिवाइस पर URL या लिंक खोलें</string>
@@ -186,7 +180,6 @@
     <string name="settings_import_replace_all">सभी मौजूदा सेटिंग्स बदलें</string>
     <string name="settings_import_replace_all_description">अचयनित अनुभाग डिफ़ॉल्ट पर रीसेट हो जाएंगे।</string>
     <string name="settings_import_section_services">सेवाएं</string>
-    <string name="settings_import_section_soul">आत्मा</string>
     <string name="settings_import_section_memory">स्मृति</string>
     <string name="settings_import_section_scheduling">शेड्यूलिंग</string>
     <string name="settings_import_section_heartbeat">धड़कन</string>

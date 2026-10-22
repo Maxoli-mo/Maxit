@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Chỉnh sửa ký ức</string>
     <string name="settings_memories_edit_save">Lưu</string>
     <string name="settings_memories_edit_cancel">Hủy</string>
-    <string name="settings_soul">Linh hồn</string>
-    <string name="settings_soul_description">Xác định cách AI hoạt động với một lời nhắc hệ thống. AI cũng sẽ có quyền truy cập vào ký ức đã lưu của nó.</string>
     <string name="settings_soul_save">Lưu</string>
-    <string name="default_soul">Bạn không phải là chatbot. Bạn là trợ lý cá nhân phát triển cùng người dùng của mình.\n\n## Cách cư xử\n\n**Hãy thực sự hữu ích.** Bỏ qua "Câu hỏi tuyệt vời!" và "Tôi rất vui được giúp đỡ!" — chỉ cần giúp đỡ. Hành động nói lên nhiều hơn những từ ngữ sáo rỗng.\n\n**Có quan điểm riêng.** Bạn có thể không đồng ý, có sở thích, hoặc thấy điều gì đó thú vị. Trợ lý không có cá tính chỉ là công cụ tìm kiếm với các bước thêm.\n\n**Hãy sáng tạo.** Cố gắng hiểu từ ngữ cảnh và ký ức của bạn trước khi hỏi. Quay lại với câu trả lời, không phải câu hỏi.\n\n**Hãy ngắn gọn.** Ngắn và rõ ràng theo mặc định. Đi sâu hơn khi chủ đề yêu cầu.\n\n## Giới hạn\n\n- Tôn trọng quyền riêng tư. Đừng lặp lại thông tin nhạy cảm một cách không cần thiết.\n- Hỏi trước nếu không chắc về một hành động.\n- Thành thật khi không biết điều gì đó.</string>
     <string name="bot_message_regenerate_content_description">Tạo lại</string>
     <string name="error_empty_response">Không nhận được phản hồi. Hãy thử bắt đầu cuộc trò chuyện mới hoặc rút ngắn tin nhắn của bạn.</string>
     <string name="settings_daemon_mode">Chế độ nền</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Các tác vụ được AI lên lịch để thực hiện trong tương lai. Yêu cầu AI nhắc nhở bạn hoặc chạy một việc gì đó sau để tạo tác vụ đã lên lịch.</string>
     <string name="settings_scheduled_tasks_cancel">Hủy tác vụ</string>
     <string name="settings_soul_reset">Đặt lại</string>
-    <string name="settings_soul_reset_confirm">Thao tác này sẽ đặt lại linh hồn về lời nhắc hệ thống mặc định. Bạn có chắc không?</string>
     <string name="settings_soul_reset_cancel">Hủy</string>
     <string name="tool_schedule_task_name">Lên lịch tác vụ</string>
     <string name="tool_schedule_task_description">Lên lịch một tác vụ để thực hiện trong tương lai</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Học bộ nhớ</string>
     <string name="tool_memory_reinforce_description">Củng cố bộ nhớ đã cho kết quả tốt</string>
     <string name="tool_memory_reinforce_name">Củng cố bộ nhớ</string>
-    <string name="tool_promote_learning_description">Thăng cấp bài học đã củng cố vào lệnh hệ thống</string>
-    <string name="tool_promote_learning_name">Thăng cấp bài học</string>
     <string name="tool_web_search_description">Tìm kiếm trên web để có thông tin hiện tại</string>
     <string name="tool_open_url_name">Mở URL</string>
     <string name="tool_open_url_description">Mở URL hoặc liên kết trên thiết bị</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Thay thế tất cả cài đặt hiện có</string>
     <string name="settings_import_replace_all_description">Các mục không được chọn sẽ được đặt lại về mặc định.</string>
     <string name="settings_import_section_services">Dịch vụ</string>
-    <string name="settings_import_section_soul">Linh hồn</string>
     <string name="settings_import_section_memory">Bộ nhớ</string>
     <string name="settings_import_section_scheduling">Lập lịch</string>
     <string name="settings_import_section_heartbeat">Nhịp tim</string>

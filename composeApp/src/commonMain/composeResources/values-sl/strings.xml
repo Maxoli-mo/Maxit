@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Uredi spomin</string>
     <string name="settings_memories_edit_save">Shrani</string>
     <string name="settings_memories_edit_cancel">Prekliči</string>
-    <string name="settings_soul">Duša</string>
-    <string name="settings_soul_description">Določite, kako se UI obnaša s sistemskim pozivom. UI bo imela tudi dostop do svojih shranjenih spominov.</string>
     <string name="settings_soul_save">Shrani</string>
-    <string name="default_soul">Nisi chatbot. Si osebni asistent, ki raste skupaj s svojim uporabnikom.\n\n## Kako biti\n\n**Bodi resnično koristen.** Preskoči "Odlično vprašanje!" in "Z veseljem bom pomagal!" — preprosto pomagaj. Dejanja govorijo glasneje kot besede polnila.\n\n**Imej mnenja.** Lahko se ne strinjaš, imaš raje stvari ali pa se ti zdi kaj zanimivega. Asistent brez osebnosti je samo iskalnik z dodatnimi koraki.\n\n**Bodi iznajdljiv.** Poskusi razumeti iz konteksta in svojih spominov, preden vprašaš. Vrni se z odgovori, ne z vprašanji.\n\n**Bodi jedrnat.** Privzeto kratko in jasno. Poglobi se, ko tema to zahteva.\n\n## Meje\n\n- Spoštuj zasebnost. Brez potrebe ne ponavljaj občutljivih informacij.\n- Najprej vprašaj, če si negotov glede dejanja.\n- Bodi pošten, ko česa ne veš.</string>
     <string name="bot_message_regenerate_content_description">Ponovno ustvari</string>
     <string name="error_empty_response">Ni bilo prejetega odgovora. Poskusite začeti nov pogovor ali skrajšati sporočilo.</string>
     <string name="settings_daemon_mode">Način demona</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Opravila, ki jih je UI načrtoval za prihodnjo izvajanje. Prosite UI, da vas opomni ali nekaj požene pozneje, da ustvarite načrtovana opravila.</string>
     <string name="settings_scheduled_tasks_cancel">Prekliči opravilo</string>
     <string name="settings_soul_reset">Ponastavi</string>
-    <string name="settings_soul_reset_confirm">To bo ponastavilo dušo na privzeti sistemski poziv. Ste prepričani?</string>
     <string name="settings_soul_reset_cancel">Prekliči</string>
     <string name="tool_schedule_task_name">Načrtuj opravilo</string>
     <string name="tool_schedule_task_description">Načrtuj opravilo za prihodnjo izvajanje</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Nauči spomin</string>
     <string name="tool_memory_reinforce_description">Okrepi spomin, ki je prinesel dober rezultat</string>
     <string name="tool_memory_reinforce_name">Okrepi spomin</string>
-    <string name="tool_promote_learning_description">Napreduj okrepljeno učenje v sistemski poziv</string>
-    <string name="tool_promote_learning_name">Napreduj učenje</string>
     <string name="tool_web_search_description">Išči po spletu za aktualne informacije</string>
     <string name="tool_open_url_name">Odpri URL</string>
     <string name="tool_open_url_description">Odprite URL ali povezavo na napravi</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Zamenjaj vse obstoječe nastavitve</string>
     <string name="settings_import_replace_all_description">Neizbrani razdelki bodo ponastavljeni na privzete vrednosti.</string>
     <string name="settings_import_section_services">Storitve</string>
-    <string name="settings_import_section_soul">Duša</string>
     <string name="settings_import_section_memory">Spomin</string>
     <string name="settings_import_section_scheduling">Razporejanje</string>
     <string name="settings_import_section_heartbeat">Srčni utrip</string>

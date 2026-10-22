@@ -32,8 +32,6 @@ import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.ic_arrow_drop_down
 import maxit.composeapp.generated.resources.settings_daemon_mode
 import maxit.composeapp.generated.resources.settings_daemon_mode_description
-import maxit.composeapp.generated.resources.settings_dynamic_ui
-import maxit.composeapp.generated.resources.settings_dynamic_ui_description
 import maxit.composeapp.generated.resources.settings_theme
 import maxit.composeapp.generated.resources.settings_theme_dark
 import maxit.composeapp.generated.resources.settings_theme_description
@@ -57,12 +55,7 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                     )
                 }
             }
-            SettingsCard {
-                DynamicUiToggle(
-                    isDynamicUiEnabled = uiState.isDynamicUiEnabled,
-                    onToggleDynamicUi = actions.onToggleDynamicUi,
-                )
-            }
+            // Dynamic UI is parked for a future skill; see docs/skills/interactive-ui/SKILL.md.
             SettingsCard {
                 ThemeModePicker(
                     themeMode = uiState.themeMode,
@@ -101,21 +94,6 @@ private fun DaemonModeToggle(
             description = stringResource(Res.string.settings_daemon_mode_description),
             checked = isDaemonEnabled,
             onCheckedChange = onToggleDaemon,
-        )
-    }
-}
-
-@Composable
-private fun DynamicUiToggle(
-    isDynamicUiEnabled: Boolean,
-    onToggleDynamicUi: (Boolean) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ToggleableHeadline(
-            title = stringResource(Res.string.settings_dynamic_ui),
-            description = stringResource(Res.string.settings_dynamic_ui_description),
-            checked = isDynamicUiEnabled,
-            onCheckedChange = onToggleDynamicUi,
         )
     }
 }

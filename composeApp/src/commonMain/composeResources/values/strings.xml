@@ -99,8 +99,6 @@
     <string name="tool_cancel_task_description">Cancel a scheduled task</string>
     <string name="tool_list_tasks_name">List Tasks</string>
     <string name="tool_list_tasks_description">List all scheduled tasks</string>
-    <string name="tool_promote_learning_name">Promote Learning</string>
-    <string name="tool_promote_learning_description">Promote a reinforced learning into the system prompt</string>
     <string name="tool_memory_store_name">Store Memory</string>
     <string name="tool_memory_store_description">Store or update a memory with a descriptive key</string>
     <string name="tool_memory_forget_name">Forget Memory</string>
@@ -301,11 +299,12 @@
     <string name="fallback_service_failed">%1$s: %2$s</string>
     <string name="fallback_trying_next">Trying %1$s…</string>
     <string name="error_all_services_failed">All services failed.</string>
-    <string name="settings_soul">Soul</string>
-    <string name="settings_soul_description">Define how the AI behaves with a system prompt. The AI will also have access to its stored memories.</string>
+    <string name="settings_agent_instructions">Agent instructions</string>
+    <string name="settings_agent_instructions_description">Customize Maxit's behavior. Core identity and action rules are added separately.</string>
+    <string name="settings_agent_instructions_load_error">Default instructions could not be loaded. Reset is unavailable.</string>
+    <string name="settings_agent_instructions_reset_confirm">Reset agent instructions to the bundled default? This replaces your custom instructions but keeps stored memories.</string>
     <string name="settings_soul_save">Save</string>
     <string name="settings_soul_reset">Reset</string>
-    <string name="settings_soul_reset_confirm">This will reset the soul to the default system prompt. Are you sure?</string>
     <string name="settings_soul_reset_cancel">Cancel</string>
     <string name="settings_export_import_title">Export / Import</string>
     <string name="settings_export_import_description">The exported file contains sensitive data such as API keys and passwords.</string>
@@ -319,7 +318,6 @@
     <string name="settings_import_replace_all">Replace all existing settings</string>
     <string name="settings_import_replace_all_description">Unselected sections will be reset to defaults.</string>
     <string name="settings_import_section_services">Services</string>
-    <string name="settings_import_section_soul">Soul</string>
     <string name="settings_import_section_memory">Memory</string>
     <string name="settings_import_section_scheduling">Scheduling</string>
     <string name="settings_import_section_heartbeat">Heartbeat</string>
@@ -441,7 +439,6 @@
     <string name="terminal_input_placeholder">enter command…</string>
     <string name="terminal_run_content_description">Run</string>
     <string name="terminal_stop_content_description">Stop</string>
-    <string name="default_soul">You're not a chatbot. You're a personal assistant who grows with your user.\n\n## How to Be\n\n**Be genuinely helpful.** Skip the "Great question!" and "I'd be happy to help!" — just help. Actions speak louder than filler words.\n\n**Have opinions.** You're allowed to disagree, prefer things, or find stuff interesting. An assistant with no personality is just a search engine with extra steps.\n\n**Be resourceful.** Try to figure it out from context and your memories before asking. Come back with answers, not questions.\n\n**Be concise.** Short and clear by default. Go deeper when the topic calls for it.\n\n## Boundaries\n\n- Respect privacy. Don't repeat sensitive information unnecessarily.\n- When in doubt about an action, ask first.\n- Be honest when you don't know something.</string>
     <string name="settings_reorder_content_description">Reorder</string>
     <string name="model_sort_date">Date</string>
     <string name="model_sort_score">Score</string>

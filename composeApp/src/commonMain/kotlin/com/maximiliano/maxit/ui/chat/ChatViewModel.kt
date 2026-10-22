@@ -16,18 +16,13 @@ import com.maximiliano.maxit.network.toUiError
 import com.maximiliano.maxit.tools.AppPermission
 import com.maximiliano.maxit.tools.PermissionController
 import com.maximiliano.maxit.tools.isLocalNetworkUrl
-import com.maximiliano.maxit.ui.markdown.KaiUiBlock
-import com.maximiliano.maxit.ui.markdown.KaiUiError
-import com.maximiliano.maxit.ui.markdown.parseMarkdown
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.extension
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -93,7 +88,6 @@ class ChatViewModel(
 
         // Keep restoreCurrentConversation off the main thread; see issue #197 (large persisted
         // tool outputs caused ANRs when JSON-decoded synchronously during VM construction).
-        // ChatScreen gates the interactive-mode branch on !isRestoring to avoid a flash.
         viewModelScope.launch(backgroundDispatcher) {
             dataRepository.loadConversations()
             // Share and assist both want a fresh chat. Skip restore so a slow
@@ -243,11 +237,6 @@ class ChatViewModel(
             try {
                 dataRepository.ask(strippedQuestion, files, uiSubmission, activeSkillId)
 
-                // Auto-retry in interactive mode if the response has no valid kai-ui
-                if (_state.value.isInteractiveMode) {
-                    retryIfNoValidKaiUi()
-                }
-
                 _state.update {
                     it.copy(isLoading = false)
                 }
@@ -279,29 +268,6 @@ class ChatViewModel(
         val baseUrl = dataRepository.getInstanceBaseUrl(instance.instanceId, Service.fromId(instance.serviceId))
         if (!isLocalNetworkUrl(baseUrl)) return true
         return localNetworkPermissionController.requestPermission()
-    }
-
-    private suspend fun retryIfNoValidKaiUi(maxRetries: Int = 2) {
-        repeat(maxRetries) {
-            currentCoroutineContext().ensureActive()
-            val lastAssistant = dataRepository.chatHistory.value.lastRenderedAssistant() ?: return
-
-            val blocks = parseMarkdown(lastAssistant.content).blocks
-            val hasValidUi = blocks.any { it is KaiUiBlock }
-            if (hasValidUi) return
-
-            // Build error feedback for the AI
-            val errorBlock = blocks.filterIsInstance<KaiUiError>().firstOrNull()
-            val errorDetail = if (errorBlock != null) {
-                "JSON parse error in: ${errorBlock.rawJson.take(200)}"
-            } else {
-                "No kai-ui code fence found in your response."
-            }
-            val retryMessage = "[SYSTEM] Your previous response failed to render as interactive UI. $errorDetail " +
-                "Remember: respond with ONLY a single ```kai-ui code fence containing valid JSON. No text outside the fence."
-
-            dataRepository.ask(retryMessage, emptyList())
-        }
     }
 
     private fun clearHistory() {
@@ -420,15 +386,13 @@ class ChatViewModel(
     private fun loadConversation(id: String) {
         currentJob?.cancel()
         currentJob = null
-        val conversation = dataRepository.savedConversations.value.find { it.id == id }
-        val isInteractive = conversation?.type == Conversation.TYPE_INTERACTIVE
-        dataRepository.setInteractiveMode(isInteractive)
+        dataRepository.setInteractiveMode(false)
         dataRepository.loadConversation(id)
         _state.update {
             it.copy(
                 error = null,
                 showFreeProviderSuggestions = false,
-                isInteractiveMode = isInteractive,
+                isInteractiveMode = false,
                 isLoading = false,
                 composerPrefill = null,
             )
@@ -509,15 +473,7 @@ class ChatViewModel(
     }
 
     private fun enterInteractiveMode() {
-        dataRepository.startNewChat()
-        dataRepository.setInteractiveMode(true)
-        _state.update {
-            it.copy(
-                isInteractiveMode = true,
-                error = null,
-                showFreeProviderSuggestions = false,
-            )
-        }
+        // Parked for a future skill; keep existing history intact. See docs/skills/interactive-ui/SKILL.md.
     }
 
     private fun exitInteractiveMode() {
@@ -559,19 +515,9 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Resolves the interactive mode flag from the currently-loaded conversation, or — when
-     * there is no loaded conversation (new empty chat) — falls back to the persisted flag.
-     */
     private fun presetInteractiveModeForCurrentConversation() {
-        val currentId = dataRepository.currentConversationId.value
-        val conversation = dataRepository.savedConversations.value.find { it.id == currentId }
-        val isInteractive = if (conversation != null) {
-            conversation.type == Conversation.TYPE_INTERACTIVE
-        } else {
-            dataRepository.isInteractiveModeActive()
-        }
-        dataRepository.setInteractiveMode(isInteractive)
-        _state.update { it.copy(isInteractiveMode = isInteractive) }
+        // Legacy chats open normally while parked; see docs/skills/interactive-ui/SKILL.md.
+        dataRepository.setInteractiveMode(false)
+        _state.update { it.copy(isInteractiveMode = false) }
     }
 }

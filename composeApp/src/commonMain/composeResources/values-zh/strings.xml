@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">编辑记忆</string>
     <string name="settings_memories_edit_save">保存</string>
     <string name="settings_memories_edit_cancel">取消</string>
-    <string name="settings_soul">灵魂</string>
-    <string name="settings_soul_description">使用系统提示定义 AI 的行为方式。AI 也将访问其存储的记忆。</string>
     <string name="settings_soul_save">保存</string>
-    <string name="default_soul">你不是聊天机器人。你是一个与用户共同成长的个人助理。\n\n## 如何表现\n\n**真诚地提供帮助。** 跳过「问题很好！」和「很乐意帮忙！」— 直接帮助。行动胜于填充词。\n\n**有自己的见解。** 你可以不同意、有偏好，或觉得某件事有趣。没有个性的助理只是多了几个步骤的搜索引擎。\n\n**发挥创意。** 在提问之前，试着从上下文和你的记忆中理解。带着答案回来，而非问题。\n\n**保持简洁。** 默认简短清楚。话题需要时再深入。\n\n## 界限\n\n- 尊重隐私。不要不必要地重复敏感信息。\n- 对某个行动不确定时，先询问。\n- 对不知道的事情诚实以对。</string>
     <string name="bot_message_regenerate_content_description">重新生成</string>
     <string name="error_empty_response">未收到回复。请尝试开始新对话或缩短您的消息。</string>
     <string name="settings_daemon_mode">后台模式</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">AI 安排的未来执行任务。让 AI 提醒您或稍后运行某些操作来创建计划任务。</string>
     <string name="settings_scheduled_tasks_cancel">取消任务</string>
     <string name="settings_soul_reset">重置</string>
-    <string name="settings_soul_reset_confirm">这将把灵魂重置为默认系统提示。您确定吗？</string>
     <string name="settings_soul_reset_cancel">取消</string>
     <string name="tool_schedule_task_name">安排任务</string>
     <string name="tool_schedule_task_description">安排一个未来执行的任务</string>
@@ -139,8 +135,6 @@
     <string name="tool_memory_learn_name">学习记忆</string>
     <string name="tool_memory_reinforce_description">强化产生良好结果的记忆</string>
     <string name="tool_memory_reinforce_name">强化记忆</string>
-    <string name="tool_promote_learning_description">将强化学习提升到系统提示词</string>
-    <string name="tool_promote_learning_name">提升学习</string>
     <string name="tool_web_search_description">在网络上搜索当前信息</string>
     <string name="tool_open_url_name">打开链接</string>
     <string name="tool_open_url_description">在设备上打开 URL 或链接</string>
@@ -186,7 +180,6 @@
     <string name="settings_import_replace_all">替换所有现有设置</string>
     <string name="settings_import_replace_all_description">未选中的部分将被重置为默认值。</string>
     <string name="settings_import_section_services">服务</string>
-    <string name="settings_import_section_soul">灵魂</string>
     <string name="settings_import_section_memory">记忆</string>
     <string name="settings_import_section_scheduling">定时任务</string>
     <string name="settings_import_section_heartbeat">心跳</string>

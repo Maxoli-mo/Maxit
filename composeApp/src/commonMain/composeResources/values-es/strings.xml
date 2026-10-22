@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Editar memoria</string>
     <string name="settings_memories_edit_save">Guardar</string>
     <string name="settings_memories_edit_cancel">Cancelar</string>
-    <string name="settings_soul">Alma</string>
-    <string name="settings_soul_description">Define cómo se comporta la IA con un prompt de sistema. La IA también tendrá acceso a sus memorias almacenadas.</string>
     <string name="settings_soul_save">Guardar</string>
-    <string name="default_soul">No eres un chatbot. Eres un asistente personal que crece con tu usuario.\n\n## Cómo ser\n\n**Sé genuinamente útil.** Omite el «¡Gran pregunta!» y el «¡Con gusto te ayudo!» — simplemente ayuda. Las acciones hablan más fuerte que las palabras de relleno.\n\n**Ten opiniones.** Puedes estar en desacuerdo, preferir cosas o encontrar algo interesante. Un asistente sin personalidad es solo un motor de búsqueda con pasos extra.\n\n**Sé ingenioso.** Intenta deducirlo del contexto y tus memorias antes de preguntar. Regresa con respuestas, no con preguntas.\n\n**Sé conciso.** Corto y claro por defecto. Profundiza cuando el tema lo requiera.\n\n## Límites\n\n- Respeta la privacidad. No repitas información sensible innecesariamente.\n- Cuando dudes sobre una acción, pregunta primero.\n- Sé honesto cuando no sepas algo.</string>
     <string name="bot_message_regenerate_content_description">Regenerar</string>
     <string name="error_empty_response">No se recibió respuesta. Intenta iniciar un nuevo chat o acortar tu mensaje.</string>
     <string name="settings_daemon_mode">Modo Demonio</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Tareas programadas por la IA para ejecución futura. Pide a la IA que te recuerde o ejecute algo más tarde para crear tareas programadas.</string>
     <string name="settings_scheduled_tasks_cancel">Cancelar tarea</string>
     <string name="settings_soul_reset">Restablecer</string>
-    <string name="settings_soul_reset_confirm">Esto restablecerá el alma al prompt de sistema predeterminado. ¿Estás seguro?</string>
     <string name="settings_soul_reset_cancel">Cancelar</string>
     <string name="tool_schedule_task_name">Programar Tarea</string>
     <string name="tool_schedule_task_description">Programar una tarea para ejecución futura</string>
@@ -139,8 +135,6 @@ Si algo necesita atención (memorias obsoletas, tareas vencidas, seguimientos de
     <string name="tool_memory_learn_name">Aprender Memoria</string>
     <string name="tool_memory_reinforce_description">Reforzar una memoria que produjo un buen resultado</string>
     <string name="tool_memory_reinforce_name">Reforzar Memoria</string>
-    <string name="tool_promote_learning_description">Promover un aprendizaje reforzado al prompt del sistema</string>
-    <string name="tool_promote_learning_name">Promover Aprendizaje</string>
     <string name="tool_web_search_description">Buscar en la web información actual</string>
     <string name="tool_open_url_name">Abrir URL</string>
     <string name="tool_open_url_description">Abrir una URL o enlace en el dispositivo</string>
@@ -186,7 +180,6 @@ Si algo necesita atención (memorias obsoletas, tareas vencidas, seguimientos de
     <string name="settings_import_replace_all">Reemplazar todos los ajustes existentes</string>
     <string name="settings_import_replace_all_description">Las secciones no seleccionadas se restablecerán a los valores predeterminados.</string>
     <string name="settings_import_section_services">Servicios</string>
-    <string name="settings_import_section_soul">Alma</string>
     <string name="settings_import_section_memory">Memoria</string>
     <string name="settings_import_section_scheduling">Programación</string>
     <string name="settings_import_section_heartbeat">Latido</string>

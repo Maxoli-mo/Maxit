@@ -2,7 +2,7 @@
 
 # Tools
 
-**Last verified:** 2026-10-02
+**Last reviewed:** 2026-10-21
 
 Maxit's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -62,14 +62,13 @@ Memory tools cannot be individually disabled. They are available whenever the me
 
 ### Scheduling & Heartbeat
 
-Scheduling tools and heartbeat tools are available when the scheduling feature is enabled (the default). See [tasks.md](tasks.md) and [heartbeat.md](heartbeat.md).
+Scheduling tools are available when the scheduling feature is enabled (the default). Heartbeat additions use `schedule_task`; there are no dedicated heartbeat or memory-promotion tools. See [tasks.md](tasks.md) and [heartbeat.md](heartbeat.md).
 
 | Tool | Description |
 |---|---|
 | `schedule_task` | Schedule a prompt to run later, on a recurring schedule, or on every heartbeat |
 | `list_tasks` | List scheduled tasks with their ids and status |
 | `cancel_task` | Cancel a scheduled task by id |
-| `promote_learning` | Append a well-reinforced memory to the soul/system prompt and remove the memory. Callable from any conversation, not only heartbeat runs |
 
 ### Email
 
@@ -243,12 +242,12 @@ See [mcp.md](mcp.md) for the full MCP feature spec.
 
 Tool availability is controlled at multiple levels:
 
-- **Feature-level gates** — memory tools require memory enabled, scheduling/heartbeat tools require scheduling enabled, email tools require email enabled
+- **Feature-level gates** — memory tools require memory enabled, scheduling tools require scheduling enabled, email tools require email enabled
 - **Sandbox install gate (Android)** — `execute_shell_command`, `manage_process`, and `ssh_configure_host` are surfaced only when the Linux sandbox is actually installed (Ready) *and* the sandbox toggle is on. Until the sandbox is installed these tools are not sent to the model at all; the sandbox toggle itself is hidden until install completes, so there is no state in which they ride along without a working sandbox behind them
 - **Per-tool toggles** — individual tools can be enabled or disabled in settings, persisted with a `tool_enabled_` key prefix
 - **Default state** — most tools default to enabled; desktop's `execute_shell_command` defaults to disabled. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
-- **Master-toggle-only** — memory, scheduling, heartbeat, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on (heartbeat is bundled with the scheduling switch). The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own
-- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. The current allowlist is: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command`. Memory tools beyond the three listed, email tools, scheduling tools, and heartbeat tools are not surfaced to local models even when their master switches are on.
+- **Master-toggle-only** — memory, scheduling, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on. The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own
+- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. The current allowlist is: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command`. Memory tools beyond the three listed, email tools, and scheduling tools are not surfaced to local models even when their master switches are on.
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
 
@@ -264,7 +263,7 @@ Each card shows the tool name, a short description, and a toggle switch. Clickin
 
 The grid sits below the MCP servers section and, on Android, the Skills section (see [skills.md](skills.md)).
 
-Only individually toggleable tools appear in the grid. Tools whose only control is a master toggle in Settings → Agent (memory, scheduling, heartbeat, email, SMS, notifications) are not listed here — they appear and disappear with their feature switch. The same applies to tools gated by a capability rather than a setting: the Android sandbox tools follow the sandbox switch, and desktop's `manage_process` follows the shell switch.
+Only individually toggleable tools appear in the grid. Tools whose only control is a master toggle in Settings → Agent (memory, scheduling, email, SMS, notifications) are not listed here — they appear and disappear with their feature switch. The same applies to tools gated by a capability rather than a setting: the Android sandbox tools follow the sandbox switch, and desktop's `manage_process` follows the shell switch.
 
 ## Chat UI
 
@@ -286,7 +285,7 @@ When loading, a chip appears at the bottom of the chat list containing the pulsi
 
 ### Interactive mode loading feedback
 
-The interactive-mode top bar shows only the static title — loading is surfaced closer to the user's point of action instead:
+Dynamic/Interactive UI generation and entry points are parked; previous interactive conversations reopen in normal chat. The retained renderer code has these loading states (see [system-prompts.md](system-prompts.md)):
 - **Clicking a kai-ui action button**: the clicked button keeps its label and pulses (scale/alpha animation) until the response arrives; other buttons in the same message become disabled.
 - **First load** (no assistant response yet): a centered waiting row is shown.
 - **Typed-and-sent input**: the trailing send icon swaps to a stop icon in the input, as in standard chat.
@@ -310,7 +309,6 @@ The interactive-mode top bar shows only the static title — loading is surfaced
 | `composeApp/src/commonMain/.../tools/WebSearchTool.kt` | `web_search` |
 | `composeApp/src/commonMain/.../tools/FetchUrlTool.kt` | `fetch_url` with private-address and redirect checks |
 | `composeApp/src/commonMain/.../tools/SchedulingTools.kt` | `schedule_task`, `list_tasks`, `cancel_task` |
-| `composeApp/src/commonMain/.../tools/HeartbeatTools.kt` | `promote_learning` |
 | `composeApp/src/commonMain/.../tools/EmailTools.kt` | Email tools |
 | `composeApp/src/commonMain/.../tools/SmsTools.kt` | SMS tools (FOSS Android) |
 | `composeApp/src/commonMain/.../tools/NotificationTools.kt` | Notification tools (FOSS Android) |

@@ -73,8 +73,6 @@ class MemoryStore(appSettings: AppSettings) {
         return updated
     }
 
-    fun getPromotionCandidates(minHits: Int = 5): List<MemoryEntry> = memories.get().filter { it.hitCount >= minHits }
-
     suspend fun forget(key: String): Boolean {
         var removed = false
         memories.update { current ->

@@ -2,9 +2,9 @@
 
 # Memories
 
-**Last verified:** 2026-10-02
+**Last reviewed:** 2026-10-21
 
-Maxit's memory system allows the AI to learn and retain information across conversations. Memories are stored persistently, injected into every system prompt for context, and can be reinforced over time. Well-established memories can be promoted into permanent behavior (the soul/system prompt); the heartbeat surfaces candidates for promotion.
+Maxit's memory system allows the AI to learn and retain information across conversations. Memories are stored persistently, included in chat system prompts when memory is enabled, and can be reinforced over time. Memory promotion into agent instructions has been removed; existing memories and saved instructions are preserved.
 
 ## Concepts
 
@@ -23,11 +23,7 @@ Each memory belongs to one of four categories:
 
 ### Reinforcement
 
-A mechanism for tracking how often a memory proves useful. Each reinforcement increments the hit count and updates the timestamp. Memories with 5 or more hits become promotion candidates.
-
-### Promotion
-
-The process of graduating a well-reinforced memory into the permanent soul/system prompt. The promoted text is appended to the soul, and the memory is removed from the memory store. Promotion is not limited to heartbeat runs — the AI can promote a learning from a normal chat as well. See the [heartbeat spec](heartbeat.md) for details on how promotion candidates are surfaced.
+A mechanism for tracking how often a memory proves useful. A new memory starts with one hit; each reinforcement increments the hit count and updates the timestamp. Hit counts do not modify [agent instructions](system-prompts.md#editable-agent-instructions).
 
 ## Storage
 
@@ -43,7 +39,6 @@ The process of graduating a well-reinforced memory into the permanent soul/syste
 2. If a memory with the same key exists, it is updated
 3. On subsequent conversations, AI can reinforce memories that prove useful via `memory_reinforce`
 4. AI can remove outdated memories via `memory_forget`
-5. Memories with a hit count of 5 or more (a new memory starts at 1) become promotion candidates, surfaced during heartbeat checks
 
 ## System Prompt Injection
 
@@ -54,7 +49,7 @@ When memory is enabled, all memories are retrieved and grouped by category in th
 - Learning memories under "Learnings" with reinforcement count shown
 - Error memories under "Known Issues & Resolutions"
 
-For on-device (local) chat, the injected memory section is budgeted to a maximum of 2,000 characters. Entries are appended in category order until the budget is reached; if no entries fit, the header is dropped entirely. Remote chat has no such cap and includes all memories.
+For on-device (local) chat, these category sections share a 2,000-character budget, including headings and formatting. Entries are considered in the order above; the first entry that does not fit stops that category, while later categories can still use the remaining budget. Categories with no fitting entries emit no header. Remote chat has no such builder cap and includes all memories.
 
 ## Default Instructions
 
@@ -85,9 +80,8 @@ The memories section lives in Settings → Agent and contains:
 | `memory_learn` | Store categorized memories with optional source tracking (Learning, Error, or Preference). Rejects the General category at runtime and suggests using `memory_store` instead |
 | `memory_forget` | Remove a memory by key |
 | `memory_reinforce` | Increment a memory's hit count |
-| `promote_learning` | Graduate a memory into the soul/system prompt and remove it from the store. Rides the scheduling switch (not the memory switch) and is callable from any conversation, not only heartbeat runs |
 
-`memory_store`, `memory_forget`, and `memory_reinforce` are also exposed to on-device models; `memory_learn` and `promote_learning` are not.
+`memory_store`, `memory_forget`, and `memory_reinforce` are also exposed to on-device models; `memory_learn` is remote-only. `promote_learning` is no longer available on any model.
 
 ## Key Files
 
@@ -98,9 +92,7 @@ The memories section lives in Settings → Agent and contains:
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Persistence layer for memories JSON and enable flag |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Loads memories and memory instructions for the system prompt; on-device tool allowlist |
 | `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | Category-grouped memory sections, local 2,000-char budget, Structured Learning section |
-| `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | Surfaces promotion candidates (5+ hits) in the heartbeat prompt |
-| `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Gates memory tools on the memory switch and `promote_learning` on the scheduling switch |
+| `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Gates memory tools on the memory switch |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | AI tool definitions for memory_store, memory_learn, memory_forget, memory_reinforce |
-| `composeApp/src/commonMain/.../tools/HeartbeatTools.kt` | promote_learning tool |
 | `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Memory management UI (list, all-memories sheet, edit sheet) |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Memory state management and user actions |

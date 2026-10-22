@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">ትውስታ አርትዕ</string>
     <string name="settings_memories_edit_save">አስቀምጥ</string>
     <string name="settings_memories_edit_cancel">ሰርዝ</string>
-    <string name="settings_soul">ነፍስ</string>
-    <string name="settings_soul_description">AI እንዴት እንደሚሠራ በስርዓት ፕሮምፕት ይወስኑ። AI ያከማቻቸው ትውስታዎቹንም ማግኘት ይችላል።</string>
     <string name="settings_soul_save">አስቀምጥ</string>
-    <string name="default_soul">አንተ ቻትቦት አይደለህም። ከተጠቃሚህ ጋር የሚያድግ የግል ረዳት ነህ።\n\n## እንዴት መሆን እንዳለብህ\n\n**እውነተኛ ረዳት ሁን።** "ጥሩ ጥያቄ!" እና "በደስታ እረዳለሁ!" ዓይነት ቃላትን ዝለል – ረዳ። ድርጊቶች ከሙላ ቃላት ይበልጣሉ።\n\n**አስተያየት ይኑርህ።** ልትቃወም፣ ነገሮችን ልትወድ ወይም አስደሳች ልታገኛቸው ትችላለህ። ስብዕና የሌለው ረዳት ተጨማሪ እርምጃዎች ያሉት የፍለጋ ሞተር ብቻ ነው።\n\n**ፈጠራ ሁን።** ከመጠየቅህ በፊት ከአውዱ እና ትውስታዎችህ ለማወቅ ሞክር። ጥያቄዎችን ሳይሆን መልሶችን ይዘህ ተመለስ።\n\n**አጭር ሁን።** ነባሪው አጭርና ግልፅ ነው። ርዕሱ ሲጠይቅ ጠለቅ ያለ ሁን።\n\n## ድንበሮች\n\n- ግላዊነትን አክብር። ሚስጥራዊ መረጃን ያለ አስፈላጊነት አትድገም።\n- ስለ ድርጊት ሲጠራጠሩ ፣ መጀመሪያ ጠይቅ።\n- ነገርን ሳታውቅ ሐቀኛ ሁን።</string>
     <string name="bot_message_regenerate_content_description">እንደገና አፍርት</string>
     <string name="error_empty_response">ምላሽ አልተቀበለም። አዲስ ውይይት ለመጀመር ወይም መልዕክትዎን ለማሳጠር ይሞክሩ።</string>
     <string name="settings_daemon_mode">የዳይሞን ሁነታ</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">ለወደፊት ማስፈጸሚያ በ AI የተያዙ ተግባራት። የተያዙ ተግባራትን ለመፍጠር AI ን ያስታውሱኝ ወይም ነገር በኋላ ያሂዱ ይበሉት።</string>
     <string name="settings_scheduled_tasks_cancel">ተግባር ሰርዝ</string>
     <string name="settings_soul_reset">ዳግም አስጀምር</string>
-    <string name="settings_soul_reset_confirm">ይህ ነፍስን ወደ ነባሪ ስርዓት ፕሮምፕት ይመልሳል። እርግጠኛ ነዎት?</string>
     <string name="settings_soul_reset_cancel">ሰርዝ</string>
     <string name="tool_schedule_task_name">ተግባር አያዝ</string>
     <string name="tool_schedule_task_description">ለወደፊት ማስፈጸሚያ ተግባር ያያዙ</string>
@@ -139,8 +135,6 @@
     <string name="tool_memory_learn_name">ትውስታ ተማር</string>
     <string name="tool_memory_reinforce_description">ጥሩ ውጤት ያመጣ ትውስታ አጠናክር</string>
     <string name="tool_memory_reinforce_name">ትውስታ አጠናክር</string>
-    <string name="tool_promote_learning_description">የተጠናከረ ትምህርት ወደ ስርዓት ጥያቄ አስተዋውቅ</string>
-    <string name="tool_promote_learning_name">ትምህርት አስተዋውቅ</string>
     <string name="tool_web_search_description">ለወቅታዊ መረጃ ድሩን ፈልግ</string>
     <string name="tool_open_url_name">URL ክፈት</string>
     <string name="tool_open_url_description">በመሳሪያው ላይ URL ወይም አገናኝ ይክፈቱ</string>
@@ -186,7 +180,6 @@
     <string name="settings_import_replace_all">ሁሉንም ነባር ቅንብሮች ተካ</string>
     <string name="settings_import_replace_all_description">ያልተመረጡ ክፍሎች ወደ ነባሪ ዋጋዎች ይመለሳሉ።</string>
     <string name="settings_import_section_services">አገልግሎቶች</string>
-    <string name="settings_import_section_soul">ነፍስ</string>
     <string name="settings_import_section_memory">ማህደረ ትውስታ</string>
     <string name="settings_import_section_scheduling">መርሐ ግብር</string>
     <string name="settings_import_section_heartbeat">የልብ ምት</string>

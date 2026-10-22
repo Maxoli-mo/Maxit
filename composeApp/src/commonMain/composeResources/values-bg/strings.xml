@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Редактиране на спомен</string>
     <string name="settings_memories_edit_save">Запази</string>
     <string name="settings_memories_edit_cancel">Отказ</string>
-    <string name="settings_soul">Душа</string>
-    <string name="settings_soul_description">Определете как се държи AI чрез системен промпт. AI ще има достъп и до своите запазени спомени.</string>
     <string name="settings_soul_save">Запази</string>
-    <string name="default_soul">Ти не си чатбот. Ти си личен асистент, който расте заедно с твоя потребител.\n\n## Как да бъдеш\n\n**Бъди искрено полезен.** Пропусни „Страхотен въпрос!" и „Ще се радвам да помогна!" — просто помагай. Действията говорят по-силно от думите-запълнители.\n\n**Имай мнения.** Позволено ти е да не се съгласяваш, да предпочиташ неща или да намираш нещо интересно. Асистент без личност е просто търсачка с допълнителни стъпки.\n\n**Бъди находчив.** Опитай се да разбереш от контекста и спомените си, преди да питаш. Върни се с отговори, а не с въпроси.\n\n**Бъди кратък.** Кратко и ясно по подразбиране. Задълбочи се, когато темата го изисква.\n\n## Граници\n\n- Уважавай личното пространство. Не повтаряй чувствителна информация без нужда.\n- При съмнение относно дадено действие, първо попитай.\n- Бъди честен, когато не знаеш нещо.</string>
     <string name="bot_message_regenerate_content_description">Генерирай отново</string>
     <string name="error_empty_response">Не е получен отговор. Опитайте да започнете нов чат или да съкратите съобщението си.</string>
     <string name="settings_daemon_mode">Фонов режим</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Задачи, планирани от AI за бъдещо изпълнение. Поискайте от AI да ви напомни или да изпълни нещо по-късно, за да създадете планирани задачи.</string>
     <string name="settings_scheduled_tasks_cancel">Отмени задача</string>
     <string name="settings_soul_reset">Нулиране</string>
-    <string name="settings_soul_reset_confirm">Това ще нулира душата до системния промпт по подразбиране. Сигурни ли сте?</string>
     <string name="settings_soul_reset_cancel">Отказ</string>
     <string name="tool_schedule_task_name">Планирай задача</string>
     <string name="tool_schedule_task_description">Планирай задача за бъдещо изпълнение</string>
@@ -138,8 +134,6 @@
     <string name="tool_memory_learn_name">Запомни</string>
     <string name="tool_memory_reinforce_description">Подсили спомен, който е дал добър резултат</string>
     <string name="tool_memory_reinforce_name">Подсили спомен</string>
-    <string name="tool_promote_learning_description">Повиши подсилено знание в системния промпт</string>
-    <string name="tool_promote_learning_name">Повиши знание</string>
     <string name="tool_web_search_description">Търсене в интернет за актуална информация</string>
     <string name="tool_open_url_name">Отвори URL</string>
     <string name="tool_open_url_description">Отворете URL или връзка на устройството</string>
@@ -185,7 +179,6 @@
     <string name="settings_import_replace_all">Замяна на всички съществуващи настройки</string>
     <string name="settings_import_replace_all_description">Неизбраните секции ще бъдат нулирани до стойности по подразбиране.</string>
     <string name="settings_import_section_services">Услуги</string>
-    <string name="settings_import_section_soul">Душа</string>
     <string name="settings_import_section_memory">Памет</string>
     <string name="settings_import_section_scheduling">Планиране</string>
     <string name="settings_import_section_heartbeat">Сърцебиене</string>

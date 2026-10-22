@@ -77,10 +77,7 @@
     <string name="settings_memories_edit_title">Edytuj wspomnienie</string>
     <string name="settings_memories_edit_save">Zapisz</string>
     <string name="settings_memories_edit_cancel">Anuluj</string>
-    <string name="settings_soul">Dusza</string>
-    <string name="settings_soul_description">Określ, jak AI zachowuje się za pomocą systemowego polecenia. AI będzie miało również dostęp do swoich zapisanych wspomnień.</string>
     <string name="settings_soul_save">Zapisz</string>
-    <string name="default_soul">Nie jesteś chatbotem. Jesteś osobistym asystentem, który rośnie razem ze swoim użytkownikiem.\n\n## Jak być\n\n**Bądź naprawdę pomocny.** Pomiń „Świetne pytanie!" i „Z przyjemnością pomogę!" — po prostu pomóż. Czyny mówią głośniej niż słowa-wypełniacze.\n\n**Miej opinie.** Możesz się nie zgadzać, preferować rzeczy lub uważać coś za interesujące. Asystent bez osobowości to tylko wyszukiwarka z dodatkowymi krokami.\n\n**Bądź pomysłowy.** Spróbuj wywnioskować z kontekstu i swoich wspomnień, zanim zapytasz. Wróć z odpowiedziami, nie pytaniami.\n\n**Bądź zwięzły.** Krótko i jasno domyślnie. Idź głębiej, gdy temat tego wymaga.\n\n## Granice\n\n- Szanuj prywatność. Nie powtarzaj zbędnie wrażliwych informacji.\n- Gdy masz wątpliwości co do działania, najpierw zapytaj.\n- Bądź szczery, gdy czegoś nie wiesz.</string>
     <string name="bot_message_regenerate_content_description">Wygeneruj ponownie</string>
     <string name="error_empty_response">Nie otrzymano odpowiedzi. Spróbuj rozpocząć nowy czat lub skrócić wiadomość.</string>
     <string name="settings_daemon_mode">Tryb demona</string>
@@ -89,7 +86,6 @@
     <string name="settings_scheduled_tasks_description">Zadania zaplanowane przez AI do przyszłego wykonania. Poproś AI o przypomnienie lub uruchomienie czegoś później, aby utworzyć zaplanowane zadania.</string>
     <string name="settings_scheduled_tasks_cancel">Anuluj zadanie</string>
     <string name="settings_soul_reset">Resetuj</string>
-    <string name="settings_soul_reset_confirm">To zresetuje duszę do domyślnego polecenia systemowego. Czy na pewno?</string>
     <string name="settings_soul_reset_cancel">Anuluj</string>
     <string name="tool_schedule_task_name">Zaplanuj zadanie</string>
     <string name="tool_schedule_task_description">Zaplanuj zadanie do przyszłego wykonania</string>
@@ -139,8 +135,6 @@ Jeśli coś wymaga uwagi (przestarzałe wspomnienia, zaległe zadania, dalsze dz
     <string name="tool_memory_learn_name">Ucz pamięć</string>
     <string name="tool_memory_reinforce_description">Wzmocnij wspomnienie, które przyniosło dobry wynik</string>
     <string name="tool_memory_reinforce_name">Wzmocnij pamięć</string>
-    <string name="tool_promote_learning_description">Promuj wzmocnioną naukę do promptu systemowego</string>
-    <string name="tool_promote_learning_name">Promuj naukę</string>
     <string name="tool_web_search_description">Przeszukaj internet w poszukiwaniu aktualnych informacji</string>
     <string name="tool_open_url_name">Otwórz URL</string>
     <string name="tool_open_url_description">Otwórz URL lub link na urządzeniu</string>
@@ -186,7 +180,6 @@ Jeśli coś wymaga uwagi (przestarzałe wspomnienia, zaległe zadania, dalsze dz
     <string name="settings_import_replace_all">Zastąp wszystkie istniejące ustawienia</string>
     <string name="settings_import_replace_all_description">Niezaznaczone sekcje zostaną zresetowane do wartości domyślnych.</string>
     <string name="settings_import_section_services">Usługi</string>
-    <string name="settings_import_section_soul">Dusza</string>
     <string name="settings_import_section_memory">Pamięć</string>
     <string name="settings_import_section_scheduling">Harmonogram</string>
     <string name="settings_import_section_heartbeat">Puls</string>
