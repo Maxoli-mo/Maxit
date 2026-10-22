@@ -38,8 +38,10 @@ class AppSettingsExportImportTest {
         saved.forEach { (key, value) -> settings.putString(key, value) }
         settings.putBoolean("splinterlands_enabled", true)
         val appSettings = createAppSettings(settings)
-        val legacyBackup = JsonObject(saved.mapValues { JsonPrimitive(it.value) } +
-            ("splinterlands_enabled" to JsonPrimitive(true)))
+        val legacyBackup = JsonObject(
+            saved.mapValues { JsonPrimitive(it.value) } +
+                ("splinterlands_enabled" to JsonPrimitive(true)),
+        )
 
         assertTrue(detectImportSections(legacyBackup).isEmpty())
         assertTrue(detectExportableSections(legacyBackup).isEmpty())
