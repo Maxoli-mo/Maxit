@@ -15,7 +15,6 @@ Android, Linux, and Web are maintained. The iOS, macOS, and Windows implementati
 The following data is stored in the platform settings store (unencrypted on Web):
 - Service API keys (per-instance)
 - Email account passwords
-- Splinterlands posting key
 - MCP server request headers (e.g. authorization tokens), stored with the server list
 - Encryption key for legacy conversation migration
 - Conversation history on the browser build only

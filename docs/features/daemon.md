@@ -33,8 +33,6 @@ Every time the main activity is brought to the foreground, if daemon mode is ena
 
 ### Other Starters
 
-Starting a Splinterlands auto-battle also starts the foreground service (regardless of the Daemon Mode toggle) so battles keep running in the background; stopping the battle does not stop the service.
-
 ## Background Work
 
 The daemon's task scheduler polls every 60 seconds and handles four types of background work:
@@ -82,4 +80,3 @@ A toggle labeled "Daemon Mode" appears in the General tab of settings, only on A
 | `composeApp/src/commonMain/.../ui/settings/GeneralSettings.kt` | Daemon mode toggle UI (General tab) |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Toggle handling: persists the preference, requests notification permission, starts/stops the service |
 | `composeApp/src/androidMain/res/values/strings.xml` | Notification channel name/description and "Daemon is running" text |
-| `composeApp/src/commonMain/.../splinterlands/SplinterlandsBattleRunner.kt` | Starts the service when a battle begins |

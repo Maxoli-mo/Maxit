@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">Агент</string>
     <string name="settings_tab_services">Сервиси</string>
     <string name="settings_tab_tools">Алатке</string>
-    <string name="settings_tab_integrations">Интеграције</string>
     <string name="tools_count">%1$d алатки</string>
     <string name="privacy_agree_prefix">Коришћењем сервиса, прихватате </string>
     <string name="privacy_policy">Политику приватности</string>

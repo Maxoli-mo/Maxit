@@ -70,7 +70,7 @@ The heartbeat prompt is assembled by a pure, unit-tested builder; every conditio
 
 The promotion-candidate section and `promote_learning` tool have been removed. `HeartbeatManager` no longer queries `MemoryStore`; memories still reach the model through the chat system prompt when memory is enabled. Existing custom heartbeat prompts are unchanged.
 
-For the full contract of every prompt variation in Maxit (chat remote/local, heartbeat, Splinterlands) see [system-prompts.md](system-prompts.md).
+For the full contract of every prompt variation in Maxit (chat remote/local, heartbeat) see [system-prompts.md](system-prompts.md).
 
 ## Heartbeat Log
 

@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">Agjent</string>
     <string name="settings_tab_services">Shërbimet</string>
     <string name="settings_tab_tools">Mjetet</string>
-    <string name="settings_tab_integrations">Integrimet</string>
     <string name="tools_count">%1$d mjete</string>
     <string name="privacy_agree_prefix">Duke përdorur shërbimin, ju pranoni </string>
     <string name="privacy_policy">Politikën e privatësisë</string>

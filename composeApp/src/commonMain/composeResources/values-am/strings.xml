@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">ወኪል</string>
     <string name="settings_tab_services">አገልግሎቶች</string>
     <string name="settings_tab_tools">መሳሪያዎች</string>
-    <string name="settings_tab_integrations">ውህደቶች</string>
     <string name="tools_count">%1$d መሳሪያዎች</string>
     <string name="privacy_agree_prefix">አገልግሎቱን በመጠቀም፣ የሚከተለውን ይቀበላሉ </string>
     <string name="privacy_policy">የግላዊነት ፖሊሲ</string>

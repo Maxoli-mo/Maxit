@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">Ahente</string>
     <string name="settings_tab_services">Mga Serbisyo</string>
     <string name="settings_tab_tools">Mga Tool</string>
-    <string name="settings_tab_integrations">Mga Integrasyon</string>
     <string name="tools_count">%1$d Mga Tool</string>
     <string name="privacy_agree_prefix">Sa paggamit ng serbisyo, sumasang-ayon ka sa </string>
     <string name="privacy_policy">Patakaran sa Privacy</string>

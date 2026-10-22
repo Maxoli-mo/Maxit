@@ -55,7 +55,6 @@
     <string name="settings_tools_none_available">Aucun outil disponible sur cette plateforme.</string>
     <string name="settings_tab_services">Services</string>
     <string name="settings_tab_tools">Outils</string>
-    <string name="settings_tab_integrations">Intégrations</string>
     <string name="tools_count">%1$d Outils</string>
     <string name="privacy_agree_prefix">En utilisant le service, vous acceptez la </string>
     <string name="privacy_policy">Politique de confidentialité</string>

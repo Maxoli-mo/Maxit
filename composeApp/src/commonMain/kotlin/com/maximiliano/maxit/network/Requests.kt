@@ -33,7 +33,6 @@ import io.ktor.client.plugins.logging.EMPTY
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
-import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
@@ -64,15 +63,6 @@ data class ServiceCredentials(
     val modelId: String = "",
     val baseUrl: String = "",
 )
-
-/** Applies a per-request override of the client-wide timeouts, when the caller supplied one. */
-private fun HttpRequestBuilder.applyTimeout(requestTimeoutMs: Long?) {
-    requestTimeoutMs ?: return
-    timeout {
-        requestTimeoutMillis = requestTimeoutMs
-        socketTimeoutMillis = requestTimeoutMs
-    }
-}
 
 /**
  * Session id for provider requests that belong to no conversation — the model list, and the
@@ -201,7 +191,6 @@ class Requests {
         messages: List<GeminiChatRequestDto.Content>,
         tools: List<Tool> = emptyList(),
         systemInstruction: String? = null,
-        requestTimeoutMs: Long? = null,
     ): Result<GeminiChatResponseDto> = try {
         val apiKey = credentials.apiKey.ifEmpty { throw GeminiInvalidApiKeyException() }
         val selectedModelId = credentials.modelId
@@ -215,7 +204,6 @@ class Requests {
         val response: HttpResponse =
             defaultClient.post("${Service.Gemini.chatUrl}$selectedModelId:generateContent") {
                 header("x-goog-api-key", apiKey)
-                applyTimeout(requestTimeoutMs)
                 contentType(ContentType.Application.Json)
                 setBody(
                     GeminiChatRequestDto(
@@ -260,14 +248,12 @@ class Requests {
         tools: List<Tool> = emptyList(),
         customHeaders: Map<String, String> = emptyMap(),
         sessionId: String? = null,
-        requestTimeoutMs: Long? = null,
     ): Result<OpenAICompatibleChatResponseDto> = try {
         val apiKey = getApiKeyOrThrow(service, credentials)
         val model = credentials.modelId.ifEmpty { null }
         val url = resolveUrl(service, credentials, service.chatUrl)
         val response: HttpResponse =
             defaultClient.post(url) {
-                applyTimeout(requestTimeoutMs)
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
                 applySessionHeader(service, credentials, sessionId)
@@ -305,7 +291,6 @@ class Requests {
         credentials: ServiceCredentials,
         input: List<JsonObject>,
         tools: List<Tool> = emptyList(),
-        requestTimeoutMs: Long? = null,
     ): Result<OpenAIResponsesResponseDto> = try {
         val apiKey = getApiKeyOrThrow(service, credentials)
         val responsesUrl = service.responsesUrl
@@ -313,7 +298,6 @@ class Requests {
         val url = resolveUrl(service, credentials, responsesUrl)
         val response: HttpResponse =
             defaultClient.post(url) {
-                applyTimeout(requestTimeoutMs)
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
                 setBody(
@@ -453,12 +437,10 @@ class Requests {
         messages: List<AnthropicChatRequestDto.Message>,
         tools: List<Tool> = emptyList(),
         systemInstruction: String? = null,
-        requestTimeoutMs: Long? = null,
     ): Result<AnthropicChatResponseDto> = try {
         val apiKey = credentials.apiKey.ifEmpty { throw AnthropicInvalidApiKeyException() }
         val response: HttpResponse =
             defaultClient.post(Service.Anthropic.chatUrl) {
-                applyTimeout(requestTimeoutMs)
                 contentType(ContentType.Application.Json)
                 header("x-api-key", apiKey)
                 header("anthropic-version", "2023-06-01")

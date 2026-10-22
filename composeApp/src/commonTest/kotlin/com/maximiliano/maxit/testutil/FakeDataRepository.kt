@@ -500,7 +500,6 @@ class FakeDataRepository : DataRepository {
 
     override suspend fun askWithTools(prompt: String, instanceId: String?, conversationIdOverride: String?): String = ""
     override suspend fun askSilently(question: String): String = ""
-    override suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long): String = ""
     override suspend fun addAssistantMessage(content: String) {}
     override suspend fun getOrCreateHeartbeatConversationId(): String = "fake-heartbeat-conversation"
 

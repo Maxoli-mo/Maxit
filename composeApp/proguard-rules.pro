@@ -56,15 +56,6 @@
 -keep class coil3.** { *; }
 -dontwarn coil3.**
 
-# BouncyCastle ships as a cryptographically signed JCE provider jar.
-# -keep alone is not enough: ProGuard still rewrites the jar, stripping the
-# META-INF signatures (BCKEY.SF / BCKEY.DSA) and invalidating per-class
-# SHA-256 digests. A Gradle doLast in build.gradle.kts copies the original
-# signed jar back over the ProGuard output; the -keep rule is still needed
-# so ProGuard does not report "missing class" warnings for the rest of the app.
--keep class org.bouncycastle.** { *; }
--dontwarn org.bouncycastle.**
-
 # LiteRT LM — on-device inference SDK with JNI native bridge.
 -keep class com.google.ai.edge.litertlm.** { *; }
 -dontwarn com.google.ai.edge.litertlm.**

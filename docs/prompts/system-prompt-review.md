@@ -319,29 +319,7 @@ Their full instructions and component reference belong in [docs/skills/interacti
 
 Pre-change sources: `ChatSystemPromptBuilder.kt:236–242,393–434,442 onward`. The static catalog and UI response constraints are intentionally not duplicated here.
 
-## 7. Splinterlands has its own prompt path
-
-Splinterlands team selection is separate from general assistant behavior. Its `SYSTEM_PROMPT_TEMPLATE` opens with:
-
-> You are a Splinterlands battle expert. Given the match constraints and available cards, pick the best team.
-
-It inserts the game-rules reference, match mana cap, maximum monster count, and active ruleset hints. It requires one summoner, a legal team within the mana cap, at least 70% mana usage, matching colors, the stated Gladiator/Conscript restriction, and no duplicate monster IDs. Its exact final response instruction is:
-
-> IMPORTANT: Do NOT analyze every card. Just pick a strong team and output the answer.
-> Respond with ONLY valid JSON — no markdown, no explanation, no analysis.
-> Use plain integers for IDs (e.g. 13 not "S13").
-> {{"summoner": <number>, "monsters": [<number>, ...], "mana_total": <number>}}
-
-The double braces above are present in the source template. The card-list message ends with:
-
-> Pick a strong team NOW. Do NOT list or analyze every card. Just output JSON immediately.
-> {"summoner": <S number>, "monsters": [<M number>, ...], "mana_total": <number>}
-
-Although the return object calls one field `systemPrompt`, the battle runner concatenates it with the card-list message and normally sends the combined text as a **user** message through `askSilentlyWithInstance`, with the ordinary system prompt set to null. If that instance ID cannot be found, the method falls back to `askSilently`, which does use the general prompt. No live match data or game account data was inspected.
-
-Sources: `splinterlands/SplinterlandsTeamPicker.kt:1084–1302,1304–1327,1376–1443`; `splinterlands/SplinterlandsBattleRunner.kt:402–418,461`; `RemoteDataRepository.kt:2189–2209`. The large game reference is maintained in that source, not reproduced as a general-chat default here.
-
-## 8. Tensions to resolve when behavior is edited later
+## 7. Tensions to resolve when behavior is edited later
 
 - **Resourcefulness versus asking first.** The soul says to return with answers rather than questions and to ask first when doubtful about an action. When to Act says to choose a reasonable interpretation and ask only when genuinely blocked. The defaults do not define a precise boundary between useful autonomy and an action that needs confirmation.
 - **The clarification limit.** “Ask at most one clarifying question” does not say whether that limit is per turn or per task. Email has a more specific rule requiring a draft, a later confirmation, and renewed confirmation after edits. Rewriting the general limit without preserving that distinction could change sending behavior.
@@ -352,7 +330,7 @@ Sources: `splinterlands/SplinterlandsTeamPicker.kt:1084–1302,1304–1327,1376�
 
 These are review findings, not changes made by this document. No particular new policy is assumed here.
 
-## 9. Source map for later edits
+## 8. Source map for later edits
 
 All paths are relative to the repository root. For abbreviated references above, the general data directory is `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/data/`.
 
@@ -373,7 +351,5 @@ All paths are relative to the repository root. For abbreviated references above,
 - `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/data/providers/AnthropicMessages.kt:11–54` — history/tool-result message grouping.
 - `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/network/Requests.kt:199–228,451–474,658–699` — provider system fields and native tool-schema conversion.
 - `composeApp/src/jvmShared/kotlin/com/maximiliano/maxit/inference/LiteRTInferenceEngine.kt:295–345` — local system instruction, history, sampling, and native tool calling.
-- `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/splinterlands/SplinterlandsTeamPicker.kt:1084–1327,1376–1443` — separate game rules, team-selection template, card-list prompt.
-- `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/splinterlands/SplinterlandsBattleRunner.kt:402–418,461` — combined game prompt dispatch.
 
 Editing this review file changes no application behavior. Use the source locations above when a behavioral change is actually requested.

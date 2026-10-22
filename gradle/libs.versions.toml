@@ -29,7 +29,6 @@ tts = "3.0.0"
 foundationAndroid = "1.12.1"
 paparazzi = "2.0.0-alpha05"
 turbine = "1.2.1"
-bouncycastle = "1.86"
 reorderable = "3.1.0"
 litert-lm = "0.18.0"
 sqldelight = "2.4.1"
@@ -86,7 +85,6 @@ compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-mu
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
 compose-components-uiToolingPreview = { module = "org.jetbrains.compose.components:components-ui-tooling-preview", version.ref = "compose-multiplatform" }
 compose-ui-tooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "compose-multiplatform" }
-bouncycastle-provider = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 # LXC Debian rootfs for Kai Build ships as .tar.xz
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }

@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">Agent</string>
     <string name="settings_tab_services">Tjänster</string>
     <string name="settings_tab_tools">Verktyg</string>
-    <string name="settings_tab_integrations">Integrationer</string>
     <string name="tools_count">%1$d Verktyg</string>
     <string name="privacy_agree_prefix">Genom att använda tjänsten godkänner du </string>
     <string name="privacy_policy">Integritetspolicyn</string>

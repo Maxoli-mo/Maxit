@@ -26,9 +26,6 @@ import com.maximiliano.maxit.skills.SkillManager
 import com.maximiliano.maxit.sms.SmsPoller
 import com.maximiliano.maxit.sms.SmsReader
 import com.maximiliano.maxit.sms.SmsSender
-import com.maximiliano.maxit.splinterlands.SplinterlandsApi
-import com.maximiliano.maxit.splinterlands.SplinterlandsBattleRunner
-import com.maximiliano.maxit.splinterlands.SplinterlandsStore
 import com.maximiliano.maxit.tools.AppPermission
 import com.maximiliano.maxit.tools.NotificationListenerController
 import com.maximiliano.maxit.tools.PermissionController
@@ -39,7 +36,6 @@ import com.maximiliano.maxit.ui.sandbox.SandboxPackagesViewModel
 import com.maximiliano.maxit.ui.sandbox.SandboxSessionViewModel
 import com.maximiliano.maxit.ui.settings.SandboxViewModel
 import com.maximiliano.maxit.ui.settings.SettingsViewModel
-import com.maximiliano.maxit.ui.settings.SplinterlandsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -96,12 +92,6 @@ val appModule = module {
     single<NotificationStore> {
         NotificationStore(get())
     }
-    single<SplinterlandsStore> {
-        SplinterlandsStore(get())
-    }
-    single<SplinterlandsApi> {
-        SplinterlandsApi()
-    }
     single<HeartbeatManager> {
         HeartbeatManager(get(), get(), get())
     }
@@ -138,9 +128,6 @@ val appModule = module {
         )
     }
     single<DataRepository> { get<RemoteDataRepository>() }
-    single<SplinterlandsBattleRunner> {
-        SplinterlandsBattleRunner(get(), get(), get<DataRepository>(), get<DaemonController>())
-    }
     single<TaskScheduler> {
         TaskScheduler(
             get<DataRepository>(),
@@ -165,6 +152,5 @@ val appModule = module {
     viewModel { KaiBuildViewModel(get<KaiBuildController>(), get<DataRepository>()) }
     // Same browser, second environment: Kai Build's Debian instead of the chat sandbox.
     viewModel(KAI_BUILD_FILES) { SandboxFileBrowserViewModel(get<KaiBuildController>().files) }
-    viewModel { SplinterlandsViewModel(get<DataRepository>(), get(), get(), get<SplinterlandsApi>()) }
     viewModel { ChatViewModel(get<DataRepository>(), get<TaskScheduler>(), localNetworkPermissionController = get(permissionQualifier(AppPermission.LOCAL_NETWORK))) }
 }

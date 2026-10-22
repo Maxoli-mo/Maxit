@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">סוכן</string>
     <string name="settings_tab_services">שירותים</string>
     <string name="settings_tab_tools">כלים</string>
-    <string name="settings_tab_integrations">אינטגרציות</string>
     <string name="tools_count">%1$d כלים</string>
     <string name="privacy_agree_prefix">בשימוש בשירות, אתה מסכים ל</string>
     <string name="privacy_policy">מדיניות הפרטיות</string>

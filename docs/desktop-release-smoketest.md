@@ -8,7 +8,7 @@ Before tagging a new version, walk through this checklist on a locally-built **r
 
 ## Why this exists
 
-Desktop release builds run through ProGuard. The desktop policy shrinks Compose packages and keeps the rest of the classpath intact because libraries use reflection, `ServiceLoader`, JNI symbol lookup, or jar-manifest discovery that ProGuard cannot trace statically. The signed BouncyCastle jar is restored after ProGuard runs. A build can still package successfully and crash on a particular code path. CI runs desktop unit tests but does not publish releases or exercise the packaged release binary; run this checklist locally on Linux.
+Desktop release builds run through ProGuard. The desktop policy shrinks Compose packages and keeps the rest of the classpath intact because libraries use reflection, `ServiceLoader`, JNI symbol lookup, or jar-manifest discovery that ProGuard cannot trace statically. A build can still package successfully and crash on a particular code path. CI runs desktop unit tests but does not publish releases or exercise the packaged release binary; run this checklist locally on Linux.
 
 ## How to run
 
@@ -25,7 +25,6 @@ Each step exercises a library that has historically broken under ProGuard. A cra
 - [ ] **App launches to main screen** — exercises Compose runtime, Skiko native load, and the Koin DI graph
 - [ ] **First outbound network call succeeds** (any provider ping, any chat message) — exercises Ktor CIO engine discovery and the kotlinx.serialization JSON plugin (both `ServiceLoader`-registered)
 - [ ] **Send a chat message and receive a response** — exercises the full Ktor HTTP client + content-negotiation + streaming path
-- [ ] **Splinterlands / Hive login** — exercises BouncyCastle ECDSA via `HiveCrypto.jvmShared.kt`. BouncyCastle's signed JCE provider jar is especially sensitive; any ProGuard modification invalidates its SHA-256 class digests
 - [ ] **Toggle text-to-speech on a message** — exercises `nl.marc_apps.tts` and FreeTTS voice directory discovery (jar manifest + `Class.forName`)
 - [ ] **Change a setting and restart the app** — exercises multiplatform-settings persistence via the encrypted file backend
 - [ ] **After the restart, reopen an earlier conversation** — exercises SQLite-backed conversation storage, which needs the `java.sql` module in the bundled runtime
@@ -54,7 +53,6 @@ On desktop, everything outside the Compose packages is kept wholesale by `compos
 
 | Library | Reason | Rule location |
 |---|---|---|
-| BouncyCastle (`org.bouncycastle.**`) | Signed JCE provider jar; ProGuard invalidates SHA-256 class digests, so the desktop build also restores the original jar after ProGuard | `composeApp/proguard-rules.pro`, `composeApp/build.gradle.kts` |
 | FreeTTS (`com.sun.speech.freetts.**`) | Voice directories loaded via jar manifest + `Class.forName`; cannot be traced | `composeApp/proguard-rules.pro` |
 
 ## Key Files
@@ -63,5 +61,5 @@ On desktop, everything outside the Compose packages is kept wholesale by `compos
 |---|---|
 | `composeApp/proguard-rules.pro` | Shared ProGuard/R8 rules for Android and Desktop |
 | `composeApp/proguard-desktop.pro` | Desktop-only policy: shrink Compose, keep the rest of the classpath, no method specialization |
-| `composeApp/build.gradle.kts` | `compose.desktop { application { buildTypes.release.proguard { ... } } }`, jlink modules, and the signed BouncyCastle jar restore |
+| `composeApp/build.gradle.kts` | `compose.desktop { application { buildTypes.release.proguard { ... } } }` and jlink modules |
 | `.github/workflows/test.yml` | Read-only Linux CI: formatting checks, desktop tests, Android FOSS and Web builds |

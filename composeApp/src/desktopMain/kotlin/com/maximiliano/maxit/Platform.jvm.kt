@@ -86,7 +86,6 @@ actual val isSmsSupported: Boolean = false
 
 actual val isNotificationsSupported: Boolean = false
 
-actual val isSplinterlandsSupported: Boolean = true
 
 actual suspend fun compressImageBytes(bytes: ByteArray, mimeType: String): ByteArray {
     if (!mimeType.startsWith("image/")) return bytes

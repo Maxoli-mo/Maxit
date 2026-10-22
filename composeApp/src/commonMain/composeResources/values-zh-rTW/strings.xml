@@ -55,7 +55,6 @@
     <string name="settings_tools_none_available">此平台上沒有可用的工具。</string>
     <string name="settings_tab_services">服務</string>
     <string name="settings_tab_tools">工具</string>
-    <string name="settings_tab_integrations">整合</string>
     <string name="tools_count">%1$d 個工具</string>
     <string name="privacy_agree_prefix">使用本服務即表示您同意</string>
     <string name="privacy_policy">隱私權政策</string>

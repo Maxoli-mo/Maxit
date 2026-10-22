@@ -26,6 +26,32 @@ class AppSettingsExportImportTest {
     private fun createAppSettings(settings: MapSettings = MapSettings()) = AppSettings(settings)
 
     @Test
+    fun `retired integration data is ignored without deleting saved data`() {
+        val settings = MapSettings()
+        val saved = mapOf(
+            "splinterlands_account" to """{"username":"alice"}""",
+            "splinterlands_posting_key" to "test-only-legacy-key",
+            "splinterlands_posting_key_account1" to "test-only-account-key",
+            "splinterlands_instance_ids" to """["service1"]""",
+            "splinterlands_battle_log" to "[]",
+        )
+        saved.forEach { (key, value) -> settings.putString(key, value) }
+        settings.putBoolean("splinterlands_enabled", true)
+        val appSettings = createAppSettings(settings)
+        val legacyBackup = JsonObject(saved.mapValues { JsonPrimitive(it.value) } +
+            ("splinterlands_enabled" to JsonPrimitive(true)))
+
+        assertTrue(detectImportSections(legacyBackup).isEmpty())
+        assertTrue(detectExportableSections(legacyBackup).isEmpty())
+        assertFalse(appSettings.exportToJson(toolIds).keys.any { it.startsWith("splinterlands_") })
+        for (replace in listOf(false, true)) {
+            assertEquals(0, appSettings.importFromJson(legacyBackup, toolIds, replace = replace))
+            saved.forEach { (key, value) -> assertEquals(value, settings.getString(key, "")) }
+            assertTrue(settings.getBoolean("splinterlands_enabled", false))
+        }
+    }
+
+    @Test
     fun `export includes version field`() {
         val appSettings = createAppSettings()
         val json = appSettings.exportToJson(toolIds)
@@ -854,24 +880,6 @@ class AppSettingsExportImportTest {
         val json = appSettings.exportToJson(toolIds)
         val sections = detectExportableSections(json)
         assertTrue(ImportSection.SMS in sections)
-    }
-
-    @Test
-    fun `detectExportableSections hides Splinterlands without account`() {
-        val appSettings = createAppSettings()
-        appSettings.setSplinterlandsEnabled(true)
-        val json = appSettings.exportToJson(toolIds)
-        val sections = detectExportableSections(json)
-        assertFalse(ImportSection.SPLINTERLANDS in sections)
-    }
-
-    @Test
-    fun `detectExportableSections shows Splinterlands when account is configured`() {
-        val appSettings = createAppSettings()
-        appSettings.setSplinterlandsAccountJson("""{"username":"alice"}""")
-        val json = appSettings.exportToJson(toolIds)
-        val sections = detectExportableSections(json)
-        assertTrue(ImportSection.SPLINTERLANDS in sections)
     }
 
     @Test

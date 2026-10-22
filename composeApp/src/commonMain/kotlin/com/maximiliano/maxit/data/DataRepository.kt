@@ -211,7 +211,6 @@ interface DataRepository {
 
     // Silent ask (no tools, no chat history update)
     suspend fun askSilently(question: String): String
-    suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long = 0L): String
     suspend fun addAssistantMessage(content: String)
 
     /**

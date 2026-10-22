@@ -148,7 +148,6 @@ Providers require user configuration. Local inference needs a downloaded or impo
 - **[Appearance](features/appearance.md)** — Theme picker
 - **[Encryption](features/encryption.md)** — Secure settings storage per platform
 - **[Settings Export & Import](features/settings-export-import.md)** — JSON backup and restore
-- **[Splinterlands](features/splinterlands.md)** — Auto-battle integration
 
 ## License and attribution
 

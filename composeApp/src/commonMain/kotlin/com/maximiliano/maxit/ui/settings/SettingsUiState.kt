@@ -58,7 +58,6 @@ enum class SettingsTab {
     Services,
     Tools,
     Sandbox,
-    Integrations,
 }
 
 @Immutable

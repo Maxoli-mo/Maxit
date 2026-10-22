@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">I-ejenti</string>
     <string name="settings_tab_services">Amasevisi</string>
     <string name="settings_tab_tools">Amathuluzi</string>
-    <string name="settings_tab_integrations">Ukuhlanganiswa</string>
     <string name="tools_count">Amathuluzi angu-%1$d</string>
     <string name="privacy_agree_prefix">Ngokusebenzisa isevisi, uyavumelana ne-</string>
     <string name="privacy_policy">Inqubomgomo yobumfihlo</string>

@@ -153,7 +153,6 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation(libs.koin.android)
                 implementation(libs.material)
-                implementation(libs.bouncycastle.provider)
                 implementation(libs.litert.lm)
                 implementation(libs.sqldelight.android.driver)
                 implementation(libs.xz)
@@ -165,7 +164,6 @@ kotlin {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.ktor.client.cio)
-                implementation(libs.bouncycastle.provider)
                 implementation(libs.slf4j.nop)
                 implementation(libs.litert.lm.jvm)
                 implementation(libs.sqldelight.sqlite.driver)
@@ -212,28 +210,6 @@ compose.desktop {
                 // java.sql is required since the SQLDelight/SQLite migration (9d6ceec9).
                 modules("jdk.security.auth", "java.sql")
             }
-        }
-    }
-}
-
-// BouncyCastle is a cryptographically signed JCE provider jar. ProGuard rewrites
-// it and strips the META-INF signatures, causing "SHA-256 digest error" at
-// runtime. After ProGuard finishes, replace the processed jar with the original.
-afterEvaluate {
-    tasks.matching { it.name == "proguardReleaseJars" }.configureEach {
-        doLast {
-            val proguardDir =
-                layout.buildDirectory
-                    .dir("compose/tmp/main-release/proguard")
-                    .get()
-                    .asFile
-            val processedJar = proguardDir.listFiles()?.find { it.name.startsWith("bcprov") } ?: return@doLast
-            val originalJar =
-                configurations["desktopRuntimeClasspath"]
-                    .resolve()
-                    .find { it.name.startsWith("bcprov") } ?: return@doLast
-            originalJar.copyTo(processedJar, overwrite = true)
-            logger.lifecycle("Restored original signed BouncyCastle jar: ${processedJar.name}")
         }
     }
 }

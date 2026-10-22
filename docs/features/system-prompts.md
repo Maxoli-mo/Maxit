@@ -17,7 +17,6 @@ As of 2026-10-21, Dynamic/Interactive UI prompt generation is **parked**, not mo
 | Chat (remote) | `buildChatSystemPrompt(variant = CHAT_REMOTE, …)` | `ChatSystemPromptBuilderTest` | Any remote service (OpenAI, Anthropic, Gemini, etc.) via `RemoteDataRepository.ask()` |
 | Chat (on-device) | `buildChatSystemPrompt(variant = CHAT_LOCAL, …)` | `ChatSystemPromptBuilderTest` | LiteRT via `RemoteDataRepository.askWithLocalEngine()` |
 | Heartbeat | `buildHeartbeatPrompt(…)` | `HeartbeatPromptBuilderTest` | `TaskScheduler` via `HeartbeatManager.buildHeartbeatPrompt()` — sent as a USER message, not a system prompt |
-| Splinterlands LLM picker | `buildLlmPrompt(…)` in `SplinterlandsTeamPicker.kt` | `SplinterlandsTeamPickerPromptTest` | `SplinterlandsBattleRunner` — fully isolated, does not use the chat prompt builder |
 
 The on-device tool allowlist (`LOCAL_TOOL_ALLOWLIST` in `RemoteDataRepository.kt`) decides which tools reach the on-device engine. Renaming a tool without updating that set silently drops it from the on-device path.
 
@@ -123,7 +122,5 @@ After the review fixes, 1,024 desktop tests, WebAssembly source compilation, and
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | `getActiveSystemPrompt(variant)` / `buildActiveSystemPrompt` gather inputs from settings/stores; `askWithService` supplies the actual dispatch model/provider |
 | `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | `buildHeartbeatPrompt()` wrapper that gathers inputs and calls the pure builder |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | `DEFAULT_MEMORY_INSTRUCTIONS` (basic block, used by both variants). The advanced `## Structured Learning` block lives in `ChatSystemPromptBuilder.kt` and is remote-only |
-| `composeApp/src/commonMain/.../splinterlands/SplinterlandsTeamPicker.kt` | `buildLlmPrompt` (separate path, independent contract) |
 | `composeApp/src/commonTest/.../data/ChatSystemPromptBuilderTest.kt` | Focused + golden tests for every chat variant section |
 | `composeApp/src/commonTest/.../data/HeartbeatPromptBuilderTest.kt` | Focused + golden tests for every heartbeat section |
-| `composeApp/src/commonTest/.../splinterlands/SplinterlandsTeamPickerPromptTest.kt` | Focused tests for the Splinterlands LLM picker |

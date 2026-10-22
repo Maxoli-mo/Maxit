@@ -542,9 +542,7 @@ class RemoteDataRepository(
             engine.initialize(model, contextTokens)
         }
 
-        // Callers pass either a CHAT_LOCAL system prompt (chat + silent paths) or null
-        // (Splinterlands via `askSilentlyWithInstance`, where the caller owns the full
-        // prompt shape). We hand whichever one through to the engine unchanged.
+        // Pass the caller's system prompt through to the engine unchanged.
         // Native litert-lm `automaticToolCalling` owns the tool loop — our allowlisted
         // tools are passed once via [localToolDescriptionJson] and the engine drives them.
         val localTools: List<LocalTool> = if (localModelDeclaresTools(model.id)) {
@@ -759,7 +757,6 @@ class RemoteDataRepository(
         credentials: ServiceCredentials,
         messages: List<History>,
         systemPrompt: String?,
-        requestTimeoutMs: Long? = null,
         retry: Boolean = true,
         strictEmptyResponse: Boolean = false,
     ): AssistantTurn {
@@ -772,7 +769,6 @@ class RemoteDataRepository(
                         credentials = credentials,
                         messages = messages.map { it.toGeminiMessageDto() },
                         systemInstruction = systemPrompt,
-                        requestTimeoutMs = requestTimeoutMs,
                     ).getOrThrow()
                 }
                 AssistantTurn(response.extractText())
@@ -784,7 +780,6 @@ class RemoteDataRepository(
                         credentials = credentials,
                         messages = buildAnthropicMessages(messages),
                         systemInstruction = systemPrompt,
-                        requestTimeoutMs = requestTimeoutMs,
                     ).getOrThrow()
                 }
                 AssistantTurn(response.extractText())
@@ -796,7 +791,7 @@ class RemoteDataRepository(
                 val openAIMessages = buildOpenAIMessages(service, messages, systemPrompt, credentials.modelId, declaredToolNames = emptySet())
                 if (requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)) {
                     val response = call {
-                        requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages), requestTimeoutMs = requestTimeoutMs).getOrThrow()
+                        requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages)).getOrThrow()
                     }
                     response.throwIfFailed(service)
                     val content = response.outputText
@@ -805,7 +800,7 @@ class RemoteDataRepository(
                 }
                 val sessionId = activeConversationId()
                 val response = call {
-                    requests.openAICompatibleChat(service, credentials, openAIMessages, sessionId = sessionId, requestTimeoutMs = requestTimeoutMs).getOrThrow()
+                    requests.openAICompatibleChat(service, credentials, openAIMessages, sessionId = sessionId).getOrThrow()
                 }
                 val message = response.choices.firstOrNull()?.message
                 val content = message?.effectiveContent
@@ -2157,28 +2152,6 @@ class RemoteDataRepository(
         val creds = instanceCredentials(firstInstance.instanceId, service)
 
         return plainChat(service, creds, messages, systemPrompt, retry = false).content
-    }
-
-    override suspend fun askSilentlyWithInstance(instanceId: String, prompt: String, timeoutMs: Long): String {
-        val instance = getConfiguredServiceInstances().find { it.instanceId == instanceId }
-            ?: return askSilently(prompt)
-        val service = Service.fromId(instance.serviceId)
-        val messages = listOf(History(role = History.Role.USER, content = prompt))
-
-        if (service.isOnDevice) {
-            return askWithLocalEngine(messages, null, instanceId, MutableStateFlow(messages))
-        }
-
-        val creds = instanceCredentials(instanceId, service)
-
-        return plainChat(
-            service = service,
-            credentials = creds,
-            messages = messages,
-            systemPrompt = null,
-            requestTimeoutMs = timeoutMs.takeIf { it > 0 },
-            retry = false,
-        ).content
     }
 
     private val _hasUnreadHeartbeat = MutableStateFlow(false)

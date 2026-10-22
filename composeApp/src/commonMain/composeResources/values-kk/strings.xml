@@ -49,7 +49,6 @@
     <string name="settings_tab_agent">Агент</string>
     <string name="settings_tab_services">Қызметтер</string>
     <string name="settings_tab_tools">Құралдар</string>
-    <string name="settings_tab_integrations">Интеграциялар</string>
     <string name="tools_count">%1$d Құрал</string>
     <string name="privacy_agree_prefix">Қызметті пайдалана отырып, сіз келесімен келісесіз </string>
     <string name="privacy_policy">Құпиялылық саясаты</string>

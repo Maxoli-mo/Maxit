@@ -4,7 +4,7 @@
 # unminified and dominate the desktop distribution size. The rest of the
 # classpath (Kotlin stdlib, Ktor, Coil, JNA, FileKit, DBus, Koin, lifecycle,
 # navigation, kotlinx.coroutines, kotlinx.io, kotlinx.serialization, Okio,
-# BouncyCastle, LiteRT, FreeTTS, SLF4J, the app itself, etc.) is small *and*
+# LiteRT, FreeTTS, SLF4J, the app itself, etc.) is small *and*
 # each library has its own reflection / JNI / native-ABI pattern that ProGuard
 # has repeatedly broken in practice:
 #   - JNA resolves native symbols by exact method name  (#167, #175)
@@ -14,7 +14,6 @@
 #   - DBus builds interface proxies by method name
 #   - FileKit's XDG portal probe depends on DBus surviving intact (#173)
 #   - Gson maps JSON fields by reflected field names
-#   - BouncyCastle's signed JCE provider jar breaks if its classes are rewritten
 # Rather than whitelist each library individually, this file whitelists the
 # whole classpath and lets Compose be the only package ProGuard is allowed to
 # rewrite. The shared proguard-rules.pro still carries the finer-grained rules
