@@ -23,5 +23,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Check formatting and run Linux desktop tests
         run: ./gradlew spotlessCheck :composeApp:desktopTest --no-daemon --stacktrace
+      - name: Check version-task cleanup
+        run: bash gradle/test-version-tasks.sh
       - name: Build FOSS Android and Web
         run: ./gradlew :androidApp:assembleFossDebug :composeApp:wasmJsBrowserDistribution --no-daemon --stacktrace

@@ -29,6 +29,19 @@ composeCompiler {
     stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_stability.conf"))
 }
 
+val syncIosVersion =
+    tasks.register<SyncIosVersion>("syncIosVersion") {
+        appVersion.set(libs.versions.appVersion)
+        xcConfigFile.set(rootProject.layout.projectDirectory.file("iosApp/Configuration/Config.xcconfig"))
+    }
+
+val generateVersion =
+    tasks.register<GenerateVersion>("generateVersion") {
+        dependsOn(syncIosVersion)
+        appVersion.set(libs.versions.appVersion)
+        outputDirectory.set(layout.buildDirectory.dir("generated/src/commonMain/kotlin"))
+    }
+
 kotlin {
     android {
         namespace = "com.maximiliano.maxit.shared"
@@ -89,7 +102,7 @@ kotlin {
 
     sourceSets {
         commonMain {
-            kotlin.srcDir(layout.buildDirectory.dir("generated/src/commonMain/kotlin"))
+            kotlin.srcDir(generateVersion.flatMap { it.outputDirectory })
             dependencies {
                 implementation(libs.compose.material3)
                 implementation(libs.compose.material.icons.core)
@@ -214,42 +227,53 @@ compose.desktop {
     }
 }
 
-class VersionGeneratorPlugin : Plugin<Project> {
-    override fun apply(project: Project) {
-        project.afterEvaluate {
-            val appVersion = libs.versions.appVersion.get()
+abstract class GenerateVersion : DefaultTask() {
+    @get:Input
+    abstract val appVersion: Property<String>
 
-            // Generate Kotlin version file
-            val versionFile =
-                layout.buildDirectory
-                    .file("generated/src/commonMain/kotlin/com/maximiliano/maxit/Version.kt")
-                    .get()
-                    .asFile
-            versionFile.parentFile?.mkdirs()
-            versionFile.writeText(
-                """
-                package com.maximiliano.maxit
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
 
-                object Version {
-                    const val appVersion = "$appVersion"
-                }
-                """.trimIndent(),
-            )
+    @TaskAction
+    fun generate() {
+        val appVersion = appVersion.get()
+        val versionFile = outputDirectory.file("com/maximiliano/maxit/Version.kt").get().asFile
+        versionFile.parentFile.mkdirs()
+        versionFile.writeText(
+            """
+            package com.maximiliano.maxit
 
-            // Update iOS Config.xcconfig with version
-            val xcConfigFile = rootProject.file("iosApp/Configuration/Config.xcconfig")
-            if (xcConfigFile.exists()) {
-                val content = xcConfigFile.readText()
-                val updatedContent =
-                    if (content.contains("APP_VERSION=")) {
-                        content.replace(Regex("APP_VERSION=.*"), "APP_VERSION=$appVersion")
-                    } else {
-                        content.trimEnd() + "\nAPP_VERSION=$appVersion\n"
-                    }
-                xcConfigFile.writeText(updatedContent)
+            object Version {
+                const val appVersion = "$appVersion"
             }
-        }
+            """.trimIndent(),
+        )
     }
 }
 
-apply<VersionGeneratorPlugin>()
+@UntrackedTask(because = "Updates tracked iOS configuration in place rather than producing generated output.")
+abstract class SyncIosVersion : DefaultTask() {
+    @get:Input
+    abstract val appVersion: Property<String>
+
+    @get:Internal
+    abstract val xcConfigFile: RegularFileProperty
+
+    @TaskAction
+    fun sync() {
+        val file = xcConfigFile.get().asFile
+        if (!file.exists()) return
+
+        val appVersion = appVersion.get()
+        val content = file.readText()
+        val updatedContent =
+            if (content.contains("APP_VERSION=")) {
+                content.replace(Regex("APP_VERSION=.*"), "APP_VERSION=$appVersion")
+            } else {
+                content.trimEnd() + "\nAPP_VERSION=$appVersion\n"
+            }
+        if (content != updatedContent) {
+            file.writeText(updatedContent)
+        }
+    }
+}

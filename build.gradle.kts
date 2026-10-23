@@ -11,9 +11,10 @@ plugins {
 }
 
 configure<com.diffplug.gradle.spotless.SpotlessExtension> {
+    setLineEndings(com.diffplug.spotless.LineEnding.UNIX)
     kotlin {
         target("**/*.kt")
-        targetExclude("**/build/**")
+        targetExclude("**/build/**", "**/.gradle/**", "**/.opencode/**")
         ktlint()
             .editorConfigOverride(
                 mapOf(
@@ -28,6 +29,7 @@ configure<com.diffplug.gradle.spotless.SpotlessExtension> {
     }
     kotlinGradle {
         target("**/*.gradle.kts")
+        targetExclude("**/build/**", "**/.gradle/**", "**/.opencode/**")
         ktlint()
     }
 }

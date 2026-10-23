@@ -32,6 +32,23 @@ Use JDK 21 and the included Gradle wrapper. Install the Android SDK and configur
 
 Use `./gradlew run` for everyday desktop development; it avoids release optimization. An optional Bash wrapper also provides `./run`, `./run test`, `./run check`, `./run web`, and `./run release`. Run `./run help` for usage; additional arguments after a subcommand are forwarded to Gradle.
 
+### Lower-resource development
+
+Local builds default to one Gradle worker, no parallel project execution, and a single 3 GiB build/compiler heap. The build JVM uses two processors for its internal thread pools; this is not a system-wide CPU limit. Configuration and task-output caches reuse work between runs, and the build daemon exits after 15 idle minutes.
+
+Gradle runs at low scheduling priority so other desktop apps get preference under CPU contention. This also applies to Gradle-launched apps and dev servers; use `./gradlew run -Dorg.gradle.priority=normal` if the app itself needs normal priority.
+
+- Run one Gradle command at a time. Avoid `clean` unless troubleshooting stale outputs; it discards incremental build outputs.
+- While editing, run the relevant tests: `./run test --tests '*ChatSystemPromptBuilderTest'`. Run `./run test` for the complete desktop suite before merging.
+- Use debug builds and the Web development server for iteration. Reserve release optimization, Web production bundles, and screenshot matrices for changes that need them.
+- Larger machines can override the defaults per invocation, for example `./gradlew :androidApp:assembleFossDebug --max-workers=4 --parallel`. Use `--no-configuration-cache` to troubleshoot a task that does not support configuration caching.
+
+Existing daemons retain their old memory settings until they exit. Once all builds and Gradle-launched apps/dev servers are finished, `./gradlew --stop` releases old Gradle daemons for this wrapper version (including those used by other projects). Do not run it during another build. Compiler daemons from earlier builds may remain until their own idle timeout.
+
+To profile a full desktop recompile with dependencies already downloaded, use `./gradlew :composeApp:clean :composeApp:desktopTest --offline --no-build-cache --no-daemon --profile`. This regenerates app build outputs without restoring compiled artifacts from the build cache. Use it for benchmarking, not routine development; `run` timings include the application's lifetime.
+
+Run `bash gradle/test-version-tasks.sh` to check version generation and source-safe cleanup using disposable fixtures. It needs cached build dependencies and does not compile the app.
+
 Android screenshot golden images are not tracked: `screenshotTests/src/test/snapshots/images/` is ignored. On a fresh checkout, first run `./gradlew :screenshotTests:recordPaparazziDebug` and inspect the generated images. Then run `./gradlew :screenshotTests:verifyPaparazziDebug` to compare subsequent changes against that local baseline. Recording and immediately verifying only checks the newly recorded baseline; it does not establish regression coverage against an earlier release. Preserve reviewed images separately for repeatable comparisons. Re-record only for deliberate UI changes. Add `-PincludeLocalizedScreenshots` to either command to include the localized fixture matrix.
 
 See [Getting Started](docs/getting-started.md) for provider setup and the [Linux release smoke test](docs/desktop-release-smoketest.md) before distributing desktop builds.
