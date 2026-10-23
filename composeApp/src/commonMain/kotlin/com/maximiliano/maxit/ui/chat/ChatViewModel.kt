@@ -85,6 +85,11 @@ class ChatViewModel(
 
     init {
         updateAvailableServices()
+        viewModelScope.launch {
+            dataRepository.installedSkillsFlow.collect { skills ->
+                _state.update { it.copy(installedSkills = skills.filter { skill -> skill.loadError == null }.toImmutableList()) }
+            }
+        }
 
         // Keep restoreCurrentConversation off the main thread; see issue #197 (large persisted
         // tool outputs caused ANRs when JSON-decoded synchronously during VM construction).
@@ -178,7 +183,7 @@ class ChatViewModel(
             savedConversations = summaries.toImmutableList(),
             currentConversationId = conversationId,
             hasUnreadHeartbeat = hasUnreadHeartbeat,
-            installedSkills = dataRepository.getInstalledSkills().toImmutableList(),
+            installedSkills = dataRepository.getInstalledSkills().filter { it.loadError == null }.toImmutableList(),
         )
     }.distinctUntilChanged().stateIn(
         scope = viewModelScope,
@@ -279,7 +284,7 @@ class ChatViewModel(
 
     /**
      * If [text] begins with `/<skill-id>`, look up the skill among the currently-
-     * installed-and-enabled skills and return its id alongside the verbatim user
+     * readable installed skills and return its id alongside the verbatim user
      * text. The text is sent unchanged so the conversation visibly reflects what
      * the user typed; the skill's instructions in the system prompt tell the model
      * how to parse the args after the slash command. Falls through with null skill
@@ -292,7 +297,7 @@ class ChatViewModel(
         val firstSpace = trimmed.indexOfFirst { it.isWhitespace() }
         val rawId = if (firstSpace < 0) trimmed.substring(1) else trimmed.substring(1, firstSpace)
         if (rawId.isEmpty()) return text to null
-        val skill = dataRepository.getInstalledSkills().firstOrNull { it.id.equals(rawId, ignoreCase = true) }
+        val skill = dataRepository.getInstalledSkills().firstOrNull { it.loadError == null && it.id.equals(rawId, ignoreCase = true) }
             ?: return text to null
         return text to skill.id
     }

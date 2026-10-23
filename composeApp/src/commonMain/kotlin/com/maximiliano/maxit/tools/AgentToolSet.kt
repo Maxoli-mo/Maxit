@@ -8,6 +8,7 @@ import com.maximiliano.maxit.data.MemoryStore
 import com.maximiliano.maxit.data.TaskStore
 import com.maximiliano.maxit.mcp.McpServerManager
 import com.maximiliano.maxit.network.tools.Tool
+import com.maximiliano.maxit.skills.SkillManager
 
 /**
  * The tool set every platform builds, in the order the agent receives it.
@@ -24,6 +25,8 @@ fun buildAgentToolSet(
     mcpServerManager: McpServerManager,
     // Web has no email support and injects no store.
     emailStore: EmailStore? = null,
+    // Only platforms with app-owned skill storage contribute skill tools.
+    skillManager: SkillManager? = null,
     platformExtras: MutableList<Tool>.() -> Unit = {},
 ): List<Tool> = buildList {
     addAll(CommonTools.getCommonTools(appSettings))
@@ -41,6 +44,11 @@ fun buildAgentToolSet(
     }
 
     platformExtras()
+
+    if (skillManager != null) {
+        add(SkillTools.create(skillManager))
+        add(SkillTools.createSkill(skillManager))
+    }
 
     addAll(mcpServerManager.getEnabledMcpTools(reservedNames = mapTo(HashSet()) { it.schema.name }))
 }

@@ -1,8 +1,8 @@
 # Dynamic UI (kai-ui)
 
-**Status reviewed:** 2026-10-21 — generation is parked pending a future skills system.
+**Status reviewed:** 2026-10-22 — generation remains parked; the skills rework does not re-enable it.
 
-The full UI instructions are archived in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources, and are no longer injected into model requests. Interactive-mode entry and the Dynamic UI settings toggle are hidden. Existing conversations reopen in normal chat; no UI-repair retries are sent. The parser and Compose renderer remain active so old messages with `kai-ui` JSON layouts still render. No new skill loader was added.
+The full UI instructions are archived in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources, and are no longer injected into model requests. Interactive-mode entry and the Dynamic UI settings toggle are hidden. Existing conversations reopen in normal chat; no UI-repair retries are sent. The parser and Compose renderer remain active so old messages with `kai-ui` JSON layouts still render. The [skills loader](skills.md) does not register or load this archive.
 
 ## Concepts
 

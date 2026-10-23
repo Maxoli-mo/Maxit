@@ -18,30 +18,39 @@ object SkillFrontmatterParser {
     }
 
     fun parse(source: String): Result {
-        val normalized = source.replace("\r\n", "\n").trimStart()
+        val normalized = source.removePrefix("\uFEFF").replace("\r\n", "\n").trimStart()
         if (!normalized.startsWith("---\n")) {
             return Result.Err("Missing frontmatter (must start with '---').")
         }
         val afterOpen = normalized.removePrefix("---\n")
-        val closeIdx = afterOpen.indexOf("\n---")
-        if (closeIdx < 0) {
+        val close = Regex("(?m)^---[ \\t]*$").find(afterOpen)
+        if (close == null) {
             return Result.Err("Frontmatter not closed (expected a second '---').")
         }
-        val frontmatter = afterOpen.substring(0, closeIdx)
-        val body = afterOpen.substring(closeIdx + 4).trimStart('\n')
+        val frontmatter = afterOpen.substring(0, close.range.first)
+        val body = afterOpen.substring(close.range.last + 1).trimStart('\n')
 
         var name: String? = null
         var description: String? = null
-        for (rawLine in frontmatter.split('\n')) {
+        val lines = frontmatter.split('\n')
+        for ((index, rawLine) in lines.withIndex()) {
             val line = rawLine.trimEnd()
-            if (line.isBlank() || line.startsWith("#")) continue
+            if (line.isBlank() || line.startsWith("#") || line.first().isWhitespace()) continue
             val sepIdx = line.indexOf(':')
             if (sepIdx <= 0) continue
             val key = line.substring(0, sepIdx).trim()
             val value = line.substring(sepIdx + 1).trim().trim('"', '\'')
             when (key) {
                 "name" -> name = value
-                "description" -> description = value
+
+                "description" -> {
+                    description = if (value in setOf(">", ">-", ">+", "|", "|-", "|+")) {
+                        val block = lines.subList(index + 1, lines.size).takeWhile { it.isBlank() || it.first().isWhitespace() }
+                        block.joinToString(if (value.startsWith('>')) " " else "\n") { it.trim() }.trim()
+                    } else {
+                        value
+                    }
+                }
             }
         }
 

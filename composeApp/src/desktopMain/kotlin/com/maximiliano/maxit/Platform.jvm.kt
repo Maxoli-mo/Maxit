@@ -21,6 +21,7 @@ import com.maximiliano.maxit.data.TaskStore
 import com.maximiliano.maxit.mcp.McpServerManager
 import com.maximiliano.maxit.network.tools.Tool
 import com.maximiliano.maxit.network.tools.ToolInfo
+import com.maximiliano.maxit.skills.SkillManager
 import com.maximiliano.maxit.tools.CommonTools
 import com.maximiliano.maxit.tools.ProcessManagerTool
 import com.maximiliano.maxit.tools.ShellCommandTool
@@ -118,18 +119,11 @@ actual suspend fun compressImageBytes(bytes: ByteArray, mimeType: String): ByteA
     }
 }
 
-actual fun getAppFilesDirectory(): String {
-    val userHome = System.getProperty("user.home")
-    val kaiDir = File("$userHome/.kai")
-    if (!kaiDir.exists()) {
-        kaiDir.mkdirs()
-    }
-    return kaiDir.absolutePath
-}
+actual fun getAppFilesDirectory(): String = desktopAppFilesDirectory.absolutePath
 
 actual fun createSecureSettings(): Settings = EncryptedFileSettings()
 
-actual fun createLegacySettings(): Settings? = null // Same storage location, no migration needed
+actual fun createLegacySettings(): Settings? = null // Desktop files migrate before secure settings initialize.
 
 actual fun getPlatformToolDefinitions(): List<ToolInfo> = listOf(ShellCommandTool.toolInfo, ProcessManagerTool.toolInfo) + CommonTools.commonToolDefinitions
 
@@ -139,6 +133,7 @@ actual fun getAvailableTools(): List<Tool> {
     val taskStore: TaskStore by inject(TaskStore::class.java)
     val emailStore: EmailStore by inject(EmailStore::class.java)
     val mcpServerManager: McpServerManager by inject(McpServerManager::class.java)
+    val skillManager: SkillManager by inject(SkillManager::class.java)
 
     return buildAgentToolSet(
         appSettings = appSettings,
@@ -146,6 +141,7 @@ actual fun getAvailableTools(): List<Tool> {
         taskStore = taskStore,
         mcpServerManager = mcpServerManager,
         emailStore = emailStore,
+        skillManager = skillManager,
     ) {
         // manage_process rides the shell switch — it only inspects processes that tool started.
         if (appSettings.isToolEnabled(ShellCommandTool.schema.name, defaultEnabled = false)) {

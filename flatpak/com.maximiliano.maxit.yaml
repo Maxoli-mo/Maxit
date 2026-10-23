@@ -13,6 +13,7 @@ finish-args:
   - --device=dri
   - --socket=pulseaudio
   - --persist=.kai
+  - --persist=.maxit
   - --persist=.java
 
 modules:

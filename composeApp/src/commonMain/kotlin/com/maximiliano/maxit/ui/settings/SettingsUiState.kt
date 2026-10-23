@@ -16,7 +16,6 @@ import com.maximiliano.maxit.inference.DownloadError
 import com.maximiliano.maxit.inference.LocalModel
 import com.maximiliano.maxit.inference.ModelImportError
 import com.maximiliano.maxit.network.tools.ToolInfo
-import com.maximiliano.maxit.skills.RegistrySkillEntry
 import com.maximiliano.maxit.skills.SkillManifest
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -114,10 +113,8 @@ data class SettingsUiState(
     val skills: ImmutableList<SkillManifest> = persistentListOf(),
     val showAddSkillDialog: Boolean = false,
     val isInstallingSkill: Boolean = false,
+    val skillDeletionsInFlight: Int = 0,
     val skillInstallError: String? = null,
-    val browsableSkills: ImmutableList<RegistrySkillEntry> = persistentListOf(),
-    val isBrowsingSkills: Boolean = false,
-    val browseSkillsFailed: Boolean = false,
     val localAvailableModels: ImmutableList<LocalModel> = persistentListOf(),
     val localImportedModels: ImmutableList<LocalModel> = persistentListOf(),
     val totalDeviceMemoryBytes: Long = Long.MAX_VALUE,
@@ -130,7 +127,10 @@ data class SettingsUiState(
     val localImportError: ModelImportError? = null,
     val modelContextTokens: ImmutableMap<String, Int> = persistentMapOf(),
     val pendingDeletion: PendingDeletion? = null,
-)
+) {
+    val isRemovingSkill: Boolean
+        get() = pendingDeletion is PendingDeletion.Skill || skillDeletionsInFlight > 0
+}
 
 @Immutable
 data class McpServerUiState(

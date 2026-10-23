@@ -1,0 +1,11 @@
+<resources>
+    <string name="tool_load_skill_name">Carregar habilidade</string>
+    <string name="tool_load_skill_description">Ler uma habilidade instalada ou um de seus arquivos incluídos</string>
+    <string name="tool_create_skill_name">Criar habilidade</string>
+    <string name="tool_create_skill_description">Validar e instalar uma nova habilidade solicitada pelo usuário</string>
+    <string name="tool_execute_host_shell_command_description">Executar comandos no seu computador com as suas permissões de usuário, fora de um ambiente isolado</string>
+    <string name="settings_skills_instructions_only">Apenas instruções — SKILL.md</string>
+    <string name="settings_skills_supporting_files">Ficheiros de apoio instalados: %1$d</string>
+    <string name="settings_skills_files_unavailable">Ficheiros instalados indisponíveis — remova e importe novamente esta competência para a reparar.</string>
+    <string name="settings_skills_removing">Só é possível adicionar competências após concluir ou anular a remoção.</string>
+</resources>

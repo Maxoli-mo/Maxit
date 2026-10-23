@@ -1,82 +1,100 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-22. -->
 
 # Skills
 
-**Last verified:** 2026-10-02
+**Last reviewed:** 2026-10-23. All 1,124 isolated desktop tests, two targeted Android host directory-reading tests, Android FOSS/WebAssembly source compilation, and formatting passed. Offscreen Compose checks rendered expanded skill cards at desktop and narrow widths. Live-model selection/creation, real-device migration, and live desktop-profile migration have not been exercised.
 
-Maxit supports installable **skills**: reusable instruction bundles, modeled on Anthropic's [SKILL.md](https://github.com/anthropics/skills) format (now an open standard at [agentskills.io](https://agentskills.io)). A skill packages a name, a description, a body of instructions, and optional bundled files.
+Maxit supports installable **skills**: reusable instruction bundles in the [SKILL.md](https://agentskills.io) format. Each bundle contains a name, a description, an instruction body, and optional files.
 
-User-installed skills live **in the Linux sandbox**: each is a folder at `~/skills/<id>/` (its `SKILL.md` plus any files). There is no separate copy of those folders in app settings. Because of this, the Skills UI is **Android-only** (the only platform with a sandbox) and requires the sandbox to be installed first. The user browses a curated set of skill marketplaces (or installs from any GitHub repo) and triggers a skill in chat by starting a message with its slash command.
+Skills work on **Android and desktop without the Linux sandbox**. User-installed bundles live at `getAppFilesDirectory()/skills/<id>/`: Android's `filesDir/skills/<id>/` or desktop's `~/.maxit/skills/<id>/`. The sandbox is not their source of truth. Desktop's earlier `~/.kai` directory is copied non-destructively on first use; see [desktop data migration](encryption.md#desktop-data-directory-migration). This is app storage, not a general workspace workflow.
 
-In addition, Maxit ships a small set of **built-in skills** (currently `create-skill`) loaded from app compose resources. Built-ins appear in the Skills list once the sandbox is installed, are labeled as built-in, and are not removable through the UI. If a user installs a sandbox skill with the same id, the sandbox copy takes precedence over the built-in. `create-skill` guides the model through writing a new `~/skills/<id>/SKILL.md` via the shell; after a turn that used it, the skill list is rescanned so the new skill shows up in the slash menu and Settings without a restart.
+The built-in `create-skill` loads from app resources without sandbox setup and cannot be removed through Settings. At the user's explicit request, it guides the model to draft instructions and needed files, perform a **pre-save self-review**, then call `create_skill(markdown, files?)`. Creation validates and installs the complete bundle on Android and desktop, refreshes Settings/the slash menu, and returns its actual id, command, and bundled-file count. Existing skills and built-ins cannot be overwritten. Saving never executes code, installs dependencies, or verifies the skill's behavior.
+
+The optional `files` array contains objects with `path`, `content`, and optional `encoding`. Paths are safe relative bundle paths such as `scripts/report.py` or `references/output.md`. Content defaults to UTF-8 text; `encoding: "base64"` supports known binary bytes. Files are literal contents, not host paths to copy. Malformed Unicode is rejected in text, manifests, and filenames rather than silently replaced. Duplicate/unsafe paths, extra manifests, invalid encoding, empty instruction bodies, and exceeded bounds fail before publishing the skill; installation is all-or-nothing. Use `markdown` for the single `SKILL.md`, never a bundled file with that name.
+
+The self-review covers user intent, activation conditions, inputs/outputs and failure cases, frontmatter/Markdown formatting, actual tools/runtimes, every file reference and file's contents, code/data safety, and a representative request/failure walkthrough. The model must fix findings before saving and distinguish review from actual checks. This is prompted self-review, not an independent audit, Markdown linter, or runtime test.
+
+Small on-device models retain the original **Markdown-only** creation schema to avoid exposing nested file arguments to their strict parser. Remote models receive the complete bundle schema. The guide must explain when required assets cannot be supplied, offer a remote model or ZIP import, and never claim a complete bundle while omitting them. If creation is unavailable or denied, it may provide files for manual import without claiming installation or bypassing the failure through shell writes.
 
 ## Concepts
 
 ### Skill
 
-Most skills are a folder `~/skills/<id>/` in the sandbox containing a `SKILL.md` (and any other files). The `SKILL.md` frontmatter provides a `name` (the slash-command id) and a `description`; the markdown after the frontmatter is the instruction body. Maxit keeps an in-memory cache of installed sandbox skills plus any built-ins that are not overridden by a same-id sandbox folder; the cache is reloaded after every install/uninstall and once the sandbox becomes installed. On platforms without a sandbox the file ops are no-ops, so the cache is simply always empty — skills never appear off-Android.
+`SKILL.md` frontmatter supplies `name` (the skill id) and `description`; the Markdown below it is the instruction body. Ids use lowercase letters, digits, and hyphens, up to 64 characters. Bundled files can include nested text files and binary assets. There is no per-skill enable/disable state.
 
-A skill has an id (lowercase letters, digits, and hyphens; ≤ 64 chars), a display name derived from the id, the instruction body, and the list of its other top-level file names (surfaced in the prompt). There is no enable/disable state: an installed skill is active. Uninstall deletes the sandbox folder for user-installed skills; built-ins have no remove action.
+### Catalog and lazy loading
+
+The model receives a catalog of installed skill names and descriptions, not every instruction body. It can choose a relevant skill and call `load_skill` with its id to read the body. The same tool accepts a relative bundled-file path to read a text reference from that skill. Reads stay inside the selected bundle; binary assets are preserved on disk but are not returned as text.
+
+The app caches parsed instructions and filenames, not bundled asset bytes. Startup and reload scan file metadata; each requested reference is read from storage with fresh path and size checks. Platforms without skill storage expose neither installed skills nor built-ins in chat.
+
+Installing or loading a skill **does not execute scripts**. Instructions cannot grant tools or permissions the app does not provide. Android shell execution still requires the separately installed and enabled sandbox. Desktop already has an optional shell tool, disabled by default: it executes with the host user's permissions, not in a sandbox. Review bundles from untrusted sources before using them.
 
 ### Slash command
 
-In chat, a message whose first token is `/<skill-id>` activates that skill for that single turn. The id must match an installed skill (case-insensitive). The user's message text is sent **verbatim** — it is not rewritten or stripped — so the conversation visibly reflects what was typed. The skill's instructions in the system prompt tell the model how to interpret any arguments after the slash command. Slash commands are opt-in: a message that doesn't match a skill behaves like any normal message.
+A leading `/<skill-id>` explicitly selects that skill for the current turn, overriding automatic skill selection. Matching is case-insensitive. The user's message is sent verbatim, including the slash command and any arguments.
 
-### Active skill section
-
-When a turn activates a skill, the skill's body is appended to the system prompt under an "Active skill" heading for that turn only. On every other turn the section adds zero bytes to the prompt. If the skill's folder has other files, their names are listed with a note that they live at `~/skills/<id>/` in the Linux sandbox, where the model reads them via `execute_shell_command`. Nothing is materialized at chat time — the files are already in the sandbox.
-
-### Marketplace
-
-A marketplace is a public GitHub repo of skills. The browse list aggregates a small **curated, vetted** set of marketplaces — skills bundle scripts that run in the sandbox, so the suggested set favors trusted sources over breadth. Current sources:
-
-- **Anthropic** ([anthropics/skills](https://github.com/anthropics/skills)) — a curated subset of the official repo that works well in Maxit: document/data (pdf, docx, xlsx, pptx) and creative (algorithmic-art, slack-gif-creator). The Claude.ai/Claude-Code-oriented ones that don't translate to a mobile assistant (mcp-builder, skill-creator, theme-factory, web-artifacts-builder, webapp-testing, internal-comms, frontend-design, doc-coauthoring, canvas-design, brand-guidelines, claude-api) are excluded via the marketplace's `exclude` set.
-- **Superpowers** ([obra/superpowers](https://github.com/obra/superpowers)) — the most popular Claude-skills repo, but a software-dev methodology, so only its broadly-useful "how to work" skills are surfaced via an allowlist (brainstorming, writing-plans); the Claude-Code-internal or coding-flow ones (git worktrees, code review, subagent dispatch, debugging, verification) are excluded.
-
-A marketplace is read via the [Claude Code plugin-marketplace standard](https://github.com/anthropics/skills): an explicit per-source skill **allowlist** wins when set; otherwise a `.claude-plugin/marketplace.json`, when present, provides the authoritative skill list (and grouping); otherwise the registry falls back to scanning skill folders under the marketplace's `root` (default `skills/`). Any folder named in the source's **exclude** set is then dropped. In all cases a single recursive git-tree call per repo enumerates paths, and each `SKILL.md` is then fetched from `raw.githubusercontent.com` to keep within GitHub's unauthenticated API rate limit.
+The selected body is appended under an "Active skill" heading for that turn only. This does not pin the skill for later turns. Without an explicit selection, the model can still discover skills through the catalog and load them on demand. Both activation paths supply the same installed-file inventory, bundle directory, and access guidance. Resolve skill-relative asset/script paths against that directory, not the shell's inherited working directory; use absolute paths or explicitly set `working_dir` when appropriate. Keep generated outputs outside the installed bundle, in the user's requested output directory. Bundled text is read with `load_skill`; binary fonts/images require an enabled filesystem/shell tool.
 
 ## Installing a Skill
 
-The "Skills" section lives in the Tools tab of settings (Android only, between the MCP servers section and the native tool toggles).
+Open **Settings → Tools → Skills → Add Skill** on Android or desktop. No sandbox setup is required. There is no marketplace browser.
 
-- **If the sandbox isn't installed**, the section shows a notice and a "Set up sandbox" button that jumps to the Sandbox tab. No skills can be added until the sandbox is installed.
-- Otherwise, **"Add Skill"** opens a bottom sheet where the user can either paste a GitHub reference (`owner/repo`, `owner/repo/path/to/skill`, a full `https://github.com/owner/repo` URL, or a `.../tree/<ref>/path` URL) or **browse** the curated marketplaces. The browse list is fetched automatically when the dialog opens, is searchable (filter by id, description, or source), shows each entry's source name, and marks already-installed entries.
+- **GitHub:** paste `owner/repo`, `owner/repo/path/to/skill`, `https://github.com/owner/repo`, or a `.../tree/<ref>/path` URL. Point to a single skill folder when a repository contains several skills. Downloads use GitHub's unauthenticated API and require network access.
+- **Local Markdown:** import a `.md` file containing valid skill frontmatter and its instruction body. It becomes the bundle's `SKILL.md`. This installs instructions only, not referenced fonts, scripts, or other supporting files. Instructions-only bundles are explicitly identified in the model's skill context; use the complete ZIP or GitHub folder when assets are required.
+- **Local ZIP:** import a `.zip` containing exactly one `SKILL.md`, either at the root or inside a wrapper folder. Its containing folder becomes the bundle root. Nested files and binary assets under that root are preserved.
 
-Both paths install the same way: a browsed entry carries its full repo coordinates and installs through the same GitHub fetch as a manual install. Installing downloads the raw `SKILL.md` plus its sibling files (including nested ones; binaries and files over 256 KB are skipped) and writes them into `~/skills/<id>/`, replacing any existing folder, then reloads the cache. Install errors (invalid frontmatter, missing `SKILL.md`, unrecognized URL) are surfaced inline in the dialog.
+Limits apply to imported and downloaded bundles: **4 MiB per file, 16 MiB total, and at most 256 files**, including `SKILL.md`. ZIP entry limits also count directories, and ZIP64/split archives are unsupported. `SKILL.md` is limited to 64,000 characters, checked before frontmatter parsing; bundled text reads are limited to 64,000 bytes and fail rather than truncate. Archives are bounded by their uncompressed contents, not just the ZIP's download size. Paths must be safe relative paths; absolute paths, traversal (`..`), and unsafe archive entries are rejected rather than written outside the bundle. Unix/macOS ZIP symlinks are rejected rather than installed as files containing link-target text. Normal binary assets and executable-file entries remain importable; imports do not grant execute permissions.
+
+Invalid frontmatter, missing or multiple `SKILL.md` files, unsafe paths, and exceeded limits fail installation. Installing an existing id also fails: it never silently overwrites a user bundle or built-in. Choose a different id, or explicitly remove a user-installed skill before replacing it. Errors appear in the add-skill dialog.
+
+## Existing Android skills
+
+Legacy bundles under the Android sandbox's `~/skills/` are migrated by **copying** them into app-private skill storage. The originals are not deleted. Completion is tracked separately for each distribution, and persistent removal markers prevent a later scan from restoring a skill the user removed—even when a damaged sibling prevented a migration from completing. New installs and reads use app-private storage, not the old sandbox folder.
+
+Migration uses strict directory reads: an inaccessible root or supporting directory fails that copy rather than publishing an asset-free bundle. A missing legacy skills root is allowed. Failed copies leave completion unset so they can be retried after recovery. Successfully copying another distribution's home advances a persisted revision and triggers a new scan, including after an app restart; existing installed IDs and removal markers still take precedence.
+
+A damaged installed bundle is shown as unavailable in Settings so it can be removed; it is excluded from automatic discovery and the slash menu without hiding healthy skills.
+
+Older installations may contain only `SKILL.md` even when the upstream skill has fonts or scripts. Loading cannot recreate missing files. Preserve any customizations and explicitly replace an incomplete installation with the complete GitHub folder or ZIP; the installer never overwrites existing IDs automatically. Referenced-but-unlisted assets must be reported as missing, not silently replaced through downloads.
+
+The Android shell sees the app-owned bundle directory at `/mnt/maxit-skills/<id>/`; desktop tools use the host storage path above. Scripts should be invoked with their interpreter; imports do not preserve executable permission bits.
 
 ## Skill Management
 
-Each skill card shows the slash command (`/<id>`) and the description; expanding a **user-installed** skill reveals a remove button. Removal is deferred with a snackbar "Undo" option before the folder is deleted, matching the MCP and service flows. Built-in skills show a Built-in badge and omit the remove action.
+Each card shows the slash command and description. Expanding a user-installed card also shows **Instructions only — SKILL.md**, a supporting-file count with a sorted, scrollable filename list, or an unavailable-files warning for damaged bundles. A file count indicates presence, not completeness. Built-ins have a Built-in badge and no remove action or misleading installed-file status.
+
+Removal keeps its four-second snackbar **Undo** window. Add Skill and import submissions are blocked while a skill removal is pending or actually deleting, then re-enabled on Undo or completion. Committed removal continues if Settings is left and reopened. This prevents reimporting the same ID before its old folder has been removed. Preserve customized instructions before replacing an incomplete installation.
 
 ## Chat Autocomplete
 
-While the user is typing the first token of a message and it starts with `/`, a dropdown of installed skills appears above the composer, filtered by the typed query. Selecting an entry rewrites the leading token to the canonical `/<id> ` and positions the cursor for follow-up arguments. The dropdown only triggers when the cursor is within the leading slash token.
+Typing `/` in the first token opens a filtered list of installed skills above the composer. Selecting one inserts the canonical `/<id> ` and leaves the cursor ready for arguments. The menu only appears while the cursor is in that leading token.
 
 ## Limitations
 
-- Android only — user-installed skills live in the Linux sandbox, which other platforms don't have. The Skills section is hidden off-Android.
-- The sandbox must be installed before skills (including built-ins) appear and before any skill can be added.
-- Only text files are stored for GitHub installs; binaries and files over 256 KB are skipped.
-- The skill body is appended verbatim to the system prompt, so very large skills consume prompt budget for the turn they're active.
-- GitHub browsing/installation requires network access and uses the unauthenticated GitHub API (subject to its rate limits).
-- Built-in skills are not sandbox folders unless the user installs an override with the same id.
+- Android and desktop are covered by this rework; it does not add skill storage/import to Web or iOS.
+- Automatic selection requires a model with tool support. Explicit slash activation still supplies the selected instructions without tool calls. If local tool-call parsing fails and the model retries without tools, its retry prompt omits the discovery catalog while retaining explicitly selected instructions.
+- A loaded body or text reference consumes model context. The catalog avoids loading every body up front, but large skills still use prompt budget when selected.
+- GitHub installs are subject to network failures and unauthenticated API rate limits.
+- GitHub shorthand assumes the `main` branch; use a `/tree/<ref>/...` URL for a different branch.
+- Binary assets are retained, not executed or exposed as text by `load_skill`. A skill may require tools or runtimes unavailable on the current platform.
+- [Interactive UI](../skills/interactive-ui/SKILL.md) remains an archive outside app resources. It is not registered, loaded, or re-enabled by this rework.
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `composeApp/src/commonMain/.../skills/SkillManifest.kt` | `SkillManifest` (in-memory view of an installed skill), `DownloadedSkill`, `RegistrySkillEntry`, `SkillSource` |
-| `composeApp/src/commonMain/.../skills/SkillMarketplaces.kt` | `SkillMarketplace` model + the curated, vetted marketplace list |
-| `composeApp/src/commonMain/.../skills/SkillFrontmatterParser.kt` | SKILL.md frontmatter parser and id validation |
-| `composeApp/src/commonMain/.../skills/SkillRegistry.kt` | Browses marketplaces (`.claude-plugin/marketplace.json`, git-tree discovery, raw SKILL.md fetch) and downloads a skill's files |
-| `composeApp/src/commonMain/.../skills/SkillManager.kt` | Reads/installs/uninstalls skills in the sandbox (`~/skills/`), in-memory cache, GitHub URL parsing |
-| `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | Appends the active-skill section to the system prompt |
-| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Per-turn active-skill resolution (no materialization — files already in the sandbox); rescans skills after a `create-skill` turn |
+| `composeApp/src/commonMain/.../skills/SkillManifest.kt` | Installed skill metadata, downloaded bundles, and GitHub source coordinates |
+| `composeApp/src/commonMain/.../skills/SkillFrontmatterParser.kt` | Frontmatter parsing and id validation |
+| `composeApp/src/commonMain/.../skills/SkillImport.kt` | Bundle normalization, path validation, and shared size/file-count limits |
+| `composeApp/src/commonMain/.../skills/SkillRegistry.kt` | GitHub bundle downloads, including nested and binary files |
+| `composeApp/src/commonMain/.../skills/SkillManager.kt` | App-private installs, reads, removal, built-ins, cache, and legacy migration |
+| `composeApp/src/commonMain/.../data/ChatSystemPromptBuilder.kt` | Installed catalog and per-turn active-skill section |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Supplies skill context and resolves explicit turn selections |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Parses the leading slash command into a skill id |
 | `composeApp/src/commonMain/.../ui/chat/composables/QuestionInput.kt` | Detects the slash query while typing |
-| `composeApp/src/commonMain/.../ui/chat/composables/SkillAutocomplete.kt` | Slash-command dropdown above the composer |
-| `composeApp/src/commonMain/.../ui/settings/SkillsSection.kt` | Skill cards, sandbox-install prompt, and add-skill bottom sheet (GitHub + marketplace browse) |
-| `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Skill install/uninstall and browse UI state |
-| `composeApp/src/commonMain/.../ui/settings/ToolsSettings.kt` | Places the Skills section in the Tools tab, shown only when the sandbox is available (Android) |
-| `composeApp/src/commonMain/.../ui/settings/SettingsScreen.kt` | Passes the Android/sandbox-installed state from the sandbox view model to the Tools tab |
-| `composeApp/src/commonMain/composeResources/files/skills/create-skill/SKILL.md` | Built-in `create-skill` skill |
+| `composeApp/src/commonMain/.../ui/chat/composables/SkillAutocomplete.kt` | Slash-command dropdown |
+| `composeApp/src/commonMain/.../ui/settings/SkillsSection.kt` | Skill cards, GitHub install, and local `.md`/`.zip` import |
+| `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Install/import/removal state and errors |
+| `composeApp/src/commonMain/.../ui/settings/ToolsSettings.kt` | Skills section on Android and desktop, independent of sandbox state |
+| `composeApp/src/commonMain/composeResources/files/skills/create-skill/SKILL.md` | Built-in skill authoring instructions |

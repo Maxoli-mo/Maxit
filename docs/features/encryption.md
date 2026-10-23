@@ -42,16 +42,29 @@ The following data is stored in the platform settings store (unencrypted on Web)
 ### Desktop (macOS, Windows, Linux)
 - **Mechanism:** `EncryptedFileSettings` — custom file-backed `Settings` implementation
 - **Encryption:** AES-256-GCM via `javax.crypto`
-- **Key management:** 256-bit random key generated via `SecureRandom`, stored at `~/.kai/settings.key`
+- **Key management:** 256-bit random key generated via `SecureRandom`, stored at `~/.maxit/settings.key`
 - **Limit:** The key is stored beside the encrypted settings. Anyone who can read both files can decrypt the settings; this is not a system keyring or password-protected vault.
 - **IV:** 12-byte random IV per write, prepended to ciphertext
 - **Authentication tag:** 128-bit GCM tag (integrity + authenticity)
 - **File format:** `[12-byte IV][AES-GCM ciphertext + tag]`
-- **File location:** `~/.kai/settings.aes`
+- **File location:** `~/.maxit/settings.aes`
 - **Write safety:** Every change re-encrypts the whole store and writes it to a temporary file that is atomically renamed over the old one, so a crash mid-write never leaves a truncated file. Concurrent writers are serialized. The key and settings files are restricted to owner read/write.
 - **Unreadable file:** If the settings file fails to decrypt (wrong or missing key, truncation, tampering), it is renamed aside to `settings.aes.unreadable-<timestamp>` and the app starts with empty settings, so the original is never overwritten.
 - **Size limit:** None (file-based)
 - **Migration:** On first run, migrates existing data from Java Preferences (`Preferences.userRoot()`) and clears the old store. Java Preferences was the previous backend but has an 8 KB per-value hard limit.
+
+#### Desktop data directory migration
+
+Desktop app storage now uses `~/.maxit`. Before any store opens, the app copies the entire legacy `~/.kai` tree, keeping encrypted settings and their key together, raw conversation databases and sidecars, old conversation files, model/digest files, and skill bundles. It does not decrypt/rewrite settings, serialize conversations, alter model IDs, or replace `.kai` text in user content. The original directory is not deleted or modified by this migration.
+
+- **Close older app instances first.** Source metadata is checked for concurrent changes, but older builds cannot participate in the new lock and this is not a live SQLite backup service.
+- **Existing Maxit data wins.** A populated `~/.maxit` profile is used as-is, without merging old settings/key pairs or importing leftover legacy skills. An empty destination, including a Flatpak mount point, can be populated without replacing the directory itself.
+- **Interrupted work is staged.** A private, owned staging snapshot is copied before publication. A ready marker allows remaining top-level entries to be published after a restart; no app store opens until initialization finishes. Invalid/unrecognized state and destination conflicts fail without overwriting either copy. Completion prevents removed target files from being restored on later launches.
+- **Durability:** Copied files/directories, readiness, publication, and completion are flushed before initialization returns on systems supporting directory fsync. Windows Java cannot fsync directories and may not flush read-only channels, so its migration durability is explicitly best-effort. Actual power-loss behavior has not been tested.
+- **Space and unsupported files:** Models can make the first copy large; allow time and enough free disk space for both copies. Links and non-regular files in legacy storage are rejected rather than followed or discarded. Access/copy/sync errors leave the source intact and are not treated as an empty profile.
+- **Flatpak:** Both `.kai` and `.maxit` persistence mappings are retained so the app can see its old packaged data while switching writes to the new location. These are Flatpak's app-private mappings, not necessarily the host's ordinary `~/.kai` directory.
+
+Keep the old copy until the new profile is checked. Manually deleting the entire `.maxit` directory also deletes its completion marker, so the preserved `.kai` copy can be imported again on a later launch. No general file-workspace workflow is introduced by this storage change. The desktop suite passed 1,099 tests and formatting, including 18 migration fixtures, with test home/preferences/tmp isolated under build output. The two Flatpak persistence mappings were checked statically; a real profile, Flatpak runtime, and physical power-loss recovery were not exercised.
 
 ### Web (WASM)
 - **Mechanism:** `StorageSettings` (browser `localStorage`)

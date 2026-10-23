@@ -355,12 +355,17 @@ class FakeDataRepository : DataRepository {
     override fun isMcpServerConnected(serverId: String): Boolean = serverId in mcpConnected
 
     var lastActiveSkillId: String? = null
-    var skills: List<com.maximiliano.maxit.skills.SkillManifest> = emptyList()
+    private val _installedSkills = MutableStateFlow<List<com.maximiliano.maxit.skills.SkillManifest>>(emptyList())
+    override val installedSkillsFlow: StateFlow<List<com.maximiliano.maxit.skills.SkillManifest>> = _installedSkills
+    var skills: List<com.maximiliano.maxit.skills.SkillManifest>
+        get() = _installedSkills.value
+        set(value) {
+            _installedSkills.value = value
+        }
 
     override fun getInstalledSkills(): List<com.maximiliano.maxit.skills.SkillManifest> = skills
     override suspend fun uninstallSkill(id: String) {}
-    override suspend fun browseSkillMarketplaces(): Result<List<com.maximiliano.maxit.skills.RegistrySkillEntry>> = Result.success(emptyList())
-    override suspend fun installBrowsedSkill(entry: com.maximiliano.maxit.skills.RegistrySkillEntry): Result<com.maximiliano.maxit.skills.SkillManifest> = Result.failure(NotImplementedError())
+    override suspend fun importSkill(file: PlatformFile): Result<com.maximiliano.maxit.skills.SkillManifest> = Result.failure(NotImplementedError())
     override suspend fun installGitHubSkill(owner: String, repo: String, ref: String, path: String): Result<com.maximiliano.maxit.skills.SkillManifest> = Result.failure(NotImplementedError())
 
     override suspend fun connectEnabledMcpServers() {

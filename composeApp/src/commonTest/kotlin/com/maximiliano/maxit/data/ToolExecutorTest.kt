@@ -87,6 +87,29 @@ class ToolExecutorTest {
     }
 
     @Test
+    fun `load_skill preserves full instructions beyond the ordinary result limit`() = runTest {
+        val fullSkill = "i".repeat(128_000) + "\nEnd of skill instructions."
+        val executor = executorWith(FakeTool(name = "load_skill") { fullSkill })
+        assertEquals(fullSkill, executor.executeTool("load_skill", "{}"))
+    }
+
+    @Test
+    fun `oversized load_skill returns an error rather than silently truncated instructions`() = runTest {
+        val executor = executorWith(FakeTool(name = "load_skill") { "i".repeat(256_001) })
+        val result = Json.parseToJsonElement(executor.executeTool("load_skill", "{}")).jsonObject
+        assertEquals("false", result["success"]?.jsonPrimitive?.content)
+        assertTrue(result["error"]?.jsonPrimitive?.content.orEmpty().contains("exceeds the result limit"))
+    }
+
+    @Test
+    fun `ordinary tools retain the existing result limit`() = runTest {
+        val fullResult = "r".repeat(128_000)
+        val result = executorWith(FakeTool { fullResult }).executeTool("fake_tool", "{}")
+        assertTrue(result.length <= 20_000)
+        assertTrue(result != fullResult)
+    }
+
+    @Test
     fun `explicit null arguments are treated as absent`() = runTest {
         var received: Map<String, Any>? = null
         val tool = object : Tool {

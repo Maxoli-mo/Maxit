@@ -6,6 +6,7 @@ import com.maximiliano.maxit.getAvailableTools
 import com.maximiliano.maxit.getPlatformToolDefinitions
 import com.maximiliano.maxit.network.tools.Tool
 import com.maximiliano.maxit.smartTruncate
+import com.maximiliano.maxit.tools.SkillTools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -28,6 +29,9 @@ import kotlinx.serialization.json.put
 import org.jetbrains.compose.resources.getString
 
 private const val MAX_TOOL_RESULT_LENGTH = 20_000
+
+// A 64K body plus up to 256 paths of 512 characters must fit without losing instructions.
+private const val MAX_SKILL_TOOL_RESULT_LENGTH = 256_000
 
 /**
  * `{"success": false, "error": message}`, built as JSON rather than by string interpolation —
@@ -81,7 +85,14 @@ class ToolExecutor(
 
                 else -> buildJsonObject { put("result", result.toString()) }.toString()
             }
-            truncateResult(resultString)
+            if (name == SkillTools.ID) {
+                require(resultString.length <= MAX_SKILL_TOOL_RESULT_LENGTH) {
+                    "Skill content exceeds the result limit; request a bundled file separately"
+                }
+                resultString
+            } else {
+                truncateResult(resultString)
+            }
         } catch (e: TimeoutCancellationException) {
             toolErrorJson("Tool '$name' timed out after ${tool.timeout}")
         } catch (e: CancellationException) {

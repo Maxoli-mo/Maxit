@@ -37,6 +37,8 @@ data class SandboxStatus(
      * reason the card offers to copy.
      */
     val migration: SandboxMigration? = null,
+    /** Persisted per-distro generation, advanced only after a home copy completes. */
+    val homeMigrationRevision: Long = 0,
 )
 
 /**
@@ -130,6 +132,12 @@ interface SandboxController : FileBrowserSource {
     fun cancel()
     fun reset()
     fun installPackages()
+
+    /** Bounded raw reads preserve binary assets when migrating legacy skill folders. */
+    suspend fun readFileBytes(path: String, maxBytes: Int, rootPath: String): ByteArray? = (readTextFile(path, maxBytes) as? TextFileResult.Text)?.content?.encodeToByteArray()?.takeIf { it.size <= maxBytes }
+
+    /** Migration must fail on unreadable listings; only the initial skills root may be missing. */
+    suspend fun listDirectoryForMigration(path: String, allowMissing: Boolean = false): List<SandboxFileEntry> = listDirectory(path)
 
     /**
      * Point the shell integration at [distro]'s install. Non-destructive: each

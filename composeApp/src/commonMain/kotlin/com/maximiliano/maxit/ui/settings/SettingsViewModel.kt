@@ -66,6 +66,11 @@ class SettingsViewModel(
     private val localNetworkPermissionController: PermissionController = PermissionController(AppPermission.LOCAL_NETWORK),
 ) : ViewModel() {
 
+    private companion object {
+        // Committed removals outlive a Settings instance; reopening it must not unlock import early.
+        val committedSkillDeletions = MutableStateFlow(0)
+    }
+
     private var connectionCheckJobs: MutableMap<String, Job> = mutableMapOf()
     private var hasCheckedInitialConnection = false
     private var pendingDeleteJob: Job? = null
@@ -122,6 +127,7 @@ class SettingsViewModel(
         showUiScale = currentPlatform is Platform.Desktop,
         mcpServers = buildMcpServerEntries().toImmutableList(),
         skills = dataRepository.getInstalledSkills().toImmutableList(),
+        skillDeletionsInFlight = committedSkillDeletions.value,
         localAvailableModels = dataRepository.getLocalAvailableModels().toImmutableList(),
         localImportedModels = dataRepository.getLocalImportedModels().toImmutableList(),
         totalDeviceMemoryBytes = dataRepository.getTotalDeviceMemoryBytes(),
@@ -186,7 +192,7 @@ class SettingsViewModel(
         onUninstallSkill = ::onUninstallSkill,
         onShowAddSkillDialog = ::onShowAddSkillDialog,
         onInstallGitHubSkill = ::onInstallGitHubSkill,
-        onInstallBrowsedSkill = ::onInstallBrowsedSkill,
+        onImportSkill = ::onImportSkill,
         onDownloadLocalModel = ::onDownloadLocalModel,
         onCancelLocalModelDownload = ::onCancelLocalModelDownload,
         onImportLocalModel = ::onImportLocalModel,
@@ -208,6 +214,16 @@ class SettingsViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            committedSkillDeletions.collect { count ->
+                _state.update { it.copy(skillDeletionsInFlight = count) }
+            }
+        }
+        viewModelScope.launch {
+            dataRepository.installedSkillsFlow.collect { skills ->
+                _state.update { it.copy(skills = skills.toImmutableList()) }
+            }
+        }
         // Observe download state from the engine singleton (survives activity recreation)
         val downloadingFlow = dataRepository.getLocalDownloadingModelId() ?: flowOf(null)
         val progressFlow = dataRepository.getLocalDownloadProgress() ?: flowOf(null)
@@ -780,7 +796,13 @@ class SettingsViewModel(
         // ConversationStorage's in-memory flow — refresh it so imported chats appear
         // without an app restart.
         dataRepository.loadConversations()
-        _state.value = buildFullState().copy(currentTab = currentTab)
+        val refreshed = buildFullState().copy(currentTab = currentTab)
+        _state.update {
+            refreshed.copy(
+                pendingDeletion = it.pendingDeletion as? PendingDeletion.Skill,
+                skillDeletionsInFlight = it.skillDeletionsInFlight,
+            )
+        }
         checkAllConnections()
         connectEnabledMcpServers()
         if (errors == 0) ImportResult.Success else ImportResult.PartialSuccess(errors)
@@ -888,43 +910,29 @@ class SettingsViewModel(
     }
 
     private fun onUninstallSkill(id: String) {
+        if (_state.value.isInstallingSkill) return
         commitPendingDeletion()
         _state.update { it.copy(pendingDeletion = PendingDeletion.Skill(id)) }
-        pendingDeleteJob = viewModelScope.launch(backgroundDispatcher) {
+        // Serialize the timer with UI actions so it cannot commit a newer pending removal.
+        pendingDeleteJob = viewModelScope.launch {
             delay(4.seconds)
-            executeDeletion(PendingDeletion.Skill(id))
+            pendingDeleteJob = null
+            commitPendingDeletion()
         }
     }
 
     private fun onShowAddSkillDialog(show: Boolean) {
+        if (show && (_state.value.isRemovingSkill || committedSkillDeletions.value > 0)) return
         _state.update {
             it.copy(
                 showAddSkillDialog = show,
                 skillInstallError = null,
-                // Lazily fetch the marketplaces the first time the dialog opens.
-                browseSkillsFailed = if (show) it.browseSkillsFailed else false,
             )
-        }
-        if (show && _state.value.browsableSkills.isEmpty() && !_state.value.isBrowsingSkills) {
-            browseSkillMarketplaces()
-        }
-    }
-
-    private fun browseSkillMarketplaces() {
-        _state.update { it.copy(isBrowsingSkills = true, browseSkillsFailed = false) }
-        viewModelScope.launch(backgroundDispatcher) {
-            val result = dataRepository.browseSkillMarketplaces()
-            _state.update { state ->
-                state.copy(
-                    isBrowsingSkills = false,
-                    browsableSkills = result.getOrNull().orEmpty().toImmutableList(),
-                    browseSkillsFailed = result.isFailure,
-                )
-            }
         }
     }
 
     private fun onInstallGitHubSkill(input: String) {
+        if (_state.value.isRemovingSkill || committedSkillDeletions.value > 0) return
         val source = parseGitHubSkillUrl(input)
         if (source == null) {
             viewModelScope.launch(backgroundDispatcher) {
@@ -935,11 +943,12 @@ class SettingsViewModel(
         runSkillInstall { dataRepository.installGitHubSkill(source.owner, source.repo, source.ref, source.path) }
     }
 
-    private fun onInstallBrowsedSkill(entry: com.maximiliano.maxit.skills.RegistrySkillEntry) {
-        runSkillInstall { dataRepository.installBrowsedSkill(entry) }
+    private fun onImportSkill(file: PlatformFile) {
+        runSkillInstall { dataRepository.importSkill(file) }
     }
 
     private inline fun runSkillInstall(crossinline install: suspend () -> Result<com.maximiliano.maxit.skills.SkillManifest>) {
+        if (_state.value.isInstallingSkill || _state.value.isRemovingSkill || committedSkillDeletions.value > 0) return
         _state.update { it.copy(isInstallingSkill = true, skillInstallError = null) }
         viewModelScope.launch(backgroundDispatcher) {
             val result = install()
@@ -995,8 +1004,16 @@ class SettingsViewModel(
         pendingDeleteJob?.cancel()
         pendingDeleteJob = null
         val deletion = _state.value.pendingDeletion ?: return
-        _state.update { it.copy(pendingDeletion = null) }
-        viewModelScope.launch(backgroundDispatcher) {
+        if (deletion is PendingDeletion.Skill) committedSkillDeletions.update { it + 1 }
+        _state.update {
+            it.copy(
+                pendingDeletion = null,
+                skillDeletionsInFlight = committedSkillDeletions.value,
+            )
+        }
+        // Committed skill removal must finish even if Settings is left before storage returns.
+        val scope = if (deletion is PendingDeletion.Skill) CoroutineScope(backgroundDispatcher) else viewModelScope
+        scope.launch(backgroundDispatcher) {
             executeDeletion(deletion)
         }
     }
@@ -1048,13 +1065,17 @@ class SettingsViewModel(
             }
 
             is PendingDeletion.Skill -> {
-                dataRepository.uninstallSkill(deletion.id)
-                refreshSkills()
+                try {
+                    dataRepository.uninstallSkill(deletion.id)
+                    refreshSkills()
+                } finally {
+                    committedSkillDeletions.update { it - 1 }
+                }
             }
         }
         // Guard against a stale async deletion clobbering a newer pending one from a rapid second Remove click.
         _state.update { state ->
-            if (state.pendingDeletion == deletion) state.copy(pendingDeletion = null) else state
+            if (deletion !is PendingDeletion.Skill && state.pendingDeletion == deletion) state.copy(pendingDeletion = null) else state
         }
     }
 
@@ -1071,7 +1092,13 @@ class SettingsViewModel(
             super.onCleared()
             return
         }
-        _state.update { it.copy(pendingDeletion = null) }
+        if (deletion is PendingDeletion.Skill) committedSkillDeletions.update { it + 1 }
+        _state.update {
+            it.copy(
+                pendingDeletion = null,
+                skillDeletionsInFlight = committedSkillDeletions.value,
+            )
+        }
         CoroutineScope(backgroundDispatcher).launch {
             executeDeletion(deletion)
         }

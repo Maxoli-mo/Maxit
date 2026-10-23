@@ -29,6 +29,8 @@ class GuestFileMap(
     private val projectsDir: File?,
     /** Host directory bound to `/tmp`. */
     private val tmpDir: File,
+    /** App-owned bundles bound to `/mnt/maxit-skills` in the chat sandbox. */
+    private val skillsDir: File? = null,
 ) {
 
     fun resolve(guestPath: String): File? {
@@ -37,6 +39,9 @@ class GuestFileMap(
         val parts = normalized.split("/").filter { it.isNotEmpty() }
         if (parts.any { it == ".." }) return null
         return when {
+            skillsDir != null && parts.size >= 2 && parts[0] == "mnt" && parts[1] == "maxit-skills" ->
+                safeChild(skillsDir, parts.drop(2))
+
             projectsDir != null && parts.size >= 2 && parts[0] == "root" && parts[1] == "projects" ->
                 safeChild(projectsDir, parts.drop(2))
 
@@ -54,6 +59,7 @@ class GuestFileMap(
         return canonical == rootfsDir.canonicalPath ||
             canonical == homeDir.canonicalPath ||
             canonical == tmpDir.canonicalPath ||
-            canonical == projectsDir?.canonicalPath
+            canonical == projectsDir?.canonicalPath ||
+            canonical == skillsDir?.canonicalPath
     }
 }

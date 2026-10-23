@@ -53,7 +53,6 @@ import com.maximiliano.maxit.network.dtos.openairesponses.OpenAIResponsesRespons
 import com.maximiliano.maxit.network.toUiError
 import com.maximiliano.maxit.network.tools.Tool
 import com.maximiliano.maxit.network.tools.ToolInfo
-import com.maximiliano.maxit.skills.RegistrySkillEntry
 import com.maximiliano.maxit.skills.SkillManager
 import com.maximiliano.maxit.skills.SkillManifest
 import com.maximiliano.maxit.sms.SmsPoller
@@ -62,6 +61,7 @@ import com.maximiliano.maxit.sms.SmsSendResult
 import com.maximiliano.maxit.sms.SmsSender
 import com.maximiliano.maxit.tools.NotificationListenerController
 import com.maximiliano.maxit.tools.PermissionController
+import com.maximiliano.maxit.tools.SkillTools
 import com.maximiliano.maxit.ui.chat.History
 import com.maximiliano.maxit.ui.chat.ToolCallInfo
 import com.maximiliano.maxit.ui.chat.toGeminiMessageDto
@@ -117,6 +117,22 @@ internal fun fitsContextWindow(messages: List<History>, systemPrompt: String?, m
     return requestChars <= ModelCatalog.estimateContextWindow(modelId).toLong() * ESTIMATED_CHARS_PER_TOKEN
 }
 
+// Keep dispatch testable without constructing the repository's unrelated platform services.
+internal suspend fun LocalInferenceEngine.chatWithToolParserFallback(
+    messages: List<InferenceMessage>,
+    systemPrompt: String?,
+    tools: List<LocalTool>,
+    systemPromptWithoutTools: suspend () -> String? = { systemPrompt },
+): String = try {
+    chat(messages = messages, systemPrompt = systemPrompt, tools = tools)
+} catch (e: RuntimeException) {
+    if (e is kotlinx.coroutines.CancellationException) throw e
+    // litert-lm's strict ANTLR parser can reject malformed tool calls with INVALID_ARGUMENT.
+    // An empty tool list disables automaticToolCalling and bypasses that parser on retry.
+    println("LiteRT: tool-call parser failed (${e.message?.take(200)}). Falling back to plain chat.")
+    chat(messages = messages, systemPrompt = systemPromptWithoutTools(), tools = emptyList())
+}
+
 // Explicit allowlist of tools exposed to the on-device (LiteRT) model. We use a
 // hardcoded name list rather than a structural filter because small Gemma models hit
 // litert-lm's strict ANTLR function-call parser hard on anything more complex than
@@ -132,6 +148,8 @@ internal val LOCAL_TOOL_ALLOWLIST = setOf(
     "memory_forget",
     "memory_reinforce",
     "execute_shell_command",
+    SkillTools.ID,
+    SkillTools.CREATE_ID,
 )
 
 /**
@@ -510,6 +528,7 @@ class RemoteDataRepository(
         systemPrompt: String?,
         instanceId: String,
         history: MutableStateFlow<List<History>> = chatHistory,
+        systemPromptWithoutTools: suspend (modelId: String) -> String? = { systemPrompt },
     ): String {
         val engine = localInferenceEngine
             ?: throw IllegalStateException("On-device inference not available on this platform")
@@ -565,17 +584,8 @@ class RemoteDataRepository(
             }
         }
 
-        return try {
-            engine.chat(messages = inferenceMessages, systemPrompt = systemPrompt, tools = localTools)
-        } catch (e: RuntimeException) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            // litert-lm's strict ANTLR function-call parser sometimes rejects malformed
-            // tool-call output from small Gemma models, throwing INVALID_ARGUMENT from JNI.
-            // Retry once without tools so the user gets *some* answer rather than a hard
-            // error in the UI. With an empty tool list, LiteRTInferenceEngine sets
-            // automaticToolCalling = false, so the parser is bypassed entirely on the retry.
-            println("LiteRT: tool-call parser failed (${e.message?.take(200)}). Falling back to plain chat.")
-            engine.chat(messages = inferenceMessages, systemPrompt = systemPrompt, tools = emptyList())
+        return engine.chatWithToolParserFallback(inferenceMessages, systemPrompt, localTools) {
+            systemPromptWithoutTools(model.id)
         }
     }
 
@@ -592,16 +602,18 @@ class RemoteDataRepository(
      * OpenAI `{type: "function", function: {…}}` wrapper, so litert-lm's `OpenApiTool`
      * adapter can forward it straight to the model. If a parameter has a `rawSchema`,
      * it's passed through verbatim — that preserves array/enum/nested-object shapes the
-     * simple `{type, description}` form would lose.
+     * simple `{type, description}` form would lose. Skill creation keeps its original
+     * string-only local schema instead of exposing nested bundled files to small models.
      */
     private fun localToolDescriptionJson(tool: Tool): String = localToolDescriptionJsonCache.getOrPut(tool.schema.name) {
+        val schema = SkillTools.localSchema(tool.schema)
         buildJsonObject {
-            put("name", tool.schema.name)
-            put("description", tool.schema.description)
+            put("name", schema.name)
+            put("description", schema.description)
             putJsonObject("parameters") {
                 put("type", "object")
                 putJsonObject("properties") {
-                    for ((paramName, param) in tool.schema.parameters) {
+                    for ((paramName, param) in schema.parameters) {
                         val raw = param.rawSchema
                         if (raw != null) {
                             put(paramName, raw)
@@ -614,7 +626,7 @@ class RemoteDataRepository(
                     }
                 }
                 putJsonArray("required") {
-                    tool.schema.parameters.filter { it.value.required }.keys.forEach { add(it) }
+                    schema.parameters.filter { it.value.required }.keys.forEach { add(it) }
                 }
             }
         }.toString()
@@ -713,7 +725,11 @@ class RemoteDataRepository(
         if (service.isOnDevice) {
             // No retry: local-inference failures are deterministic, and this path mutates
             // chat history through tool execution, so a replay could re-run tools.
-            return AssistantTurn(askWithLocalEngine(messages, systemPrompt, instanceId, history))
+            return AssistantTurn(
+                askWithLocalEngine(messages, systemPrompt, instanceId, history) { modelId ->
+                    buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, modelId, toolsEnabled = false)
+                },
+            )
         }
 
         if (!fitsContextWindow(messages, systemPrompt, creds.modelId)) {
@@ -836,27 +852,17 @@ class RemoteDataRepository(
         // The active skill (if any) is consumed for this single turn only — stored in a
         // field rather than a parameter on getActiveSystemPrompt so the existing internal
         // callers (heartbeat, askWithTools, etc.) don't all need a new parameter. The
-        // skill's files already live in the sandbox at ~/skills/<id>/, so nothing is
-        // materialized here.
+        // skill's bundled files are read on demand with load_skill.
         val resolvedSkillId = activeSkillId?.takeIf { skillManager.getSkill(it) != null }
         pendingActiveSkillId = resolvedSkillId
         try {
             askInternal(question, files, uiSubmission)
         } finally {
             pendingActiveSkillId = null
-            // The create-skill flow writes a new /root/skills/<id>/SKILL.md via
-            // execute_shell_command; rescan so it shows up in the slash menu and Settings
-            // without a restart. Cheap (one listDirectory) and only runs on those turns.
-            if (resolvedSkillId == createSkillId) {
-                skillManager.load()
-            }
         }
     }
 
     private var pendingActiveSkillId: String? = null
-
-    /** Built-in skill id; matches the bundled SKILL.md under composeResources. */
-    private val createSkillId = "create-skill"
 
     private suspend fun askInternal(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?) {
         // Allocate a conversation id immediately for fresh chats. Without this,
@@ -1769,15 +1775,14 @@ class RemoteDataRepository(
     }
 
     // Skills
+    override val installedSkillsFlow: StateFlow<List<SkillManifest>> = skillManager.skills
     override fun getInstalledSkills(): List<SkillManifest> = skillManager.getInstalled()
 
     override suspend fun uninstallSkill(id: String) {
         skillManager.uninstall(id)
     }
 
-    override suspend fun browseSkillMarketplaces(): Result<List<RegistrySkillEntry>> = skillManager.browseMarketplaces()
-
-    override suspend fun installBrowsedSkill(entry: RegistrySkillEntry): Result<SkillManifest> = skillManager.installFromRegistryEntry(entry)
+    override suspend fun importSkill(file: PlatformFile): Result<SkillManifest> = skillManager.importSkill(file)
 
     override suspend fun installGitHubSkill(owner: String, repo: String, ref: String, path: String): Result<SkillManifest> = skillManager.installFromGitHub(owner, repo, ref, path)
 
@@ -1794,6 +1799,7 @@ class RemoteDataRepository(
         variant: SystemPromptVariant,
         service: Service,
         modelId: String,
+        toolsEnabled: Boolean = true,
     ): String? {
         val soul = loadAgentInstructions(appSettings.getSoulText())
         val memoryEnabled = appSettings.isMemoryEnabled()
@@ -1843,14 +1849,14 @@ class RemoteDataRepository(
             providerName = service.displayName,
         )
 
-        val isLimited = !supportsTools(modelId)
-
         // Tool-use guidance is only worth sending when the model is actually given tools.
         // Mirror the tool list the request will carry: remote uses the full set (when the
         // model supports tools), local uses the allowlist-filtered set.
-        val hasTools = when (variant) {
-            SystemPromptVariant.CHAT_REMOTE -> !isLimited && getAvailableTools().isNotEmpty()
-            SystemPromptVariant.CHAT_LOCAL -> getLocalSafeTools().isNotEmpty() && localModelDeclaresTools(modelId)
+        val availableTools = when {
+            !toolsEnabled -> emptyList()
+            variant == SystemPromptVariant.CHAT_REMOTE -> if (supportsTools(modelId)) getAvailableTools() else emptyList()
+            localModelDeclaresTools(modelId) -> getLocalSafeTools()
+            else -> emptyList()
         }
 
         val activeSkill = pendingActiveSkillId?.let { skillManager.getSkill(it) }
@@ -1858,7 +1864,7 @@ class RemoteDataRepository(
         return buildChatSystemPrompt(
             variant = variant,
             soul = soul,
-            hasTools = hasTools,
+            hasTools = availableTools.isNotEmpty(),
             memoryEnabled = memoryEnabled,
             schedulingEnabled = schedulingEnabled,
             memoryInstructions = memoryInstructions,
@@ -1871,6 +1877,7 @@ class RemoteDataRepository(
             emailAccounts = emailAccounts,
             runtime = runtime,
             activeSkill = activeSkill,
+            installedSkills = if (availableTools.any { it.schema.name == SkillTools.ID }) skillManager.getInstalled().filter { it.loadError == null } else emptyList(),
         ).ifEmpty { null }
     }
 
@@ -2145,11 +2152,14 @@ class RemoteDataRepository(
             // visible chatHistory for a "silent" call. LOCAL variant of the system
             // prompt so small on-device models get the right section set.
             val localPrompt = getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL)
-            return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages))
+            return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages)) { modelId ->
+                buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, modelId, toolsEnabled = false)
+            }
         }
 
-        val systemPrompt = getActiveSystemPrompt()
         val creds = instanceCredentials(firstInstance.instanceId, service)
+        // plainChat has no tool loop: do not advertise skills it cannot load.
+        val systemPrompt = buildActiveSystemPrompt(SystemPromptVariant.CHAT_REMOTE, service, creds.modelId, toolsEnabled = false)
 
         return plainChat(service, creds, messages, systemPrompt, retry = false).content
     }

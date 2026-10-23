@@ -10,7 +10,7 @@ import com.maximiliano.maxit.smartTruncate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import maxit.composeapp.generated.resources.Res
-import maxit.composeapp.generated.resources.tool_execute_shell_command_description
+import maxit.composeapp.generated.resources.tool_execute_host_shell_command_description
 import maxit.composeapp.generated.resources.tool_execute_shell_command_name
 import java.io.File
 import java.io.InputStream
@@ -109,7 +109,7 @@ private fun buildDescription(): String {
         else -> "Linux"
     }
     val shell = if ("win" in osName) "cmd.exe" else "sh"
-    return """Execute a shell command on the host machine ($platform, shell: $shell) and return stdout, stderr, and exit code.
+    return """Execute a shell command on the host machine ($platform, shell: $shell) with the user's permissions, not in a sandbox, and return stdout, stderr, and exit code.
 Each command runs in a fresh shell — use "cd dir && command" for directory changes.
 Output is limited to ${MAX_OUTPUT_LENGTH} characters per stream; for large output, pipe through head/tail.
 Default timeout: ${DEFAULT_TIMEOUT_SECONDS}s, max: ${MAX_TIMEOUT_SECONDS}s.
@@ -235,9 +235,9 @@ object ShellCommandTool : Tool {
     val toolInfo = ToolInfo(
         id = "execute_shell_command",
         name = "Execute Shell Command",
-        description = "Execute a shell command on the device",
+        description = "Run shell commands on your computer with your user permissions, not in a sandbox",
         nameRes = Res.string.tool_execute_shell_command_name,
-        descriptionRes = Res.string.tool_execute_shell_command_description,
+        descriptionRes = Res.string.tool_execute_host_shell_command_description,
         isEnabled = false,
     )
 }

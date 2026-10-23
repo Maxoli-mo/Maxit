@@ -44,4 +44,16 @@ class GitHubSkillUrlTest {
         assertNull(parseGitHubSkillUrl(""))
         assertNull(parseGitHubSkillUrl("   "))
     }
+
+    @Test
+    fun `parses a branch link at repository root`() {
+        assertEquals(SkillSource.GitHub("owner", "repo", "dev", ""), parseGitHubSkillUrl("https://github.com/owner/repo/tree/dev"))
+    }
+
+    @Test
+    fun `rejects wrong hosts traversal and query fragments`() {
+        listOf("https://evil.example/owner/repo", "owner/repo/../secret", "owner/repo/tree", "owner/repo?token=secret", "owner/repo/path#fragment").forEach {
+            assertNull(parseGitHubSkillUrl(it), it)
+        }
+    }
 }

@@ -1,5 +1,7 @@
 > **Status (2026-10-21): Historical pre-change snapshot.** The text below, including its earlier “current identity” note, is preserved for comparison. Live editable defaults now come from [agent-instructions.md](../../composeApp/src/commonMain/composeResources/files/prompts/agent-instructions.md); identity, tool-use, and action rules were updated separately. Memory promotion (`promote_learning` and heartbeat candidates) has been removed. See [System Prompts](../features/system-prompts.md) for current behavior.
 
+> **Skills rework (2026-10-22):** The sandbox paths and slash-only skill behavior quoted below describe the snapshot, not the new contract. Android and desktop skills now use app-private storage, an installed names/descriptions catalog, and lazy `load_skill` reads; slash commands remain explicit per-turn overrides. The built-in `create-skill` requires no sandbox. Interactive UI stays archived and unloaded. Desktop tests and Android/Web source compilation passed; live-model behavior is untested. See [Skills](../features/skills.md) for imports, limits, and copy-only legacy migration.
+
 # System prompt review: before the identity/UI change
 
 Snapshot date: 2026-10-21. Source revision: `0484dc7e32d0cf6b686c93b0af4a8d7b76822548`.

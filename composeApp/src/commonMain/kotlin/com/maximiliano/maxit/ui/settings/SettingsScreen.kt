@@ -72,7 +72,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maximiliano.maxit.BackIcon
+import com.maximiliano.maxit.Platform
 import com.maximiliano.maxit.Version
+import com.maximiliano.maxit.currentPlatform
 import com.maximiliano.maxit.data.EmailAccount
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.linux.LinuxDistro
@@ -291,15 +293,11 @@ fun SettingsScreenContent(
                                     showAddSkillDialog = filteredUiState.showAddSkillDialog,
                                     onShowAddSkillDialog = actions.onShowAddSkillDialog,
                                     onInstallGitHubSkill = actions.onInstallGitHubSkill,
-                                    onInstallBrowsedSkill = actions.onInstallBrowsedSkill,
+                                    onImportSkill = actions.onImportSkill,
                                     isInstallingSkill = filteredUiState.isInstallingSkill,
+                                    isRemovingSkill = filteredUiState.isRemovingSkill,
                                     skillInstallError = filteredUiState.skillInstallError,
-                                    browsableSkills = filteredUiState.browsableSkills,
-                                    isBrowsingSkills = filteredUiState.isBrowsingSkills,
-                                    browseSkillsFailed = filteredUiState.browseSkillsFailed,
-                                    showSkills = sandboxState.showSandbox,
-                                    isSandboxInstalled = sandboxState.sandboxInstalled,
-                                    onNavigateToSandbox = { actions.onSelectTab(SettingsTab.Sandbox) },
+                                    showSkills = currentPlatform is Platform.Mobile.Android || currentPlatform is Platform.Desktop,
                                 )
                             }
 

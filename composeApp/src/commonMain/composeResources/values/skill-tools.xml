@@ -1,0 +1,11 @@
+<resources>
+    <string name="tool_load_skill_name">Load Skill</string>
+    <string name="tool_load_skill_description">Read an installed skill or one of its bundled files</string>
+    <string name="tool_create_skill_name">Create Skill</string>
+    <string name="tool_create_skill_description">Validate and install a new skill requested by the user</string>
+    <string name="tool_execute_host_shell_command_description">Run shell commands on your computer with your user permissions, not in a sandbox</string>
+    <string name="settings_skills_instructions_only">Instructions only — SKILL.md</string>
+    <string name="settings_skills_supporting_files">Supporting files installed: %1$d</string>
+    <string name="settings_skills_files_unavailable">Installed files unavailable — remove and reimport this skill to repair it.</string>
+    <string name="settings_skills_removing">Adding skills is unavailable until removal finishes or is undone.</string>
+</resources>

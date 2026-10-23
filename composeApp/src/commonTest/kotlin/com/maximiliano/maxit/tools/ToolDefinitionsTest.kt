@@ -74,6 +74,37 @@ class ToolDefinitionsTest {
     }
 
     @Test
+    fun skillLoaderHasALocalizedNonToggleableDefinition() {
+        val definition = CommonTools.commonToolDefinitions.single { it.id == SkillTools.ID }
+        assertEquals("Load Skill", definition.name)
+        assertTrue(definition.nameRes != null)
+        assertTrue(definition.descriptionRes != null)
+        assertFalse(definition.userToggleable)
+    }
+
+    @Test
+    fun skillCreatorHasALocalizedCapabilityGatedDefinition() {
+        val definition = CommonTools.commonToolDefinitions.single { it.id == SkillTools.CREATE_ID }
+        assertEquals("Create Skill", definition.name)
+        assertTrue(definition.nameRes != null)
+        assertTrue(definition.descriptionRes != null)
+        assertFalse(definition.userToggleable)
+    }
+
+    @Test
+    fun platformsWithoutASkillManagerDoNotAdvertiseTheLoader() {
+        val settings = AppSettings(MapSettings())
+        val toolNames = buildAgentToolSet(
+            appSettings = settings,
+            memoryStore = MemoryStore(settings),
+            taskStore = TaskStore(settings),
+            mcpServerManager = McpServerManager(settings),
+        ).map { it.schema.name }
+        assertFalse(SkillTools.ID in toolNames)
+        assertFalse(SkillTools.CREATE_ID in toolNames)
+    }
+
+    @Test
     fun definitionIdsAreUnique() {
         val duplicates = definitionIds.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
         assertEquals(emptySet(), duplicates, "Duplicate tool definition ids")

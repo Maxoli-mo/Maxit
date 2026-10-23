@@ -115,4 +115,16 @@ class GuestFileMapTest {
         assertEquals(rootfs, sharedMap().resolve(""))
         assertEquals(rootfs, sharedMap().resolve("   "))
     }
+
+    @Test
+    fun `skills bind resolves assets and protects its root`() {
+        val skills = File(base, "skills").apply { mkdirs() }
+        val map = GuestFileMap(rootfs, File(rootfs, "root"), projects, tmp, skills)
+        assertEquals(File(skills, "pdf/scripts/read.py"), map.resolve("/mnt/maxit-skills/pdf/scripts/read.py"))
+        assertTrue(map.isRoot(skills))
+        assertNull(map.resolve("/mnt/maxit-skills/../outside"))
+        val outside = File(base, "outside").apply { mkdirs() }
+        Files.createSymbolicLink(File(skills, "escape").toPath(), outside.toPath())
+        assertNull(map.resolve("/mnt/maxit-skills/escape/secret"))
+    }
 }

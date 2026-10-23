@@ -7,6 +7,7 @@ import com.maximiliano.maxit.skills.SkillManifest
 import com.maximiliano.maxit.testutil.FakeDataRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -81,5 +82,18 @@ class ChatViewModelSkillTest {
         advanceUntilIdle()
 
         assertNull(fakeRepository.lastActiveSkillId)
+    }
+
+    @Test
+    fun `skills loaded after startup refresh composer without sending a message`() = runTest {
+        val viewModel = createViewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect {} }
+        advanceUntilIdle()
+        fakeRepository.skills = listOf(skill("late-skill"), skill("broken").copy(loadError = "Unreadable bundle"))
+        advanceUntilIdle()
+        assertEquals(listOf("late-skill"), viewModel.state.value.installedSkills.map { it.id })
+        fakeRepository.skills = emptyList()
+        advanceUntilIdle()
+        assertEquals(emptyList(), viewModel.state.value.installedSkills)
     }
 }

@@ -1,51 +1,51 @@
 ---
 name: create-skill
-description: Create a new Maxit skill from a single natural-language request, then install it into the sandbox so it's invokable as /<id>.
+description: Create, self-review, and install a reusable Maxit skill, with bundled files when needed, at the user's explicit request.
 ---
 
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-23. -->
 
-You are creating a new skill for the user. Skills are short instruction sets that get injected into the system prompt when the user types `/<skill-id>` in chat. Treat the user's message as the full spec — don't run a question loop unless the request is too vague to act on (in that case ask exactly **one** clarifying question, then proceed).
+Create a reusable skill only when the user asks to create or save one. Do not turn ordinary questions or one-off tasks into persistent skills. Ask one clarifying question only if the intended behavior is unclear.
 
-## Steps
+## Draft
 
-1. **Pick an id.** Derive a short kebab-case id from the user's request. Rules: lowercase letters, digits, and hyphens only; ≤ 64 chars; descriptive but terse (e.g. `summarize-url`, `daily-standup`, `recipe-from-photo`).
+1. **Define the behavior.** Identify when the skill should activate, its inputs, expected output, constraints, and relevant failure cases.
+2. **Pick an unused id.** Compare with the installed-skills catalog. Use lowercase letters, digits, and hyphens; at most 64 characters. Never replace an installed skill or built-in.
+3. **Write the manifest.** Include `name` and a non-empty description of at most 1,024 characters in YAML frontmatter, followed by non-empty Markdown instructions. The description must say when to use the skill, not merely repeat its name. Keep the instructions focused, actionable, and consistent with the user's request. The complete `SKILL.md` must fit within 64,000 characters.
+4. **Bundle only necessary files.** Scripts, reference documents, and templates belong in `files`, each with a safe relative `path` and literal `content`. Text defaults to `encoding: "utf8"`; use `encoding: "base64"` only for known binary bytes, not invented assets or a host-file path. Do not put `SKILL.md` in `files`. Limits: 4 MiB per decoded file, 16 MiB for the entire bundle, and 256 files including the manifest.
 
-2. **Check for conflicts.** Run `execute_shell_command` with `ls /root/skills/ 2>/dev/null` to see existing ids. If your chosen id is taken, append `-2`, `-3`, etc. until it's free.
+Inspect the actual `create_skill` schema before bundling. A string-only local-model schema exposes only `markdown`. If needed files cannot be supplied through that schema, explain the limitation and offer a remote model or ZIP import; do not silently omit required files, claim a complete bundle, or bypass it through shell writes. Instruction-only skills still work with `markdown` alone.
 
-3. **Write a tight description.** ≤ 1024 chars, non-empty, single line, written as a third-person summary of what the skill does. This shows up in the slash-command menu and Settings.
+## Pre-save self-review
 
-4. **Draft the body.** Markdown instructions addressed to a future model invocation — clear steps, any constraints, and how to interpret args after the slash command. Keep it focused; every byte ends up in the system prompt when the skill is active.
+Before calling `create_skill`, reread the complete instructions **and every bundled file** as the future model consuming the skill. Check and fix:
 
-5. **Install it.** Run `execute_shell_command` once with this exact shape (substitute `<id>`, `<description>`, and the body):
+- **Intent and activation:** Does it do what the user requested? Does the description identify appropriate triggers without making the skill activate for unrelated work?
+- **Instructions:** Are inputs, outputs, ordering, edge cases, and failure handling clear? Remove contradictory steps, unnecessary questions, and unrequested side effects.
+- **Formatting:** Check the frontmatter delimiters, name/description limits, non-empty body, headings, code fences, and example syntax. Do not pass an outer Markdown fence to the creation tool.
+- **Tool and runtime availability:** Reference actual available tools by their names. Declare required runtimes/dependencies and unsupported platforms instead of pretending they exist. Skills cannot grant permissions or enable tools.
+- **File references:** Every promised bundled path must be present with the correct spelling and contents. Use relative paths; reject absolute paths, traversal, duplicate names, and extra manifests. Explain how to read references with `load_skill(id, path)`. Runtime scripts must locate sibling files relative to their own file, not assume a particular working directory or `/root` host path. Invoke scripts through their interpreter; executable permission bits are not preserved.
+- **Code and data:** Check imports, syntax, inputs/outputs, dangerous operations, credentials, and whether binary assets are genuinely valid for their stated format. Include only files the skill needs.
+- **Example walkthrough:** Reason through one representative request and one likely failure case. Confirm the instructions and file contents support the intended result; fix gaps before saving.
 
-   ```sh
-   mkdir -p /root/skills/<id> && cat > /root/skills/<id>/SKILL.md <<'SKILLEOF'
-   ---
-   name: <id>
-   description: <description>
-   ---
-   <body markdown here, verbatim>
-   SKILLEOF
-   ```
+Fix findings and reread the affected parts before creation. This is a model self-review, not an independent audit or proof of correctness. Do not execute generated scripts merely to save a skill. Only claim a syntax check or runtime test passed if that exact check actually ran with appropriate authorization and available tools; otherwise say the bundle was reviewed but not executed/tested.
 
-   Use the quoted heredoc delimiter (`<<'SKILLEOF'`) so YAML/markdown special characters are preserved exactly.
+## Save and confirm
 
-6. **Confirm.** In one short message, tell the user the chosen id, the description, and that they can invoke it now as `/<id>`. Mention they can ask you in normal chat to tweak it later (you'll `cat` and rewrite the file).
+Call `create_skill` with raw `SKILL.md` in `markdown` and optional bundled `files`. For example:
 
-## Worked example
+```json
+{
+  "markdown": "---\nname: meeting-notes\ndescription: Turn meeting transcripts into decisions and action items.\n---\nRead references/output.md with load_skill before formatting the notes. Summarize only decisions and actions supported by the transcript.",
+  "files": [
+    {
+      "path": "references/output.md",
+      "content": "## Decisions\n- Decision and supporting context\n\n## Action items\n- Task, owner, and deadline; mark unknown values explicitly.\n"
+    }
+  ]
+}
+```
 
-User: `/create-skill summarize any URL the user pastes into 3 bullet points`
+Only after `create_skill` returns success, confirm the installed id and `/<id>` command, summarize the review and any testing limitations briefly, and mention bundled files when present. Settings and the slash menu refresh without a restart or sandbox setup. Creation never executes the skill, installs dependencies, or tests its behavior.
 
-You pick id `summarize-url`, check `ls /root/skills/` (free), draft:
-
-- description: `Fetches a URL and summarizes the page in 3 concise bullet points.`
-- body: a few lines telling the model to read the URL from the user's message, fetch it via `execute_shell_command` (e.g. `curl -sL`), and reply with exactly three markdown bullets.
-
-Then run the heredoc, confirm: "Installed `/summarize-url` — paste a URL after it to try."
-
-## Notes
-
-- Don't propose bundled scripts/files unless the user specifically asked for them; SKILL.md alone covers most needs.
-- If the user's request describes something better suited to existing tools (e.g. "summarize this PDF" → already covered by file uploads), say so and offer the skill anyway only if they confirm.
-- The skill list auto-refreshes after this turn — no restart needed.
+For a duplicate id, choose an unused one rather than overwrite. Fix format, path, size, or encoding errors and retry the complete bundle. If creation is unavailable or permission is denied, explain that installation did not succeed. You may provide files for manual import, but do not bypass the failure with shell commands or another write path.

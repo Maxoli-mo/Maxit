@@ -57,6 +57,10 @@ class LinuxSandboxManager(
     @Volatile
     private var selected: LinuxDistro = initialSelection()
 
+    private val homeMigrationPreferences = context.getSharedPreferences("sandbox_home_migrations", Context.MODE_PRIVATE)
+    private val _homeMigrationRevision = MutableStateFlow(homeMigrationPreferences.getLong(selected.name, 0L))
+    val homeMigrationRevision: StateFlow<Long> = _homeMigrationRevision
+
     /**
      * Where to start pointed. A sandbox installed before the picker existed never
      * recorded a choice, and the setting's default would send it to a Debian it
@@ -140,6 +144,7 @@ class LinuxSandboxManager(
 
     private fun checkExistingInstallation() {
         marker = paths.readMarker()
+        _homeMigrationRevision.value = homeMigrationPreferences.getLong(distro.name, 0L)
         val proot = File(prootPath)
         _state.value = if (marker != null && proot.exists() && proot.canExecute()) {
             SandboxState.Ready
@@ -209,6 +214,12 @@ class LinuxSandboxManager(
                         _state.value = SandboxState.Installing(SandboxStatusLabel.CopyingFiles(done, total))
                     }
                 }
+                // Persist before publishing completion so a restarted skill manager sees the new source.
+                val revision = homeMigrationPreferences.getLong(current.distro.name, 0L) + 1
+                check(revision > 0 && homeMigrationPreferences.edit().putLong(current.distro.name, revision).commit()) {
+                    "Cannot record completed home migration."
+                }
+                _homeMigrationRevision.value = revision
                 _state.value = SandboxState.Ready
             } catch (_: kotlinx.coroutines.CancellationException) {
                 _state.value = SandboxState.Ready
@@ -274,6 +285,8 @@ class LinuxSandboxManager(
         paths.copyLibtalloc()
         paths.ensureLayout()
         val binds = buildList {
+            val skillsDir = File(context.filesDir, "skills").apply { mkdirs() }
+            add(skillsDir.absolutePath to "/mnt/maxit-skills")
             // Nothing to bind when /root is already part of the rootfs; only the
             // pre-unification layout keeps it on external storage.
             if (!current.homeOnRootfs) {
@@ -305,6 +318,7 @@ class LinuxSandboxManager(
             homeDir = paths.homeDir(current),
             projectsDir = if (current.distro == LinuxDistro.DEBIAN) paths.projectsDir else null,
             tmpDir = paths.tmpDir,
+            skillsDir = File(context.filesDir, "skills"),
         )
     }
 

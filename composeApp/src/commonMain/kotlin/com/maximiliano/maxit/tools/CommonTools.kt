@@ -249,6 +249,8 @@ object CommonTools {
         ipLocationToolInfo,
         openUrlToolInfo,
         FetchUrlTool.toolInfo,
+        SkillTools.toolInfo,
+        SkillTools.creationToolInfo,
     ) +
         listOf(memoryStoreToolInfo, memoryForgetToolInfo, memoryLearnToolInfo, memoryReinforceToolInfo) +
         SchedulingTools.schedulingToolDefinitions +

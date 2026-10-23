@@ -8,7 +8,9 @@ Maxit has several distinct prompt-construction paths. Each one is built by a **p
 
 For the readable pre-change default wording and behavior review, see [system-prompt-review.md](../prompts/system-prompt-review.md). It is a review snapshot, not a live settings export or an editable runtime resource.
 
-As of 2026-10-21, Dynamic/Interactive UI prompt generation is **parked**, not moved to a runtime loader. The full instructions, examples, and component/action catalog are preserved in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources. A local backup of that file and the original builder is at `.opencode/backups/interactive-ui-2026-10-21.tar.gz` (git-ignored). No new skills integration was added. Existing installed skills still use their existing opt-in mechanism.
+As of 2026-10-21, Dynamic/Interactive UI prompt generation is **parked**, not moved to a runtime loader. The full instructions, examples, and component/action catalog are preserved in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources. A local backup of that file and the original builder is at `.opencode/backups/interactive-ui-2026-10-21.tar.gz` (git-ignored). The skills rework does not register or load this archive.
+
+**Skills rework:** Android and desktop skills use app-private storage independently of the sandbox. Prompts include an installed-skills catalog of names/descriptions; `load_skill` reads a selected body or bundled text reference on demand. A leading slash command remains an explicit per-turn override. Desktop regression tests and Android/Web source compilation passed; live-model selection remains untested. See [skills.md](skills.md) for storage, imports, and migration.
 
 ## Paths
 
@@ -57,7 +59,8 @@ Remote dispatch checks the history plus that target's actual prompt against the 
 | `## Email Accounts` | when list non-empty (email enabled) | never | `emailAccounts` — connected address, unread count, last sync, or last sync error. The section also embeds a multi-sentence "Sending policy" rule instructing the model to draft a message and confirm with the user before invoking `compose_email` or `reply_email`, so the per-account summary is not the only payload |
 | `## Scheduled Tasks` | when list non-empty | never | `pendingTasks` (time/cron only; heartbeat-trigger tasks live in the next section) |
 | `## Heartbeat Additions` | when list non-empty | never | `heartbeatAdditions` — standing `schedule_task(on_heartbeat=true)` entries the AI can see/reference/cancel |
-| `## Active skill: <name>` | when activated | when activated | `activeSkill` param — non-null only when the user prefixed the current turn's message with `/<skill-id>` matching an installed, enabled skill. Emits the skill's instruction body plus a list of any bundled files (available at `~/skills/<id>/` in the sandbox). Zero bytes on every other turn. See [skills.md](skills.md) |
+| Installed skills catalog | when skills are available | when skills are available | Installed names/descriptions for discovery; bodies and bundled text are read lazily through `load_skill`, not injected in bulk. Availability does not require a sandbox |
+| `## Active skill: <name>` | when explicitly selected | when explicitly selected | `activeSkill` — the current message starts with `/<skill-id>` matching an installed skill. Emits that skill's body for this turn as an explicit override; bundled text is read through `load_skill`. The active-body section is absent otherwise, but the catalog remains. See [skills.md](skills.md) |
 | `## Context` | always | always | `runtime` param (local time with offset + IANA zone, UTC, platform, model, provider). Blank model/provider fields render as `unknown`. Dispatch builds context for the actual instance, including fallback and scheduled-task targets, rather than identifying them as the primary model |
 
 **Memory budget for `CHAT_LOCAL`:** the four memory category sections share a combined char budget (`LOCAL_MEMORY_BUDGET_CHARS`, currently 2000 chars), including headings and formatting. Categories are considered in order (general → preferences → learnings → errors). The first entry that exceeds a category's remaining budget stops that category; later categories can still use the remaining space. Entries are never cut mid-text, and a category with no fitting entries emits no header.
@@ -65,7 +68,7 @@ Remote dispatch checks the history plus that target's actual prompt against the 
 **Why two variants:**
 
 - `CHAT_REMOTE` — full chat prompt for remote services, without the parked UI instructions. No builder memory cap.
-- `CHAT_LOCAL` — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so Structured Learning, Automation, Email Accounts, Scheduled Tasks, and Heartbeat Additions are dropped, and memory sections are char-capped. The model still gets identity + agent instructions + basic policies + basic memory guidance + memories (up to the cap) + an active skill (if selected) + runtime Context — memories matter because `memory_store` / `memory_forget` / `memory_reinforce` are all in the local tool allowlist, and a memory might have been learned via a remote model in an earlier turn.
+- `CHAT_LOCAL` — trimmed chat prompt for on-device LiteRT. Small Gemma models (2-4B params) can't coherently attend to the full remote prompt, so Structured Learning, Automation, Email Accounts, Scheduled Tasks, and Heartbeat Additions are dropped, and memory sections are char-capped. The model still gets identity + agent instructions + basic policies + basic memory guidance + memories (up to the cap) + the skills catalog + an active skill (if explicitly selected) + runtime Context. Actual tool calls, including lazy skill reads, remain subject to the model's function-calling capability and local tool allowlist.
 
 Interactive UI entry and the Dynamic UI settings toggle are hidden while generation is parked. Previously interactive conversations reopen in normal chat, so plain-text replies remain visible and don't trigger UI-repair retries. Stored messages/types and the kai-ui renderer are retained. Old UI text in conversation history can still influence a model; the archive itself adds no prompt tokens.
 
@@ -90,7 +93,7 @@ Memory promotion and the `promote_learning` tool have been removed; heartbeat no
 
 **Not yet executed.** These are expected observations, not results. Use the bundled default, synthetic data, and an authorized scratch folder; record the model/provider and enabled tools when running them.
 
-After the review fixes, 1,024 desktop tests, WebAssembly source compilation, and formatting checks passed. A separate text-only smoke-test attempt through OpenCode's generation endpoint returned HTTP 503, so no live-response results were obtained; it would not have verified the app's configured provider or real tool execution in any case.
+After the earlier prompt-review fixes, 1,024 desktop tests, WebAssembly source compilation, and formatting checks passed. Those results predate the skills rework and do not verify it. A separate text-only smoke-test attempt through OpenCode's generation endpoint returned HTTP 503, so no live-response results were obtained; it would not have verified the app's configured provider or real tool execution in any case.
 
 | Case | Probe | Expected observation |
 |---|---|---|

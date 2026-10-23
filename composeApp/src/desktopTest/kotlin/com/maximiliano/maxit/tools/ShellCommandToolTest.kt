@@ -5,11 +5,15 @@ package com.maximiliano.maxit.tools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import maxit.composeapp.generated.resources.Res
+import maxit.composeapp.generated.resources.tool_execute_host_shell_command_description
+import maxit.composeapp.generated.resources.tool_execute_shell_command_description
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
@@ -21,6 +25,15 @@ import kotlin.time.measureTime
 class ShellCommandToolTest {
 
     private val isWindows = System.getProperty("os.name").lowercase().contains("win")
+
+    @Test
+    fun `desktop metadata describes host permissions rather than Android sandbox`() {
+        val info = ShellCommandTool.toolInfo
+        assertEquals(Res.string.tool_execute_host_shell_command_description, info.descriptionRes)
+        assertNotEquals(Res.string.tool_execute_shell_command_description, info.descriptionRes)
+        assertTrue(info.description.contains("your computer"))
+        assertTrue(info.description.contains("user permissions"))
+    }
 
     @Test
     fun `background child holding stdout does not hang the call`() = runBlocking {

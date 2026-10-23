@@ -11,7 +11,6 @@ import com.maximiliano.maxit.inference.ModelImportResult
 import com.maximiliano.maxit.linux.LinuxDistro
 import com.maximiliano.maxit.mcp.McpServerConfig
 import com.maximiliano.maxit.network.tools.ToolInfo
-import com.maximiliano.maxit.skills.RegistrySkillEntry
 import com.maximiliano.maxit.skills.SkillManifest
 import com.maximiliano.maxit.ui.chat.History
 import com.maximiliano.maxit.ui.settings.SettingsModel
@@ -86,11 +85,11 @@ interface DataRepository {
     fun isMcpServerConnected(serverId: String): Boolean
     suspend fun connectEnabledMcpServers()
 
-    // Skills (stored in the Linux sandbox at ~/skills/<id>/; Android-only)
+    // Skills (app-owned instruction bundles on Android and desktop)
+    val installedSkillsFlow: StateFlow<List<SkillManifest>>
     fun getInstalledSkills(): List<SkillManifest>
     suspend fun uninstallSkill(id: String)
-    suspend fun browseSkillMarketplaces(): Result<List<RegistrySkillEntry>>
-    suspend fun installBrowsedSkill(entry: RegistrySkillEntry): Result<SkillManifest>
+    suspend fun importSkill(file: PlatformFile): Result<SkillManifest>
     suspend fun installGitHubSkill(owner: String, repo: String, ref: String, path: String): Result<SkillManifest>
 
     // Soul (system prompt)

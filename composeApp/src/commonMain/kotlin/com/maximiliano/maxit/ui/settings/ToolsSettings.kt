@@ -26,11 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.maximiliano.maxit.mcp.PopularMcpServer
 import com.maximiliano.maxit.network.tools.ToolInfo
-import com.maximiliano.maxit.skills.RegistrySkillEntry
 import com.maximiliano.maxit.skills.SkillManifest
 import com.maximiliano.maxit.ui.handCursor
 import com.maximiliano.maxit.ui.kaiAdaptiveCardBorder
 import com.maximiliano.maxit.ui.kaiAdaptiveCardColors
+import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.collections.immutable.ImmutableList
 import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.settings_tools_description
@@ -54,15 +54,11 @@ internal fun ToolsContent(
     showAddSkillDialog: Boolean,
     onShowAddSkillDialog: (Boolean) -> Unit,
     onInstallGitHubSkill: (String) -> Unit,
-    onInstallBrowsedSkill: (RegistrySkillEntry) -> Unit,
+    onImportSkill: (PlatformFile) -> Unit,
     isInstallingSkill: Boolean,
+    isRemovingSkill: Boolean,
     skillInstallError: String?,
-    browsableSkills: ImmutableList<RegistrySkillEntry>,
-    isBrowsingSkills: Boolean,
-    browseSkillsFailed: Boolean,
     showSkills: Boolean,
-    isSandboxInstalled: Boolean,
-    onNavigateToSandbox: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // MCP Servers section
@@ -78,7 +74,6 @@ internal fun ToolsContent(
             onAddPopularMcpServer = onAddPopularMcpServer,
         )
 
-        // Skills section — sandbox-backed, so Android only.
         if (showSkills) {
             Spacer(Modifier.height(24.dp))
             SkillsSection(
@@ -87,14 +82,10 @@ internal fun ToolsContent(
                 showAddDialog = showAddSkillDialog,
                 onShowAddDialog = onShowAddSkillDialog,
                 onInstallGitHub = onInstallGitHubSkill,
-                onInstallBrowsed = onInstallBrowsedSkill,
+                onImportSkill = onImportSkill,
                 isInstalling = isInstallingSkill,
+                isRemoving = isRemovingSkill,
                 installError = skillInstallError,
-                browsableSkills = browsableSkills,
-                isBrowsing = isBrowsingSkills,
-                browseFailed = browseSkillsFailed,
-                isSandboxInstalled = isSandboxInstalled,
-                onNavigateToSandbox = onNavigateToSandbox,
             )
         }
 

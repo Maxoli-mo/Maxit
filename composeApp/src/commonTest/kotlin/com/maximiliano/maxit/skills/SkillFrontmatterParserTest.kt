@@ -82,4 +82,40 @@ class SkillFrontmatterParserTest {
         assertIs<SkillFrontmatterParser.Result.Ok>(result)
         assertTrue(result.id == "ok-name")
     }
+
+    @Test
+    fun `folded descriptions are usable for automatic discovery`() {
+        val source = "---\nname: example\ndescription: >-\n  Work with PDFs.\n  Extract their tables.\nmetadata:\n  name: not-the-id\n---\nInstructions."
+        val result = SkillFrontmatterParser.parse(source)
+        assertIs<SkillFrontmatterParser.Result.Ok>(result)
+        assertEquals("example", result.id)
+        assertEquals("Work with PDFs. Extract their tables.", result.description)
+        assertEquals("Instructions.", result.body)
+    }
+
+    @Test
+    fun `repeated folded description keys use the last block`() {
+        val source = buildString {
+            append("---\nname: example\n")
+            repeat(2_000) { append("description: >-\n  Ignored.\n") }
+            append("description: >-\n  Last block.\n  Still here.\n---\nInstructions.")
+        }
+        val result = SkillFrontmatterParser.parse(source)
+        assertIs<SkillFrontmatterParser.Result.Ok>(result)
+        assertEquals("Last block. Still here.", result.description)
+        assertEquals("Instructions.", result.body)
+    }
+
+    @Test
+    fun `literal descriptions and UTF8 BOM are supported`() {
+        val result = SkillFrontmatterParser.parse("\uFEFF---\nname: example\ndescription: |\n  First line.\n  Second line.\n---\nInstructions.")
+        assertIs<SkillFrontmatterParser.Result.Ok>(result)
+        assertEquals("First line.\nSecond line.", result.description)
+    }
+
+    @Test
+    fun `frontmatter closes only at an exact delimiter line`() {
+        val result = SkillFrontmatterParser.parse("---\nname: example\ndescription: ok\n---not-a-delimiter\n")
+        assertIs<SkillFrontmatterParser.Result.Err>(result)
+    }
 }

@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +29,9 @@ import org.jetbrains.compose.resources.getString
 import org.koin.java.KoinJavaComponent.inject
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.atomic.AtomicBoolean
 
 actual fun createSandboxController(): SandboxController = AndroidSandboxController()
@@ -57,7 +61,7 @@ class AndroidSandboxController : SandboxController {
         // computes disk usage on IO.
 
         scope.launch {
-            sandboxManager.state.collect { state ->
+            combine(sandboxManager.state, sandboxManager.homeMigrationRevision) { state, _ -> state }.collect { state ->
                 // Guard the mapping: if anything inside (e.g. disk-usage walk)
                 // throws, we'd lose the collector and the UI would freeze on
                 // its current status until process restart.
@@ -181,6 +185,7 @@ class AndroidSandboxController : SandboxController {
         distro = sandboxManager.distro,
         installedDistros = installedDistros(working),
         migration = knownMigration,
+        homeMigrationRevision = sandboxManager.homeMigrationRevision.value,
     )
 
     override fun setup() {
@@ -296,6 +301,11 @@ class AndroidSandboxController : SandboxController {
         return PersistentCommandHandle(shell, deferred, cancelled)
     }
 
+    override suspend fun listDirectoryForMigration(path: String, allowMissing: Boolean): List<SandboxFileEntry> = withContext(Dispatchers.IO) {
+        val dir = sandboxManager.fileMap().resolve(path) ?: throw IOException("Cannot resolve legacy directory: $path")
+        listLegacySkillDirectory(dir, path, allowMissing)
+    }
+
     override suspend fun listDirectory(path: String): List<SandboxFileEntry> = withContext(Dispatchers.IO) {
         val dir = sandboxManager.fileMap().resolve(path)
             ?: return@withContext emptyList()
@@ -336,6 +346,30 @@ class AndroidSandboxController : SandboxController {
         val file = sandboxManager.fileMap().resolve(path)
             ?: return@withContext TextFileResult.Unreadable
         readFileAsText(file, maxBytes, force)
+    }
+
+    override suspend fun readFileBytes(path: String, maxBytes: Int, rootPath: String): ByteArray? = withContext(Dispatchers.IO) {
+        require(maxBytes in 1..(4 * 1024 * 1024)) { "Invalid raw file read limit." }
+        val file = sandboxManager.fileMap().resolve(path) ?: return@withContext null
+        val root = sandboxManager.fileMap().resolve(rootPath) ?: return@withContext null
+        if (java.nio.file.Files.isSymbolicLink(root.toPath())) return@withContext null
+        if (!file.canonicalPath.startsWith(root.canonicalPath + File.separator)) return@withContext null
+        if (!file.isFile || file.length() > maxBytes) return@withContext null
+        try {
+            file.inputStream().use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count == -1) break
+                    if (output.size().toLong() + count > maxBytes) return@withContext null
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
+        } catch (_: IOException) {
+            null
+        }
     }
 
     override suspend fun writeTextFile(path: String, content: String): Boolean = withContext(Dispatchers.IO) {
@@ -418,6 +452,18 @@ class AndroidSandboxController : SandboxController {
 
 /** Returned to the agent as a tool result, so it stays English like the rest of the tool surface. */
 private const val SANDBOX_NOT_READY = "Sandbox is not ready"
+
+/** Unlike browser listings, migration must never publish an incomplete directory as an empty one. */
+internal fun listLegacySkillDirectory(directory: File, path: String, allowMissing: Boolean): List<SandboxFileEntry> {
+    val attributes = try {
+        Files.readAttributes(directory.toPath(), BasicFileAttributes::class.java)
+    } catch (e: NoSuchFileException) {
+        if (allowMissing) return emptyList() else throw e
+    }
+    if (!attributes.isDirectory) throw IOException("Legacy path is not a directory: $path")
+    val children = directory.listFiles() ?: throw IOException("Cannot list legacy directory: $path")
+    return children.map { it.toFileEntry(parent = path.trimEnd('/')) }
+}
 
 private class PersistentCommandHandle(
     private val shell: SessionShell,

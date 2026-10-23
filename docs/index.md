@@ -18,8 +18,8 @@ Maxit is built with Kotlin Multiplatform and Compose Multiplatform. Configure a 
 - **On-device inference** — Run downloaded models locally with LiteRT on Android and Linux desktop
 - **Tool execution** — Web search, notifications, calendar events, shell commands, and more
 - **MCP server support** — Connect to remote tool servers via the Model Context Protocol
-- **Interactive UI** — The AI can answer with interactive screens (forms, buttons, multi-step flows) instead of plain text
-- **Skills** — Install reusable instruction bundles in the SKILL.md format (Android)
+- **Interactive UI (parked)** — Generation is disabled; archived instructions and rendering of old messages are retained
+- **Skills** — Android and desktop instruction bundles, independent of the sandbox; GitHub or local `.md`/`.zip` installs, catalog discovery, and lazy loading
 - **Autonomous heartbeat & scheduled tasks** — Periodic self-checks plus one-time or recurring tasks the AI schedules
 - **Linux sandbox** — On Android, the AI can run shell commands, scripts and packages in a Debian or Alpine environment
 - **Maxit Build** — An Android coding environment with terminals and OpenCode
@@ -136,11 +136,11 @@ Providers require user configuration. Local inference needs a downloaded or impo
 - **[Tasks](features/tasks.md)** — Scheduled tasks, future execution, and task management
 - **[Daemon](features/daemon.md)** — Background service for scheduled tasks and heartbeat execution
 - **[MCP Servers](features/mcp.md)** — Remote tool servers over the Model Context Protocol
-- **[Dynamic UI](features/dynamic-ui.md)** — AI-generated interactive screens rendered inline in chat
+- **[Dynamic UI](features/dynamic-ui.md)** — Parked generation, archived instructions, and retained rendering of old messages
 - **[On-Device Inference](features/on-device-inference.md)** — Local LiteRT models, downloads, and integrity checks
 - **[Reasoning](features/reasoning.md)** — How reasoning traces are sent back to providers and shown
 - **[System Prompts](features/system-prompts.md)** — How each prompt variant is composed
-- **[Skills](features/skills.md)** — Installable SKILL.md instruction bundles
+- **[Skills](features/skills.md)** — App-private SKILL.md bundles, imports, lazy loading, and explicit slash commands
 - **[Linux Sandbox](features/sandbox.md)** — On-device Debian/Alpine shell for the AI and the user (Android)
 - **[Maxit Build](features/maxit-build.md)** — Coding environment with terminals and coding agents (Android)
 - **[Notifications](features/notifications.md)** — Reading other apps' notifications (Android, FOSS build)

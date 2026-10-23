@@ -30,7 +30,7 @@ private const val GCM_TAG_LENGTH = 128
  * under one lock (reads stay lock-free on the concurrent map). The file is replaced atomically,
  * and a file that fails to decrypt is set aside rather than overwritten — it holds every API key.
  */
-class EncryptedFileSettings : Settings {
+class EncryptedFileSettings(private val directory: File = File(getAppFilesDirectory())) : Settings {
 
     private val json = Json { encodeDefaults = true }
     private val map: MutableMap<String, String> = ConcurrentHashMap()
@@ -42,7 +42,7 @@ class EncryptedFileSettings : Settings {
     }
 
     private fun getOrCreateKey(): SecretKey {
-        val keyFile = File(getAppFilesDirectory(), KEY_FILE)
+        val keyFile = File(directory, KEY_FILE)
         if (keyFile.exists()) {
             val keyBytes = keyFile.readBytes()
             if (keyBytes.size == 32) {
@@ -57,7 +57,7 @@ class EncryptedFileSettings : Settings {
     }
 
     private fun load() {
-        val file = File(getAppFilesDirectory(), SETTINGS_FILE)
+        val file = File(directory, SETTINGS_FILE)
         if (!file.exists()) {
             migrateFromPreferences()
             return
@@ -105,7 +105,7 @@ class EncryptedFileSettings : Settings {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
         val encrypted = cipher.doFinal(plaintext.encodeToByteArray())
-        writeAtomically(File(getAppFilesDirectory(), SETTINGS_FILE), iv + encrypted)
+        writeAtomically(File(directory, SETTINGS_FILE), iv + encrypted)
     }
 
     /** Writes to a sibling temp file and renames it over [target], so a crash mid-write never leaves a truncated file. */

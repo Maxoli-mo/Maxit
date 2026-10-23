@@ -27,6 +27,7 @@ import com.maximiliano.maxit.sandbox.LinuxSandboxManager
 import com.maximiliano.maxit.sandbox.SandboxState
 import com.maximiliano.maxit.sandbox.openFileWithIntent
 import com.maximiliano.maxit.sandbox.resolveSandboxFile
+import com.maximiliano.maxit.skills.SkillManager
 import com.maximiliano.maxit.sms.SmsReader
 import com.maximiliano.maxit.sms.SmsSender
 import com.maximiliano.maxit.sms.declaresReadSms
@@ -187,6 +188,7 @@ actual fun getAvailableTools(): List<Tool> {
     val taskStore: TaskStore by inject(TaskStore::class.java)
     val emailStore: EmailStore by inject(EmailStore::class.java)
     val mcpServerManager: McpServerManager by inject(McpServerManager::class.java)
+    val skillManager: SkillManager by inject(SkillManager::class.java)
 
     return buildAgentToolSet(
         appSettings = appSettings,
@@ -194,6 +196,7 @@ actual fun getAvailableTools(): List<Tool> {
         taskStore = taskStore,
         mcpServerManager = mcpServerManager,
         emailStore = emailStore,
+        skillManager = skillManager,
     ) {
         if (appSettings.isToolEnabled(SendNotificationTool.ID)) {
             val notificationPermissionController: PermissionController =

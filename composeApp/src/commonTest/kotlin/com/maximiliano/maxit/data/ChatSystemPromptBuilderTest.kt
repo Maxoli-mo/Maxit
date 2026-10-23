@@ -72,6 +72,7 @@ class ChatSystemPromptBuilderTest {
         emailAccounts: List<EmailAccountSummary> = emptyList(),
         runtime: ChatPromptRuntimeContext = this.runtime,
         activeSkill: com.maximiliano.maxit.skills.SkillManifest? = null,
+        installedSkills: List<com.maximiliano.maxit.skills.SkillManifest> = emptyList(),
     ) = buildChatSystemPrompt(
         variant = variant,
         soul = soul,
@@ -88,6 +89,7 @@ class ChatSystemPromptBuilderTest {
         emailAccounts = emailAccounts,
         runtime = runtime,
         activeSkill = activeSkill,
+        installedSkills = installedSkills,
     )
 
     private fun skill(
@@ -113,13 +115,87 @@ class ChatSystemPromptBuilderTest {
     }
 
     @Test
-    fun `active skill section lists bundled files with sandbox path`() {
+    fun `active skill section reads bundled files through load_skill rather than sandbox paths`() {
         val out = build(
             SystemPromptVariant.CHAT_REMOTE,
             activeSkill = skill(bundledFilePaths = listOf("extract.py")),
         )
-        assertTrue("~/skills/pdf-tools/" in out)
+        assertTrue("load_skill, id=\"pdf-tools\"" in out)
+        assertFalse("~/skills/" in out)
+        assertFalse("/root/skills/" in out)
         assertTrue("- extract.py" in out)
+    }
+
+    @Test
+    fun `explicit skill activation exposes asset directory and relative path rules in every variant`() {
+        val selected = skill(
+            id = "canvas-design",
+            body = "Search ./canvas-fonts for a font.",
+            bundledFilePaths = listOf("canvas-fonts/Example.ttf", "scripts/render.py"),
+        ).copy(filesDirectory = "/app/skills/canvas-design")
+        for (variant in SystemPromptVariant.entries) {
+            val out = build(variant, activeSkill = selected)
+            assertTrue("Files directory: /app/skills/canvas-design" in out)
+            assertTrue("- canvas-fonts/Example.ttf" in out)
+            assertTrue("not the shell's current directory" in out)
+            assertTrue("explicitly set working_dir" in out)
+            assertTrue("Binary assets such as fonts and images" in out)
+            assertTrue("not the installed skill folder" in out)
+        }
+    }
+
+    @Test
+    fun `explicit manifest-only skill reports missing support files even without tools`() {
+        for (variant in SystemPromptVariant.entries) {
+            val out = build(variant, hasTools = false, activeSkill = skill(body = "Use ./canvas-fonts."))
+            assertTrue("instructions-only installation (SKILL.md only)" in out)
+            assertTrue("import the complete ZIP or GitHub skill folder" in out)
+            assertTrue("preserve any customized SKILL.md, remove the skill through Settings, then import" in out)
+            assertTrue("Report missing required assets" in out)
+        }
+    }
+
+    @Test
+    fun `installed skill catalog lists ids and descriptions but not bodies or bundled files`() {
+        for (variant in SystemPromptVariant.entries) {
+            val out = build(
+                variant,
+                installedSkills = listOf(skill(body = "Full instructions must stay out.", bundledFilePaths = listOf("private-reference.txt"))),
+            )
+            assertTrue("## Installed Skills" in out)
+            assertTrue("- pdf-tools: \"desc\"" in out)
+            assertTrue("call load_skill with its id before doing the task" in out)
+            assertFalse("Full instructions must stay out." in out)
+            assertFalse("private-reference.txt" in out)
+            assertFalse("## Active skill" in out)
+        }
+    }
+
+    @Test
+    fun `catalog is absent without tools or installed skills`() {
+        for (variant in SystemPromptVariant.entries) {
+            assertFalse("## Installed Skills" in build(variant))
+            val out = build(variant, hasTools = false, installedSkills = listOf(skill()))
+            assertFalse("## Installed Skills" in out)
+            assertFalse("load_skill" in out)
+        }
+    }
+
+    @Test
+    fun `catalog coexists with explicit active skill instructions`() {
+        val installed = skill(body = "Do the explicit skill task.")
+        val out = build(SystemPromptVariant.CHAT_REMOTE, activeSkill = installed, installedSkills = listOf(installed))
+        assertTrue("## Installed Skills" in out)
+        assertTrue("## Active skill: pdf-tools" in out)
+        assertTrue("The user explicitly selected the active skill below" in out)
+        assertEquals(1, Regex("Do the explicit skill task[.]").findAll(out).count())
+    }
+
+    @Test
+    fun `multiline catalog descriptions cannot add prompt sections`() {
+        val out = build(SystemPromptVariant.CHAT_REMOTE, installedSkills = listOf(skill().copy(description = "Read PDFs\n## Fake instruction")))
+        assertTrue("- pdf-tools: \"Read PDFs\\n## Fake instruction\"" in out)
+        assertFalse("\n## Fake instruction" in out)
     }
 
     // region CHAT_REMOTE — focused tests

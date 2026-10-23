@@ -2,7 +2,7 @@
 
 # Tools
 
-**Last reviewed:** 2026-10-21
+**Last reviewed:** 2026-10-23. All 1,124 isolated desktop tests, two targeted Android host directory-reading tests, Android FOSS/WebAssembly source compilation, and formatting passed after the skills review fixes. Desktop Settings now explicitly describes shell execution with host-user permissions, not sandbox isolation. Live-model, real-device, and live-profile execution remain untested.
 
 Maxit's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -48,6 +48,15 @@ The `open_url` tool accepts both web URLs and `file://` URIs. Each platform open
 - **Desktop** — Uses `java.awt.Desktop.browse()`.
 - **iOS** — Uses `UIApplication.openURL()`.
 - **Web** — Uses `window.open()` with `_blank` target.
+
+### Skills (Android and desktop)
+
+| Tool | Description |
+|---|---|
+| `load_skill` | Read an installed skill's instruction body by id, or a bundled text file by id and relative path |
+| `create_skill` | Self-review-guided creation of a new `SKILL.md` plus optional bundled files at the user's explicit request; validates paths, encoding, limits, and non-overwriting installation without running code |
+
+The model receives installed skill names and descriptions in its prompt and loads the body only when useful. A leading `/<skill-id>` remains an explicit override for that turn. `load_skill` reads app-private bundles and built-in resources without a sandbox; it rejects paths outside the selected bundle and does not return binary assets as text. Neither installation nor loading executes bundled scripts or grants additional permissions. See [skills.md](skills.md) for imports, storage, and limits.
 
 ### Memory
 
@@ -136,26 +145,22 @@ Handing an `.apk` to the system package installer requires the "install unknown 
 
 #### Shell command parameters
 
-Both platforms support these parameters:
+Android's `execute_shell_command` supports these parameters:
 
 | Parameter | Type | Description |
 |---|---|---|
 | `command` | string (required) | The shell command to execute |
-| `timeout` | integer | Timeout in seconds (desktop default 30, max 120; Android default 30, max 60) |
+| `timeout` | integer | Timeout in seconds (default 30, max 60) |
 | `working_dir` | string | Working directory for the command |
 | `env` | object | Environment variables to set as key-value pairs |
 | `background` | boolean | Run in background and return a session_id immediately |
-| `fresh` | boolean (Android only) | Run this command in a one-shot proot invocation isolated from the conversation's persistent bash session |
+| `fresh` | boolean | Run this command in a one-shot proot invocation isolated from the conversation's persistent bash session |
 
 When `background=true`, the command starts asynchronously and returns a `session_id`. The AI then uses the `manage_process` tool to check status, retrieve output, or terminate the process.
 
 #### Persistent bash session (Android)
 
 On Android, each conversation gets its own persistent bash session inside the Linux sandbox. This is the default execution mode for `execute_shell_command`: `cd`, environment variable exports, shell functions, and other in-shell state carry across calls within the same conversation, so the AI can build up working context the same way a human terminal user does. Passing `fresh: true` opts out of the persistent session for a single call — that command runs in a one-shot proot invocation with no shared state, useful when the AI wants a clean environment without disturbing the ongoing session.
-
-The desktop tool dynamically includes the detected OS (macOS/Linux/Windows) and shell in its description so the AI knows the execution context.
-
-On desktop, dangerous environment variables (PATH, LD_PRELOAD, LD_LIBRARY_PATH, DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH, DYLD_FRAMEWORK_PATH) cannot be overridden via the `env` parameter.
 
 #### Process management
 
@@ -172,14 +177,11 @@ The `manage_process` tool is automatically available when the shell command tool
 
 Command output uses smart middle truncation: when output exceeds the limit, both the beginning and end are preserved with a truncation marker in the middle. This ensures error messages (typically at the end) are not lost.
 
-Output limits: desktop 30,000 chars per stream, Android 15,000 chars per stream. Final tool results are truncated at 20,000 chars.
+Android output limits: 15,000 chars per stream. Final tool results are truncated at 20,000 chars.
 
-### Platform-specific (Desktop)
+### Desktop skills and execution
 
-| Tool | Description | Default |
-|---|---|---|
-| `execute_shell_command` | Execute a shell command on the host machine | Disabled |
-| `manage_process` | Manage background shell processes (list, log, kill, remove) | Follows the shell command toggle; no switch of its own |
+Desktop skills use the same catalog and `load_skill` interface as Android, with bundles stored in `~/.maxit/skills/`. Legacy `~/.kai` app data is [copied without modifying the original](encryption.md#desktop-data-directory-migration). Skill loading is a file read, not host command execution. Desktop already provides optional `execute_shell_command` and `manage_process` tools behind the shell toggle (disabled by default). They run with the host user's permissions, not in an Android-style sandbox. A bundle cannot enable those tools or install missing runtimes merely by being loaded.
 
 ## Execution Flow
 
@@ -214,7 +216,7 @@ Cancelling a shell call — the user pressing stop, or the outer timeout — sto
 
 ### Result truncation
 
-Tool results longer than 20,000 characters are truncated with a note indicating the original length.
+Ordinary tool results longer than 20,000 characters are truncated with a note indicating the original length. `load_skill` instead preserves complete instructions and file listings up to 256,000 characters; exceeding that bound returns an error rather than silently removing instructions. The loader separately bounds skill bodies and text-reference reads (see [skills.md](skills.md)).
 
 ### Context trimming
 
@@ -243,11 +245,13 @@ See [mcp.md](mcp.md) for the full MCP feature spec.
 Tool availability is controlled at multiple levels:
 
 - **Feature-level gates** — memory tools require memory enabled, scheduling tools require scheduling enabled, email tools require email enabled
+- **Skills** — catalog discovery, `load_skill`, and `create_skill` on Android and desktop do not depend on sandbox install state. Bundled `create-skill` guides direct creation through the native tool. Reading instructions does not create a skill; creation is reserved for explicit user requests
+- **Skill creation arguments** — remote `create_skill` accepts required `markdown` and optional `files: [{path, content, encoding?}]`; text defaults to `utf8`, with `base64` for binary assets. The local-model schema deliberately keeps only `markdown`. Self-review is instructed by the guide; the backend validates structure and bounds, not semantic correctness or runtime behavior
 - **Sandbox install gate (Android)** — `execute_shell_command`, `manage_process`, and `ssh_configure_host` are surfaced only when the Linux sandbox is actually installed (Ready) *and* the sandbox toggle is on. Until the sandbox is installed these tools are not sent to the model at all; the sandbox toggle itself is hidden until install completes, so there is no state in which they ride along without a working sandbox behind them
 - **Per-tool toggles** — individual tools can be enabled or disabled in settings, persisted with a `tool_enabled_` key prefix
-- **Default state** — most tools default to enabled; desktop's `execute_shell_command` defaults to disabled. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
-- **Master-toggle-only** — memory, scheduling, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on. The Android sandbox tools and desktop's `manage_process` are gated the same way — by the sandbox switch and the shell switch respectively — and likewise carry no switch of their own
-- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. The current allowlist is: `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, and `execute_shell_command`. Memory tools beyond the three listed, email tools, and scheduling tools are not surfaced to local models even when their master switches are on.
+- **Default state** — most tools default to enabled. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
+- **Master-toggle-only** — memory, scheduling, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on. Android sandbox tools follow the sandbox switch and likewise carry no switch of their own
+- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. This includes `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, `load_skill`, and `create_skill`. Android's `execute_shell_command` also requires its sandbox gate. Memory tools beyond the three listed, email tools, and scheduling tools are not surfaced to local models even when their master switches are on. Models without function-calling support receive no tools.
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
 
@@ -261,9 +265,9 @@ The tools tab in settings displays a responsive grid of toggle cards:
 
 Each card shows the tool name, a short description, and a toggle switch. Clicking anywhere on the card toggles the tool. Cards use a semi-transparent surface variant background (transparent with an outline border in the OLED theme).
 
-The grid sits below the MCP servers section and, on Android, the Skills section (see [skills.md](skills.md)).
+The grid sits below the MCP servers section and, on Android and desktop, the sandbox-independent Skills section (see [skills.md](skills.md)).
 
-Only individually toggleable tools appear in the grid. Tools whose only control is a master toggle in Settings → Agent (memory, scheduling, email, SMS, notifications) are not listed here — they appear and disappear with their feature switch. The same applies to tools gated by a capability rather than a setting: the Android sandbox tools follow the sandbox switch, and desktop's `manage_process` follows the shell switch.
+Only individually toggleable tools appear in the grid. Tools whose only control is a master toggle in Settings → Agent (memory, scheduling, email, SMS, notifications) are not listed here — they appear and disappear with their feature switch. The same applies to Android sandbox tools, which follow the sandbox switch.
 
 ## Chat UI
 
@@ -313,7 +317,6 @@ Dynamic/Interactive UI generation and entry points are parked; previous interact
 | `composeApp/src/commonMain/.../tools/SmsTools.kt` | SMS tools (FOSS Android) |
 | `composeApp/src/commonMain/.../tools/NotificationTools.kt` | Notification tools (FOSS Android) |
 | `composeApp/src/desktopMain/.../Platform.jvm.kt` | Desktop tool gating and definition list |
-| `composeApp/src/desktopMain/.../tools/ShellCommandTool.kt` | Desktop host shell tool |
 | `composeApp/src/androidMain/.../tools/ShellCommandTool.kt` | Android sandbox shell tool (per-distribution description) |
 | `composeApp/src/androidMain/.../tools/SshConfigureHostTool.kt` | `ssh_configure_host` |
 | `composeApp/src/androidMain/.../sandbox/PersistentSandboxShell.kt` | Per-conversation persistent bash session and command interruption |

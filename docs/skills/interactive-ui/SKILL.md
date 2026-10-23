@@ -1,11 +1,11 @@
 ---
 name: interactive-ui
-description: Render interactive kai-ui components in chat or as a complete screen. Archived for a future skills system; not loaded by Maxit.
+description: Render interactive kai-ui components in chat or as a complete screen. Archived reference only; not loaded by Maxit.
 ---
 
 # Interactive UI (parked)
 
-Archived on 2026-10-21 from `ChatSystemPromptBuilder.kt`. This file is outside app resources and is not registered or injected into any prompt. The existing renderer remains available for old messages. Re-enabling generation is deferred to the future skills system.
+Archived on 2026-10-21 from `ChatSystemPromptBuilder.kt`. This file is outside app resources and is not registered, loaded, or injected into any prompt. The existing renderer remains available for old messages. The skills rework does not re-enable generation or install this archive.
 
 The two modes below are mutually exclusive. Previously, Dynamic UI was injected in ordinary remote chat when its setting was enabled (default: on); Interactive UI replaced it for full-screen conversations. Both shared the exact component catalog below. The original Kotlin builder is also preserved in `.opencode/backups/interactive-ui-2026-10-21.tar.gz`.
 
