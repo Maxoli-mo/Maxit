@@ -73,6 +73,9 @@ data class SettingsActions(
     val onPrepareExport: () -> Map<ImportSection, String?>,
     val onImportSettings: (ByteArray, Set<ImportSection>, Boolean) -> ImportResult,
     val onUndoDelete: () -> Unit,
+    val onBeginCodexSignIn: (String) -> Unit = {},
+    val onCancelCodexSignIn: (String) -> Unit = {},
+    val onSignOutCodex: (String) -> Unit = {},
 ) {
     companion object {
         val NoOp = SettingsActions(

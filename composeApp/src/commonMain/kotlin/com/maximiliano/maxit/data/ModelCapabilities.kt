@@ -146,6 +146,7 @@ internal fun isResponsesApiGptFamily(modelId: String): Boolean {
  * would configure.
  */
 internal fun requiresResponsesApi(service: Service, modelId: String, baseUrl: String = ""): Boolean {
+    if (service == Service.OpenAICodex) return true
     if (service.responsesUrl == null) return false
     val isOpenAiEndpoint = service == Service.OpenAI || baseUrl.contains("api.openai.com", ignoreCase = true)
     if (!isOpenAiEndpoint) return false

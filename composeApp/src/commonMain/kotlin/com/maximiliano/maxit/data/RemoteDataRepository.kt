@@ -4,6 +4,7 @@
 
 package com.maximiliano.maxit.data
 
+import com.maximiliano.maxit.Platform
 import com.maximiliano.maxit.SandboxController
 import com.maximiliano.maxit.compressImageBytes
 import com.maximiliano.maxit.currentPlatform
@@ -31,6 +32,9 @@ import com.maximiliano.maxit.mcp.McpServerManager
 import com.maximiliano.maxit.network.AllServicesFailedException
 import com.maximiliano.maxit.network.AnthropicInsufficientCreditsException
 import com.maximiliano.maxit.network.AnthropicInvalidApiKeyException
+import com.maximiliano.maxit.network.CodexAuth
+import com.maximiliano.maxit.network.CodexAuthException
+import com.maximiliano.maxit.network.CodexDeviceAuthorization
 import com.maximiliano.maxit.network.ContextWindowExceededException
 import com.maximiliano.maxit.network.FileTooLargeException
 import com.maximiliano.maxit.network.GeminiInvalidApiKeyException
@@ -218,6 +222,7 @@ class RemoteDataRepository(
     private val skillManager: SkillManager,
     private val sandboxController: SandboxController,
     private val localInferenceEngine: LocalInferenceEngine? = null,
+    private val codexAuth: CodexAuth,
 ) : DataRepository {
 
     private val prettyJson = Json { prettyPrint = true }
@@ -248,15 +253,20 @@ class RemoteDataRepository(
     private val modelsByInstance: MutableMap<String, MutableStateFlow<List<SettingsModel>>> = mutableMapOf()
 
     /** Build credentials from per-instance settings */
-    private fun instanceCredentials(instanceId: String, service: Service): ServiceCredentials = ServiceCredentials(
-        apiKey = appSettings.getInstanceApiKey(instanceId),
-        modelId = if (service == Service.Free) {
-            appSettings.getFreeMode().modelId
-        } else {
-            appSettings.getInstanceEffectiveModelId(instanceId).ifEmpty { appSettings.getSelectedModelId(service) }
-        },
-        baseUrl = getInstanceBaseUrl(instanceId, service),
-    )
+    private fun instanceCredentials(instanceId: String, service: Service): ServiceCredentials {
+        if (service == Service.OpenAICodex) requireCodexInstance(instanceId)
+        return ServiceCredentials(
+            instanceId = instanceId,
+            codexSessionGeneration = if (service == Service.OpenAICodex) codexAuth.sessionGeneration(instanceId) else null,
+            apiKey = appSettings.getInstanceApiKey(instanceId),
+            modelId = if (service == Service.Free) {
+                appSettings.getFreeMode().modelId
+            } else {
+                appSettings.getInstanceEffectiveModelId(instanceId).ifEmpty { appSettings.getSelectedModelId(service) }
+            },
+            baseUrl = getInstanceBaseUrl(instanceId, service),
+        )
+    }
 
     override val chatHistory: MutableStateFlow<List<History>> = MutableStateFlow(emptyList())
 
@@ -281,6 +291,7 @@ class RemoteDataRepository(
     }
 
     override fun removeConfiguredService(instanceId: String) {
+        codexAuth.signOut(instanceId)
         val current = appSettings.getConfiguredServiceInstances().toMutableList()
         current.removeAll { it.instanceId == instanceId }
         appSettings.setConfiguredServiceInstances(current)
@@ -332,6 +343,28 @@ class RemoteDataRepository(
 
     override fun updateInstanceApiKey(instanceId: String, apiKey: String) {
         appSettings.setInstanceApiKey(instanceId, apiKey)
+    }
+
+    override fun isCodexSignedIn(instanceId: String): Boolean = codexAuth.isSignedIn(instanceId)
+
+    override suspend fun beginCodexSignIn(instanceId: String): CodexDeviceAuthorization {
+        requireCodexInstance(instanceId)
+        return codexAuth.beginSignIn(instanceId)
+    }
+
+    override suspend fun completeCodexSignIn(instanceId: String, authorization: CodexDeviceAuthorization) {
+        requireCodexInstance(instanceId)
+        codexAuth.completeSignIn(instanceId, authorization)
+    }
+
+    override fun signOutCodex(instanceId: String) {
+        codexAuth.signOut(instanceId)
+        modelsByInstance[instanceId]?.value = emptyList()
+    }
+
+    private fun requireCodexInstance(instanceId: String) {
+        check(currentPlatform != Platform.Web) { "ChatGPT sign-in requires the Android or desktop app." }
+        require(getConfiguredServiceInstances().any { it.instanceId == instanceId && it.serviceId == Service.OpenAICodex.id })
     }
 
     override fun getInstanceBaseUrl(instanceId: String, service: Service): String {
@@ -435,6 +468,13 @@ class RemoteDataRepository(
 
     private suspend fun fetchInstanceModels(service: Service, instanceId: String) {
         when (service) {
+            Service.OpenAICodex -> {
+                requireCodexInstance(instanceId)
+                fetchModelsForInstance(service, instanceId) { creds, selectedModelId ->
+                    mapOpenAICompatibleModels(requests.getCodexModels(creds).getOrThrow().data, service, selectedModelId)
+                }
+            }
+
             Service.Gemini -> fetchModelsForInstance(service, instanceId) { creds, selectedModelId ->
                 mapGeminiModels(requests.getGeminiModels(creds).getOrThrow().models, selectedModelId)
             }
@@ -807,7 +847,7 @@ class RemoteDataRepository(
                 val openAIMessages = buildOpenAIMessages(service, messages, systemPrompt, credentials.modelId, declaredToolNames = emptySet())
                 if (requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)) {
                     val response = call {
-                        requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages)).getOrThrow()
+                        requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages), sessionId = activeConversationId()).getOrThrow()
                     }
                     response.throwIfFailed(service)
                     val content = response.outputText
@@ -828,6 +868,7 @@ class RemoteDataRepository(
 
     private fun hasValidInstanceApiKey(instanceId: String, service: Service): Boolean {
         if (service == Service.Free) return false
+        if (service == Service.OpenAICodex) return currentPlatform != Platform.Web && codexAuth.isSignedIn(instanceId)
         if (service.isOnDevice) return true
         if (!service.requiresApiKey && !service.supportsOptionalApiKey) return true
         if (service.requiresApiKey) return appSettings.getInstanceApiKey(instanceId).isNotBlank()
@@ -946,6 +987,9 @@ class RemoteDataRepository(
 
         val fallbackEntries = getOrderedFallbackEntries().filter { hasValidInstanceApiKey(it.instanceId, it.service) }
         if (fallbackEntries.isEmpty()) {
+            if (currentPlatform != Platform.Web && getConfiguredServiceInstances().any { it.serviceId == Service.OpenAICodex.id }) {
+                throw CodexAuthException("Sign in with ChatGPT under OpenAI Codex in Settings before sending a message.")
+            }
             throw GenericNetworkException("Configure a model provider in Settings before sending a message.")
         }
 
@@ -1019,7 +1063,7 @@ class RemoteDataRepository(
                 val msgs = trimMessagesForContext(buildOpenAIMessages(service, history, systemPrompt, credentials.modelId, declaredToolNames), contextWindowTokens)
                 if (useResponsesApi) {
                     val response = retryApiCall {
-                        requests.openAIResponses(service, credentials, toResponsesInput(msgs), tools).getOrThrow()
+                        requests.openAIResponses(service, credentials, toResponsesInput(msgs), tools, sessionId = activeConversationId()).getOrThrow()
                     }
                     response.throwIfFailed(service)
                     val text = response.outputText
@@ -1270,7 +1314,7 @@ class RemoteDataRepository(
         }
         if (useResponsesApi) {
             val response = retryApiCall {
-                requests.openAIResponses(service, credentials, toResponsesInput(bailoutMessages)).getOrThrow()
+                requests.openAIResponses(service, credentials, toResponsesInput(bailoutMessages), sessionId = activeConversationId()).getOrThrow()
             }
             response.throwIfFailed(service)
             return response.outputText.orEmpty()
@@ -1344,6 +1388,7 @@ class RemoteDataRepository(
      * delays the fallback chain (~3 s per service). Unknown/generic errors stay retryable.
      */
     private fun isNonRetryableException(e: Exception): Boolean = when (e) {
+        is CodexAuthException,
         is AnthropicInsufficientCreditsException,
         is OpenAICompatibleQuotaExhaustedException,
         is AnthropicInvalidApiKeyException,
@@ -2113,17 +2158,20 @@ class RemoteDataRepository(
     override fun importSettingsFromJson(json: String, sections: Set<ImportSection>, replace: Boolean): Int {
         val jsonObject = SharedJson.parseToJsonElement(json).jsonObject
         val toolIds = getPlatformToolDefinitions().map { it.id }
+        if (replace || ImportSection.SERVICES in sections) {
+            getConfiguredServiceInstances().forEach { codexAuth.signOut(it.instanceId) }
+            modelsByInstance.clear()
+        }
         return appSettings.importFromJson(jsonObject, toolIds, sections, replace)
     }
 
     override suspend fun askWithTools(prompt: String, instanceId: String?, conversationIdOverride: String?): String {
         // Selection: explicit instance > first remote > first on-device. The simple-tool
         // allowlist works at any context size, so on-device is always eligible for fallback.
-        val instances = getConfiguredServiceInstances()
-        val targetInstance = instanceId?.let { id -> instances.find { it.instanceId == id } }
-            ?: instances.firstOrNull { !Service.fromId(it.serviceId).isOnDevice }
-            ?: instances.firstOrNull { Service.fromId(it.serviceId).isOnDevice }
-            ?: return ""
+        val targetInstance = selectBackgroundServiceInstance(getConfiguredServiceInstances(), instanceId, preferRemote = true) {
+            hasValidInstanceApiKey(it.instanceId, Service.fromId(it.serviceId))
+        }
+            ?: throw GenericNetworkException("No usable model provider. Sign in with ChatGPT or configure a provider in Settings.")
         val service = Service.fromId(targetInstance.serviceId)
         val messages = listOf(History(role = History.Role.USER, content = prompt))
         // Use a local history to avoid polluting the current conversation's chatHistory
@@ -2143,15 +2191,17 @@ class RemoteDataRepository(
     }
 
     override suspend fun askSilently(question: String): String {
-        val service = currentService()
-        val firstInstance = getConfiguredServiceInstances().firstOrNull() ?: return ""
+        val firstInstance = selectBackgroundServiceInstance(getConfiguredServiceInstances()) {
+            hasValidInstanceApiKey(it.instanceId, Service.fromId(it.serviceId))
+        } ?: throw GenericNetworkException("No usable model provider. Sign in with ChatGPT or configure a provider in Settings.")
+        val service = Service.fromId(firstInstance.serviceId)
         val messages = listOf(History(role = History.Role.USER, content = question))
 
         if (service.isOnDevice) {
             // Throwaway history — we don't want tool-execution rows leaking into the
             // visible chatHistory for a "silent" call. LOCAL variant of the system
             // prompt so small on-device models get the right section set.
-            val localPrompt = getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL)
+            val localPrompt = buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, appSettings.getInstanceModelId(firstInstance.instanceId))
             return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages)) { modelId ->
                 buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, modelId, toolsEnabled = false)
             }

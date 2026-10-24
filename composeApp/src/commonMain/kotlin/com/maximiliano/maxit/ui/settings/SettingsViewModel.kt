@@ -39,9 +39,12 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.collections.immutable.toPersistentSet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -49,11 +52,13 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.error_unknown
 import maxit.composeapp.generated.resources.error_unrecognized_github_repo
 import org.jetbrains.compose.resources.getString
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -74,6 +79,7 @@ class SettingsViewModel(
     private var connectionCheckJobs: MutableMap<String, Job> = mutableMapOf()
     private var hasCheckedInitialConnection = false
     private var pendingDeleteJob: Job? = null
+    private val codexJobs = mutableMapOf<String, Job>()
 
     private fun buildFullState(): SettingsUiState = SettingsUiState(
         configuredServices = buildConfiguredServiceEntries().toImmutableList(),
@@ -203,6 +209,9 @@ class SettingsViewModel(
         onPrepareExport = ::onPrepareExport,
         onImportSettings = ::onImportSettings,
         onUndoDelete = ::onUndoDelete,
+        onBeginCodexSignIn = ::onBeginCodexSignIn,
+        onCancelCodexSignIn = ::onCancelCodexSignIn,
+        onSignOutCodex = ::onSignOutCodex,
     )
 
     private val _state = MutableStateFlow(buildFullState())
@@ -304,12 +313,13 @@ class SettingsViewModel(
         ConfiguredServiceEntry(
             instanceId = instance.instanceId,
             service = service,
-            apiKey = dataRepository.getInstanceApiKey(instance.instanceId),
+            apiKey = if (service == Service.OpenAICodex) "" else dataRepository.getInstanceApiKey(instance.instanceId),
             baseUrl = dataRepository.getInstanceBaseUrl(instance.instanceId, service),
             selectedModel = models.firstOrNull { it.isSelected },
             models = models.toImmutableList(),
             useCustomModel = dataRepository.getInstanceUseCustomModel(instance.instanceId),
             customModelId = dataRepository.getInstanceCustomModelId(instance.instanceId),
+            codexAuth = codexAuthState(instance.instanceId, service),
         )
     }
 
@@ -320,6 +330,7 @@ class SettingsViewModel(
         // Hide on-device services on platforms that don't support them
         return Service.all
             .filter { it != Service.Free }
+            .filter { it != Service.OpenAICodex || currentPlatform !is Platform.Web }
             .filter { !it.isOnDevice || dataRepository.isLocalInferenceAvailable() }
             .sortedWith(
                 compareBy<Service> {
@@ -334,10 +345,17 @@ class SettingsViewModel(
 
     private fun refreshServiceList() {
         _state.update { current ->
-            val existingStatuses = current.configuredServices.associate { it.instanceId to it.connectionStatus }
+            val existingEntries = current.configuredServices.associateBy { it.instanceId }
             val newEntries = buildConfiguredServiceEntries().map { entry ->
-                val preservedStatus = existingStatuses[entry.instanceId]
-                if (preservedStatus != null) entry.copy(connectionStatus = preservedStatus) else entry
+                val existing = existingEntries[entry.instanceId]
+                if (existing != null) {
+                    entry.copy(
+                        connectionStatus = existing.connectionStatus,
+                        codexAuth = if (codexJobs.containsKey(entry.instanceId)) existing.codexAuth else entry.codexAuth,
+                    )
+                } else {
+                    entry
+                }
             }
             current.copy(
                 configuredServices = newEntries.toImmutableList(),
@@ -358,6 +376,7 @@ class SettingsViewModel(
     }
 
     private fun onRemoveService(instanceId: String) {
+        onCancelCodexSignIn(instanceId)
         commitPendingDeletion()
         _state.update {
             it.copy(
@@ -792,6 +811,9 @@ class SettingsViewModel(
     private fun onImportSettings(bytes: ByteArray, sections: Set<ImportSection>, replace: Boolean): ImportResult = try {
         val currentTab = _state.value.currentTab
         val errors = dataRepository.importSettingsFromJson(bytes.decodeToString(), sections, replace)
+        // Rebuilt state must not hide an authorization job that still blocks another sign-in.
+        codexJobs.values.toList().forEach { it.cancel() }
+        codexJobs.clear()
         // Import writes conversations to settings, but the chat list reads them from
         // ConversationStorage's in-memory flow — refresh it so imported chats appear
         // without an app restart.
@@ -1086,6 +1108,8 @@ class SettingsViewModel(
     }
 
     override fun onCleared() {
+        codexJobs.values.toList().forEach { it.cancel() }
+        codexJobs.clear()
         pendingDeleteJob?.cancel()
         pendingDeleteJob = null
         val deletion = _state.value.pendingDeletion ?: run {
@@ -1105,6 +1129,142 @@ class SettingsViewModel(
         super.onCleared()
     }
 
+    private fun codexAuthState(instanceId: String, service: Service): CodexAuthState = CodexAuthState(
+        status = when {
+            service != Service.OpenAICodex -> CodexAuthStatus.SignedOut
+            currentPlatform is Platform.Web -> CodexAuthStatus.Unsupported
+            dataRepository.isCodexSignedIn(instanceId) -> CodexAuthStatus.SignedIn
+            else -> CodexAuthStatus.SignedOut
+        },
+    )
+
+    private fun updateCodexAuth(instanceId: String, auth: CodexAuthState) {
+        _state.update { state ->
+            state.copy(
+                configuredServices = state.configuredServices.map { entry ->
+                    if (entry.instanceId == instanceId) entry.copy(codexAuth = auth) else entry
+                }.toImmutableList(),
+            )
+        }
+    }
+
+    private fun onBeginCodexSignIn(instanceId: String) {
+        val entry = _state.value.configuredServices.find { it.instanceId == instanceId } ?: return
+        if (entry.service != Service.OpenAICodex || currentPlatform is Platform.Web ||
+            codexJobs.containsKey(instanceId) || dataRepository.isCodexSignedIn(instanceId) ||
+            _state.value.pendingDeletion == PendingDeletion.Service(instanceId)
+        ) {
+            return
+        }
+        updateCodexAuth(instanceId, CodexAuthState(status = CodexAuthStatus.RequestingCode))
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            var receivedCode = false
+            try {
+                val authorization = dataRepository.beginCodexSignIn(instanceId)
+                coroutineContext.ensureActive()
+                receivedCode = true
+                updateCodexAuth(
+                    instanceId,
+                    CodexAuthState(
+                        status = CodexAuthStatus.Waiting,
+                        userCode = authorization.userCode,
+                        verificationUri = authorization.verificationUri,
+                        expiresAtMillis = authorization.expiresAtMillis,
+                    ),
+                )
+                val remaining = authorization.expiresAtMillis - Clock.System.now().toEpochMilliseconds()
+                val completed = remaining > 0 && withTimeoutOrNull(remaining) {
+                    dataRepository.completeCodexSignIn(instanceId, authorization)
+                    true
+                } == true
+                coroutineContext.ensureActive()
+                if (!completed) {
+                    updateCodexAuth(instanceId, CodexAuthState(error = CodexAuthError.Expired))
+                    return@launch
+                }
+                updateCodexAuth(instanceId, codexAuthState(instanceId, Service.OpenAICodex))
+                reloadCodexModels(instanceId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                coroutineContext.ensureActive()
+                // Never surface server exception text: authentication responses may contain secrets.
+                updateCodexAuth(
+                    instanceId,
+                    CodexAuthState(
+                        error = if (receivedCode) {
+                            CodexAuthError.SignInFailed
+                        } else {
+                            CodexAuthError.RequestFailed
+                        },
+                    ),
+                )
+            } finally {
+                if (codexJobs[instanceId] === coroutineContext[Job]) codexJobs.remove(instanceId)
+            }
+        }
+        codexJobs[instanceId] = job
+        job.start()
+    }
+
+    private fun onCancelCodexSignIn(instanceId: String) {
+        val entry = _state.value.configuredServices.find { it.instanceId == instanceId } ?: return
+        if (entry.service != Service.OpenAICodex) return
+        codexJobs.remove(instanceId)?.cancel()
+        updateCodexAuth(instanceId, codexAuthState(instanceId, entry.service))
+        updateConnectionStatus(instanceId, ConnectionStatus.Unknown)
+    }
+
+    private fun onSignOutCodex(instanceId: String) {
+        val entry = _state.value.configuredServices.find { it.instanceId == instanceId } ?: return
+        if (entry.service != Service.OpenAICodex) return
+        codexJobs.remove(instanceId)?.cancel()
+        dataRepository.signOutCodex(instanceId)
+        dataRepository.clearInstanceModels(instanceId, entry.service)
+        updateCodexAuth(instanceId, codexAuthState(instanceId, entry.service))
+        updateConnectionStatus(instanceId, ConnectionStatus.Unknown)
+        refreshInstanceModels(instanceId)
+    }
+
+    private fun checkCodexConnection(instanceId: String) {
+        if (codexJobs.containsKey(instanceId) || currentPlatform is Platform.Web ||
+            _state.value.pendingDeletion == PendingDeletion.Service(instanceId)
+        ) {
+            return
+        }
+        updateCodexAuth(instanceId, codexAuthState(instanceId, Service.OpenAICodex))
+        if (!dataRepository.isCodexSignedIn(instanceId)) {
+            updateConnectionStatus(instanceId, ConnectionStatus.Unknown)
+            return
+        }
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                reloadCodexModels(instanceId)
+            } finally {
+                if (codexJobs[instanceId] === coroutineContext[Job]) codexJobs.remove(instanceId)
+            }
+        }
+        codexJobs[instanceId] = job
+        job.start()
+    }
+
+    private suspend fun reloadCodexModels(instanceId: String) {
+        updateConnectionStatus(instanceId, ConnectionStatus.Checking)
+        try {
+            dataRepository.validateConnection(Service.OpenAICodex, instanceId)
+            kotlin.coroutines.coroutineContext.ensureActive()
+            updateCodexAuth(instanceId, codexAuthState(instanceId, Service.OpenAICodex))
+            updateConnectionStatus(instanceId, ConnectionStatus.Connected)
+            refreshInstanceModels(instanceId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            kotlin.coroutines.coroutineContext.ensureActive()
+            updateCodexAuth(instanceId, codexAuthState(instanceId, Service.OpenAICodex))
+            updateConnectionStatus(instanceId, ConnectionStatus.ErrorConnectionFailed)
+        }
+    }
+
     private fun checkAllConnections() {
         for (entry in _state.value.configuredServices) {
             checkConnection(entry.instanceId, entry.service)
@@ -1120,6 +1280,10 @@ class SettingsViewModel(
     }
 
     private fun checkConnection(instanceId: String, service: Service) {
+        if (service == Service.OpenAICodex) {
+            checkCodexConnection(instanceId)
+            return
+        }
         if (service == Service.Free) {
             updateConnectionStatus(instanceId, ConnectionStatus.Connected)
             return
@@ -1150,6 +1314,10 @@ class SettingsViewModel(
     }
 
     private fun validateConnectionWithStatus(instanceId: String, service: Service) {
+        if (service == Service.OpenAICodex) {
+            checkCodexConnection(instanceId)
+            return
+        }
         updateConnectionStatus(instanceId, ConnectionStatus.Checking)
         viewModelScope.launch(backgroundDispatcher) {
             // Android 17+ blocks LAN traffic without the local network permission, so ask

@@ -37,7 +37,21 @@ data class ConfiguredServiceEntry(
     /** OpenAI-Compatible only: when true, [customModelId] is used for chat instead of [selectedModel]. */
     val useCustomModel: Boolean = false,
     val customModelId: String = "",
+    val codexAuth: CodexAuthState = CodexAuthState(),
 )
+
+@Immutable
+data class CodexAuthState(
+    val status: CodexAuthStatus = CodexAuthStatus.SignedOut,
+    val userCode: String? = null,
+    val verificationUri: String? = null,
+    val expiresAtMillis: Long? = null,
+    val error: CodexAuthError? = null,
+)
+
+enum class CodexAuthStatus { SignedOut, RequestingCode, Waiting, SignedIn, Unsupported }
+
+enum class CodexAuthError { RequestFailed, SignInFailed, Expired }
 
 enum class ConnectionStatus {
     Unknown,

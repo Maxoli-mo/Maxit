@@ -2,7 +2,7 @@
 
 # Multi-Service
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-24
 
 Maxit supports user-configured LLM providers and local models. Each provider uses one of three API formats: **OpenAI-compatible** (most services), **Gemini native**, or **Anthropic native** -- plus **LiteRT on-device** for local inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Maxit switches to it per model, transparently. Users can configure multiple service instances, reorder them, and Maxit automatically falls back through the configured chain on failure.
 
@@ -65,6 +65,22 @@ Two deliberate limits:
 
 Matching on the version rather than a fixed list means a new OpenAI family is routed correctly on release, with no app update.
 
+### OpenAI Codex (ChatGPT sign-in)
+
+On Android and desktop, **OpenAI Codex (ChatGPT)** connects a ChatGPT account instead of using an OpenAI API key. It is a separate provider; existing OpenAI connections and API billing are unchanged. Access and usage limits depend on the account's Codex entitlement. Subscription access is not marked as a free tier.
+
+Choose **Sign in with ChatGPT**, open the verification page, and enter the displayed device code. Maxit waits for approval; cancelling stops that attempt. Codes expire after 15 minutes. No callback listener, pasted access token, or API key is needed. If the account requires it, enable device-code authorization in ChatGPT settings first. **Sign out** removes the local session; it does not revoke the account's sessions on OpenAI's website.
+
+While waiting for sign-in, a compact code panel keeps the selectable code and a labelled copy button together. **Open sign-in** is the primary action beside **Cancel**, with a small waiting indicator underneath; the full address appears only if opening the browser fails. Actions wrap at narrow widths or large text sizes rather than shrinking text or touch targets. The longer account explanation appears only before starting sign-in.
+
+After sign-in, the compact card places connection status beside **Sign out**, followed by the model picker. **Custom model** is optional: checking it reveals a manual model-ID field; unchecking it restores the list choice without losing the typed ID. Explanatory sign-in copy is hidden once connected. Sign-in instructions and device codes remain readable in both light and dark themes.
+
+Each configured instance has its own session, stored in the native encrypted settings backend. Tokens are refreshed before expiry and after one unauthorized response; rotated credentials are saved together. Sign-out, removal, and settings replacement invalidate pending authentication so a late response cannot restore a removed session. In-flight turns stay bound to their original login: retries and later tool rounds cannot send that turn's history under a replacement account, and stale results are rejected. Tokens never appear in the settings UI, debug HTTP logs, or settings exports. Imported Codex configurations require sign-in again.
+
+Available models come from the signed-in account's Codex model list, not the API-key model list. All Codex models use the ChatGPT Responses endpoint, including older model families. Normal chat, images where supported, tool calls, MCP, skills, silent requests, and scheduled/background requests share the existing app flows. Automatic background and silent requests skip signed-out accounts, just as foreground chat does; an explicitly selected background account reports its own authentication error instead of switching accounts. If no usable provider remains, background and silent requests fail rather than returning an empty success. Scheduled tasks record failure, heartbeat inputs remain pending, and failed conversation summarization keeps older turns while the history still fits the context window. The required event stream is consumed internally; answers still appear as completed turns, not token-by-token. Failed, incomplete, and interrupted streams are errors, not successful empty answers. Full history is resent with server-side storage disabled; the same reasoning-replay limits described above apply. Uncompressed request bodies are capped at 1 MiB locally, with an actionable error for oversized conversations or attachments; request compression is not implemented.
+
+Codex is unavailable in the Web build: its credential store is browser localStorage and cross-origin endpoint access is not established. No proxy or new dependency is added. This integration follows the public Codex device-login protocol; it is not a guarantee that OpenAI will keep that protocol unchanged. Live account sign-in and inference require an authorized user's acceptance test.
+
 ### Session Header (OpenCode)
 
 OpenCode Zen identifies the client behind a request by an `x-opencode-session` header and rejects requests that arrive without one. Maxit sends the current conversation id as that session id, so one chat -- however many turns, tool round-trips or bailout retries it takes -- reads as a single session upstream, and separate chats read as separate sessions. Requests that belong to no conversation (fetching the model list, connection validation) carry a session id generated once per app process instead.
@@ -81,6 +97,7 @@ The id is Maxit's own random conversation identifier; nothing about the user or 
 | Gemini | `gemini` | Yes | Gemini native |
 | Anthropic | `anthropic` | Yes | Anthropic native |
 | OpenAI | `openai` | Yes | OpenAI-compatible |
+| OpenAI Codex (ChatGPT) | `openai-codex` | No — ChatGPT sign-in | ChatGPT Responses event stream (Android/desktop) |
 | DeepSeek | `deepseek` | Yes | OpenAI-compatible |
 | Mistral | `mistral` | Yes | OpenAI-compatible |
 | xAI | `xai` | Yes | OpenAI-compatible |
@@ -179,11 +196,17 @@ Users manage services through the settings screen:
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Service instance storage, credential persistence, migration |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Fallback chain, request orchestration |
 | `composeApp/src/commonMain/.../network/Requests.kt` | HTTP clients for all API formats |
+| `composeApp/src/commonMain/.../network/CodexAuth.kt` | Codex device authorization, native session persistence, refresh and disconnect |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Authenticated Codex event streams, safe errors and account model discovery |
+| `composeApp/src/commonMain/.../data/BackgroundServiceSelection.kt` | Credential-aware automatic background and silent target selection |
+| `composeApp/src/desktopTest/.../data/SignedOutCodexWorkTest.kt` | Signed-out request, scheduler, heartbeat queue and conversation-compaction regressions |
 | `composeApp/src/commonMain/.../data/ModelCapabilities.kt` | Per-model gates: tool support, image support, Responses API routing |
 | `composeApp/src/commonMain/.../data/providers/OpenAIResponsesInput.kt` | Translates chat-completions messages into Responses API input items |
 | `composeApp/src/commonMain/.../network/dtos/openairesponses/` | OpenAI Responses API DTOs |
 | `composeApp/src/commonMain/.../network/dtos/anthropic/` | Anthropic Messages API DTOs |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Connection validation, service management UI logic |
+| `composeApp/src/commonMain/.../ui/settings/CodexSettings.kt` | Theme-aware Codex sign-in states and optional manual model entry |
+| `composeApp/src/desktopTest/.../ui/settings/CodexSettingsLayoutTest.kt` | Offscreen phone/desktop sign-in renders, large-text layout and action checks |
 | `composeApp/src/commonMain/.../tools/PermissionController.kt` | Runtime permission requests, including the local network gate for LAN server URLs (Android 17+) |
 | `composeApp/src/commonMain/.../tools/LocalNetworkUrl.kt` | Detects LAN base URLs that need the local network permission |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Chat screen, renders ServiceSelector |

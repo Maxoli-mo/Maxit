@@ -20,6 +20,7 @@ import com.maximiliano.maxit.data.runMigrations
 import com.maximiliano.maxit.email.EmailPoller
 import com.maximiliano.maxit.inference.createLocalInferenceEngine
 import com.maximiliano.maxit.mcp.McpServerManager
+import com.maximiliano.maxit.network.CodexAuth
 import com.maximiliano.maxit.network.Requests
 import com.maximiliano.maxit.notifications.NotificationReader
 import com.maximiliano.maxit.skills.SkillManager
@@ -59,8 +60,11 @@ val appModule = module {
             it.runMigrations(createLegacySettings())
         }
     }
+    single<CodexAuth> {
+        CodexAuth(get())
+    }
     single<Requests> {
-        Requests()
+        Requests(codexAuth = get())
     }
     single<ConversationStorage> {
         ConversationStorage(get(), createConversationPersistence(get()))
@@ -125,6 +129,7 @@ val appModule = module {
             skillManager = get(),
             sandboxController = get(),
             localInferenceEngine = createLocalInferenceEngine(),
+            codexAuth = get(),
         )
     }
     single<DataRepository> { get<RemoteDataRepository>() }

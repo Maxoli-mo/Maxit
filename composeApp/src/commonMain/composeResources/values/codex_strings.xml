@@ -1,0 +1,20 @@
+<resources>
+    <string name="codex_description">Use your ChatGPT plan. No API key needed.</string>
+    <string name="codex_custom_model_hint">Use a model ID supported by your ChatGPT account.</string>
+    <string name="codex_sign_in">Sign in with ChatGPT</string>
+    <string name="codex_requesting">Requesting a sign-in code…</string>
+    <string name="codex_waiting">Enter this code on the sign-in page.</string>
+    <string name="codex_code_label">Your sign-in code</string>
+    <string name="codex_copy_code">Copy code</string>
+    <string name="codex_code_copied">Code copied</string>
+    <string name="codex_awaiting_approval">Waiting for approval…</string>
+    <string name="codex_open_browser">Open sign-in</string>
+    <string name="codex_cancel">Cancel</string>
+    <string name="codex_signed_in">Signed in with ChatGPT</string>
+    <string name="codex_sign_out">Sign out</string>
+    <string name="codex_request_failed">Could not request a sign-in code. Check your connection and enable device-code sign-in in your ChatGPT settings if required, then try again.</string>
+    <string name="codex_sign_in_failed">Sign-in did not finish. Request a new code and try again.</string>
+    <string name="codex_expired">This sign-in code has expired. Request a new code to try again.</string>
+    <string name="codex_browser_failed">Could not open your browser. Copy the address below into a browser on this or another device.</string>
+    <string name="codex_unsupported">ChatGPT sign-in is available in Maxit for Android and desktop, not in the web app.</string>
+</resources>

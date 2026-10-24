@@ -10,6 +10,7 @@ import com.maximiliano.maxit.inference.ModelImportError
 import com.maximiliano.maxit.inference.ModelImportResult
 import com.maximiliano.maxit.linux.LinuxDistro
 import com.maximiliano.maxit.mcp.McpServerConfig
+import com.maximiliano.maxit.network.CodexDeviceAuthorization
 import com.maximiliano.maxit.network.tools.ToolInfo
 import com.maximiliano.maxit.skills.SkillManifest
 import com.maximiliano.maxit.ui.chat.History
@@ -48,6 +49,12 @@ interface DataRepository {
     fun updateInstanceCustomModelId(instanceId: String, modelId: String)
     fun clearInstanceModels(instanceId: String, service: Service)
     suspend fun validateConnection(service: Service, instanceId: String)
+
+    // ChatGPT subscription authentication (tokens never enter UI state or settings exports).
+    fun isCodexSignedIn(instanceId: String): Boolean
+    suspend fun beginCodexSignIn(instanceId: String): CodexDeviceAuthorization
+    suspend fun completeCodexSignIn(instanceId: String, authorization: CodexDeviceAuthorization)
+    fun signOutCodex(instanceId: String)
 
     suspend fun ask(
         question: String?,

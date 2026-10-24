@@ -127,6 +127,7 @@ fun AppSettings.setInstanceBaseUrl(instanceId: String, baseUrl: String) {
 }
 
 fun AppSettings.removeInstanceSettings(instanceId: String) {
+    settings.remove("instance_${instanceId}_codex_auth")
     settings.remove("instance_${instanceId}_api_key")
     settings.remove("instance_${instanceId}_model_id")
     settings.remove("instance_${instanceId}_base_url")

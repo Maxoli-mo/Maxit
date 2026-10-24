@@ -2,7 +2,9 @@
 
 # Settings Export / Import
 
-**Last reviewed:** 2026-10-21
+**Last reviewed:** 2026-10-24
+
+**Last verified:** 2026-10-24
 
 Users can back up and restore their Maxit configuration and data (services, agent instructions, memory, tasks, heartbeat, email, SMS, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
 
@@ -38,6 +40,7 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 - Scheduled tasks and memories with missing or invalid fields are auto-filled with sensible defaults (e.g. generated UUIDs for missing IDs, `PENDING` for invalid task status, `GENERAL` for invalid memory category). This ensures items are preserved even if the JSON was hand-edited or exported from a different version. Conversations that cannot be decoded are skipped individually; the rest are imported.
 - Imported conversations replace all existing conversations (on database-backed platforms they are applied to the local database on the next load). In Replace mode, leaving Conversations unselected clears all conversations.
 - OpenAI-compatible base URLs without a version path get `/v1` appended on import.
+- Codex provider instances and model choices can transfer, but ChatGPT access and refresh tokens cannot. Importing Services, or replacing settings, clears existing Codex sessions; sign in again after import. A merge that leaves Services unselected preserves completed sessions. Any applied import cancels unfinished Codex sign-in attempts before rebuilding the screen, including merges of unrelated sections; a new attempt can start immediately.
 
 ## Import Sections
 
@@ -74,6 +77,7 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 - `daemon_enabled` (platform-specific, should not transfer between devices)
 - `app_opens` (analytics counter)
 - `encryption_key` (security-sensitive)
+- ChatGPT/Codex OAuth sessions, access tokens, refresh tokens, and pending device authorizations
 - `ui_scale` (platform-specific, desktop may differ from mobile)
 - Appearance and general preferences: `theme_mode`, `dynamic_ui_enabled`
 - Free-tier preferences: `free_mode`, `free_service_primary`
@@ -99,3 +103,4 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 | `composeApp/.../ui/settings/ExportImportSection.kt` | Export/Import card with FileKit dialogs, `ExportPreviewDialog`, `ImportPreviewDialog` |
 | `composeApp/.../testutil/FakeDataRepository.kt` | Test stubs |
 | `composeApp/.../data/AppSettingsExportImportTest.kt` | Unit tests including v1 snapshot test |
+| `composeApp/src/desktopTest/.../ui/settings/SettingsCodexSignInTest.kt` | Codex sign-in lifecycle, including cancellation when importing settings |

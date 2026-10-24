@@ -254,6 +254,17 @@ sealed class Service(
         supportsPdf = true,
     )
 
+    data object OpenAICodex : Service(
+        id = "openai-codex",
+        displayName = "OpenAI Codex (ChatGPT)",
+        icon = Res.drawable.ic_service_openai,
+        requiresApiKey = false,
+        defaultModel = null,
+        settingsKeyPrefix = "openai-codex",
+        responsesUrl = "https://chatgpt.com/backend-api/codex/responses",
+        modelsUrl = "https://chatgpt.com/backend-api/codex/models",
+    )
+
     data object DeepSeek : Service(
         id = "deepseek",
         displayName = "DeepSeek",
@@ -574,7 +585,7 @@ sealed class Service(
     )
 
     companion object {
-        val all: List<Service> get() = listOf(Free, AtlasCloud, Gemini, Anthropic, OpenAI, DeepSeek, Mistral, XAI, OpenRouter, Requesty, Groq, Nvidia, Cerebras, OllamaCloud, LongCat, Together, HuggingFace, Venice, Moonshot, Zai, ZaiCodingPlan, Minimax, AiHubMix, DeepInfra, FireworksAI, OpenCode, PublicAI, AIHorde, OneMinAI, Perplexity, OpenAICompatible, LiteRT)
+        val all: List<Service> get() = listOf(Free, AtlasCloud, Gemini, Anthropic, OpenAI, OpenAICodex, DeepSeek, Mistral, XAI, OpenRouter, Requesty, Groq, Nvidia, Cerebras, OllamaCloud, LongCat, Together, HuggingFace, Venice, Moonshot, Zai, ZaiCodingPlan, Minimax, AiHubMix, DeepInfra, FireworksAI, OpenCode, PublicAI, AIHorde, OneMinAI, Perplexity, OpenAICompatible, LiteRT)
 
         const val DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "http://localhost:11434/v1"
 

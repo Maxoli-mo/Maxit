@@ -29,3 +29,9 @@ Install the Android APK from `androidApp/build/outputs/apk/foss/debug/`. For Web
 Configure a provider before chatting; there is no built-in Free proxy or automatic Free fallback. For local inference on Android or Linux, add the **Local Model** service and download or import a supported model. See [On-Device Inference](features/on-device-inference.md).
 
 See [Multi-Service](features/multi-service.md) for provider configuration and fallback behavior.
+
+### Use a ChatGPT account with Codex
+
+On Android or desktop, add **OpenAI Codex (ChatGPT)**, choose **Sign in with ChatGPT**, open the verification page, and enter the displayed code. Leave Maxit open while approving, then select a model from your account's list. Device-code authorization may need to be enabled in your ChatGPT settings. Access and limits follow your account's Codex entitlement; this does not use OpenAI API-key billing.
+
+Use **Sign out** to remove the local session. Settings backups never contain the login tokens, so imported connections need sign-in again. Codex authentication is not available in the Web build.

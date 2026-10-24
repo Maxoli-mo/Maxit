@@ -186,6 +186,14 @@ class FakeDataRepository : DataRepository {
         // No-op in tests
     }
 
+    override fun isCodexSignedIn(instanceId: String): Boolean = false
+
+    override suspend fun beginCodexSignIn(instanceId: String): com.maximiliano.maxit.network.CodexDeviceAuthorization = error("No fake Codex authorization configured")
+
+    override suspend fun completeCodexSignIn(instanceId: String, authorization: com.maximiliano.maxit.network.CodexDeviceAuthorization) = Unit
+
+    override fun signOutCodex(instanceId: String) = Unit
+
     fun setConfiguredServices(vararg services: Service) {
         configuredInstances.clear()
         val usedIds = mutableSetOf<String>()

@@ -62,6 +62,8 @@ data class ServiceCredentials(
     val apiKey: String = "",
     val modelId: String = "",
     val baseUrl: String = "",
+    val instanceId: String = "",
+    val codexSessionGeneration: Long? = null,
 )
 
 /**
@@ -115,6 +117,8 @@ private fun <T> List<Tool>.toRequestTools(convert: (Tool) -> T): List<T>? = mapN
  */
 private inline fun <T> openAICompatibleResult(block: () -> Result<T>): Result<T> = try {
     block()
+} catch (e: CodexAuthException) {
+    Result.failure(e)
 } catch (e: OpenAICompatibleApiException) {
     Result.failure(e)
 } catch (e: CancellationException) {
@@ -124,7 +128,16 @@ private inline fun <T> openAICompatibleResult(block: () -> Result<T>): Result<T>
     Result.failure(OpenAICompatibleConnectionException())
 }
 
-class Requests {
+class Requests(private val codexAuth: CodexAuth? = null) {
+
+    private val codexTransport by lazy {
+        CodexResponses(
+            credentials = { instanceId, forceRefresh ->
+                codexAuth?.credentials(instanceId, forceRefresh) ?: throw codexSignInError()
+            },
+            currentGeneration = { instanceId -> codexAuth?.sessionGeneration(instanceId) },
+        )
+    }
 
     private val defaultClient = httpClient {
         install(ContentNegotiation) {
@@ -291,27 +304,37 @@ class Requests {
         credentials: ServiceCredentials,
         input: List<JsonObject>,
         tools: List<Tool> = emptyList(),
+        sessionId: String? = null,
     ): Result<OpenAIResponsesResponseDto> = try {
-        val apiKey = getApiKeyOrThrow(service, credentials)
-        val responsesUrl = service.responsesUrl
-            ?: throw OpenAICompatibleGenericException("Responses URL not configured for ${service.displayName}")
-        val url = resolveUrl(service, credentials, responsesUrl)
-        val response: HttpResponse =
-            defaultClient.post(url) {
+        val request = OpenAIResponsesRequestDto(
+            input = input,
+            model = credentials.modelId.ifEmpty { null },
+            tools = tools.toRequestTools { it.toResponsesTool() },
+        )
+        if (service == Service.OpenAICodex) {
+            Result.success(
+                codexTransport.responses(
+                    credentials.instanceId,
+                    request,
+                    sessionId?.takeIf { it.isNotBlank() } ?: processSessionId,
+                    credentials.codexSessionGeneration,
+                ),
+            )
+        } else {
+            val apiKey = getApiKeyOrThrow(service, credentials)
+            val responsesUrl = service.responsesUrl
+                ?: throw OpenAICompatibleGenericException("Responses URL not configured for ${service.displayName}")
+            val url = resolveUrl(service, credentials, responsesUrl)
+            val response: HttpResponse = defaultClient.post(url) {
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
-                setBody(
-                    OpenAIResponsesRequestDto(
-                        input = input,
-                        model = credentials.modelId.ifEmpty { null },
-                        tools = tools.toRequestTools { it.toResponsesTool() },
-                    ),
-                )
+                setBody(request)
             }
-        if (response.status.isSuccess()) {
-            Result.success(response.body())
-        } else {
-            handleOpenAICompatibleError(service, credentials, response)
+            if (response.status.isSuccess()) {
+                Result.success(response.body())
+            } else {
+                handleOpenAICompatibleError(service, credentials, response)
+            }
         }
     } catch (e: OpenAICompatibleApiException) {
         Result.failure(e)
@@ -319,8 +342,14 @@ class Requests {
         Result.failure(OpenAICompatibleConnectionException())
     } catch (e: CancellationException) {
         throw e
+    } catch (e: CodexAuthException) {
+        Result.failure(e)
     } catch (e: Exception) {
         Result.failure(mapOpenAICompatibleException(e))
+    }
+
+    suspend fun getCodexModels(credentials: ServiceCredentials): Result<OpenAICompatibleModelResponseDto> = openAICompatibleResult {
+        Result.success(codexTransport.models(credentials.instanceId, credentials.codexSessionGeneration))
     }
 
     suspend fun getOpenAICompatibleModels(

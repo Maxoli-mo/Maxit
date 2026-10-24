@@ -178,6 +178,9 @@ internal fun ServicesContent(uiState: SettingsUiState, actions: SettingsActions)
                     modelContextTokens = uiState.modelContextTokens,
                     onOpenAppPermissionSettings = actions.onOpenAppPermissionSettings,
                     onRecheckLocalNetworkPermission = { actions.onRecheckLocalNetworkPermission(entry.instanceId) },
+                    onBeginCodexSignIn = { actions.onBeginCodexSignIn(entry.instanceId) },
+                    onCancelCodexSignIn = { actions.onCancelCodexSignIn(entry.instanceId) },
+                    onSignOutCodex = { actions.onSignOutCodex(entry.instanceId) },
                 )
             }
         }
@@ -297,6 +300,9 @@ private fun ConfiguredServiceCardContent(
     modelContextTokens: ImmutableMap<String, Int> = persistentMapOf(),
     onOpenAppPermissionSettings: () -> Unit = {},
     onRecheckLocalNetworkPermission: () -> Unit = {},
+    onBeginCodexSignIn: () -> Unit = {},
+    onCancelCodexSignIn: () -> Unit = {},
+    onSignOutCodex: () -> Unit = {},
 ) {
     // Clear a stale denied status when the user returns from granting the permission in
     // system settings; the recheck never re-prompts, so this is a no-op while still denied.
@@ -403,6 +409,16 @@ private fun ConfiguredServiceCardContent(
                         onDeleteModel = onDeleteLocalModel,
                         onChangeModelContextTokens = onChangeModelContextTokens,
                         modelContextTokens = modelContextTokens,
+                    )
+                } else if (entry.service == Service.OpenAICodex) {
+                    CodexSettings(
+                        entry = entry,
+                        onBeginSignIn = onBeginCodexSignIn,
+                        onCancelSignIn = onCancelCodexSignIn,
+                        onSignOut = onSignOutCodex,
+                        onSelectModel = onSelectModel,
+                        onToggleUseCustomModel = onToggleUseCustomModel,
+                        onChangeCustomModelId = onChangeCustomModelId,
                     )
                 } else if (entry.service is Service.OpenAICompatible) {
                     OpenAICompatibleSettings(
@@ -1003,7 +1019,7 @@ private fun DevicePerformanceLabel(performance: DevicePerformance) {
 }
 
 @Composable
-private fun ConnectionStatusIndicator(status: ConnectionStatus, onOpenAppPermissionSettings: () -> Unit = {}) {
+internal fun ConnectionStatusIndicator(status: ConnectionStatus, onOpenAppPermissionSettings: () -> Unit = {}) {
     when (status) {
         ConnectionStatus.Unknown -> return
 
