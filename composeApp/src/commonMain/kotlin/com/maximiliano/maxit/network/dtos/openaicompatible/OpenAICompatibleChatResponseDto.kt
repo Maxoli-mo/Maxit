@@ -50,9 +50,10 @@ internal object FlexibleContentSerializer : KSerializer<String> {
 @Serializable
 data class OpenAICompatibleChatResponseDto(
     val choices: List<Choice>,
+    val usage: kotlinx.serialization.json.JsonObject? = null,
 ) {
     @Serializable
-    data class Choice(val message: Message? = null) {
+    data class Choice(val message: Message? = null, @SerialName("finish_reason") val finishReason: String? = null) {
         @Serializable
         data class Message(
             val role: String? = null,
@@ -62,6 +63,9 @@ data class OpenAICompatibleChatResponseDto(
             @SerialName("reasoning_content")
             val reasoningContent: String? = null,
             val reasoning: String? = null,
+            @SerialName("reasoning_details")
+            val reasoningDetails: kotlinx.serialization.json.JsonArray? = null,
+            val refusal: String? = null,
             @SerialName("tool_calls")
             val toolCalls: List<ToolCall>? = null,
         ) {
@@ -72,7 +76,7 @@ data class OpenAICompatibleChatResponseDto(
             /** Returns [content] if non-blank, otherwise falls back to reasoning. */
             val effectiveContent: String?
                 get() {
-                    val raw = content?.takeIf { it.isNotBlank() } ?: effectiveReasoning
+                    val raw = content?.takeIf { it.isNotBlank() } ?: refusal?.takeIf { it.isNotBlank() } ?: effectiveReasoning
                     // Some providers (e.g. Ollama) embed tool calls as <TOOLCALL>[...] markers
                     // in the content field alongside structured tool_calls — strip them.
                     if (raw != null && !toolCalls.isNullOrEmpty()) {

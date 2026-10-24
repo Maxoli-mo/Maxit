@@ -38,7 +38,6 @@ internal data class HeartbeatPendingNotification(
  *
  * @param customOrDefaultPrompt leading free text — custom user prompt or [HeartbeatManager.DEFAULT_HEARTBEAT_PROMPT]
  * @param heartbeatAdditions tasks with trigger=HEARTBEAT; rendered as `## Heartbeat Additions` so their prompts run on every heartbeat. Empty list = section omitted
- * @param recentResponses last heartbeat responses to include for continuity; empty list = section omitted
  * @param pendingTasks time/cron tasks to include in the `## Pending Tasks` section (heartbeat tasks belong to [heartbeatAdditions] instead); empty list = section omitted
  * @param emailAccounts email account statuses; empty list = section omitted
  * @param pendingEmails new emails polled since the last heartbeat pickup; empty list = section omitted
@@ -48,7 +47,6 @@ internal data class HeartbeatPendingNotification(
 internal fun buildHeartbeatPrompt(
     customOrDefaultPrompt: String,
     heartbeatAdditions: List<ScheduledTask>,
-    recentResponses: List<String>,
     pendingTasks: List<ScheduledTask>,
     emailAccounts: List<EmailAccountSummary>,
     pendingEmails: List<HeartbeatPendingEmail>,
@@ -68,16 +66,6 @@ internal fun buildHeartbeatPrompt(
             append(addition.id)
             append("): ")
             append(addition.prompt)
-            append('\n')
-        }
-    }
-
-    if (recentResponses.isNotEmpty()) {
-        append("\n## Previous Heartbeat Results\n")
-        for ((i, response) in recentResponses.withIndex()) {
-            append(i + 1)
-            append(". ")
-            append(response)
             append('\n')
         }
     }

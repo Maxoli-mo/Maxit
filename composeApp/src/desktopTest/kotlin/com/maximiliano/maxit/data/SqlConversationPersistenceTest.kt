@@ -9,6 +9,7 @@ import com.russhwolf.settings.MapSettings
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -109,6 +110,38 @@ class SqlConversationPersistenceTest {
     }
 
     @Test
+    fun `duplicate replacement IDs preserve committed rows and reusable message cache`() {
+        val database = createDatabase()
+        val persistence = createPersistence(database = database)
+        val original = conversation("saved", 1000L, "committed")
+        persistence.replaceAll(listOf(original))
+
+        assertFailsWith<IllegalArgumentException> {
+            persistence.replaceAll(listOf(conversation("duplicate", 2000L, "first"), conversation("duplicate", 3000L, "second")))
+        }
+        val updated = original.copy(title = "still owned")
+        persistence.save(updated, emptyList())
+        assertEquals(listOf(updated), createPersistence(database = database).loadAll())
+    }
+
+    @Test
+    fun `duplicate pending imports preserve committed SQL rows and the rejected backup`() {
+        val database = createDatabase()
+        val settings = MapSettings()
+        val app = AppSettings(settings)
+        val persistence = createPersistence(settings, database)
+        val original = conversation("saved", 1000L, "committed")
+        persistence.replaceAll(listOf(original))
+        val duplicate = conversation("duplicate", 2000L, "first")
+        val pending = ConversationJson.encodeToString(ConversationsData(conversations = listOf(duplicate, duplicate.copy(title = "second"))))
+        app.setConversationsJson(pending)
+
+        assertFailsWith<IllegalArgumentException> { persistence.loadAll() }
+        assertEquals(pending, app.getConversationsJson())
+        assertEquals(listOf(original), createPersistence(database = database).loadAll())
+    }
+
+    @Test
     fun `pending settings key is imported into the database and removed`() {
         val settings = MapSettings()
         val appSettings = AppSettings(settings)
@@ -126,7 +159,7 @@ class SqlConversationPersistenceTest {
     }
 
     @Test
-    fun `attachment too large for a database row is dropped, keeping the message`() {
+    fun `large attachments round trip in cursor safe payload chunks`() {
         val database = createDatabase()
         val persistence = createPersistence(database = database)
         val huge = Conversation.Message(
@@ -139,24 +172,25 @@ class SqlConversationPersistenceTest {
 
         val loaded = persistence.loadAll().single().messages.single()
         assertEquals("What does this PDF say?", loaded.content)
-        assertTrue(loaded.attachments.isEmpty())
+        assertEquals(huge.attachments, loaded.attachments)
+        assertTrue(database.conversationQueries.selectPayloadChunks("c1", 0).executeAsList().all { it.encodeToByteArray().size < CURSOR_WINDOW_BYTES })
         assertTrue(storedMessageBytes(database).single() < CURSOR_WINDOW_BYTES)
     }
 
     @Test
-    fun `message text beyond the row budget is truncated instead of stored whole`() {
+    fun `large message text round trips without truncation`() {
         val database = createDatabase()
         val persistence = createPersistence(database = database)
         val huge = Conversation.Message(id = "m0", role = "assistant", content = "x".repeat(3_000_000))
         persistence.save(conversation("c1").copy(messages = listOf(huge)), emptyList())
 
         val loaded = persistence.loadAll().single().messages.single()
-        assertTrue(loaded.content.length < huge.content.length)
+        assertEquals(huge.content, loaded.content)
         assertTrue(storedMessageBytes(database).single() < CURSOR_WINDOW_BYTES)
     }
 
     @Test
-    fun `oversized rows written by older versions are skipped, not crashed on`() {
+    fun `oversized legacy rows are recovered through bounded substring reads`() {
         val database = createDatabase()
         val persistence = createPersistence(database = database)
         persistence.save(conversation("c1", 1000L, "Hello"), emptyList())
@@ -171,7 +205,17 @@ class SqlConversationPersistenceTest {
         )
 
         val loaded = persistence.loadAll().single()
-        assertEquals(listOf("Hello"), loaded.messages.map { it.content })
+        assertEquals(listOf("Hello", "x".repeat(3_000_000)), loaded.messages.map { it.content })
+    }
+
+    @Test
+    fun `oversized Unicode messages round trip without splitting surrogate pairs between SQL chunks`() {
+        val persistence = createPersistence()
+        repeat(2) { index ->
+            val original = conversation("emoji-$index").copy(messages = listOf(Conversation.Message("message", "assistant", "x".repeat(index) + "😀".repeat(300_000))))
+            persistence.save(original, listOf(original))
+            assertEquals(original, persistence.loadAll().single { it.id == original.id })
+        }
     }
 
     @Test

@@ -27,12 +27,15 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -110,9 +113,19 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
     // init keeps running; without the lock, a follow-up ask would see state != READY and
     // start a second concurrent load.
     private val initMutex = Mutex()
+    private var activeInitialization: CompletableDeferred<String?>? = null
+    private var activeCompletion: CompletableDeferred<Pair<String?, String?>>? = null
+
+    private fun checkNativeIdle() {
+        check(activeInitialization?.isCompleted != false && activeCompletion?.isCompleted != false) { "The native engine is still initializing or stopping. Wait for acknowledgement before using it again." }
+    }
+    override val supportsToolExecution: Boolean = false
 
     override suspend fun initialize(model: DownloadedModel, contextTokens: Int) {
-        initMutex.withLock { initializeLocked(model, contextTokens) }
+        initMutex.withLock {
+            checkNativeIdle()
+            initializeLocked(model, contextTokens)
+        }
     }
 
     private suspend fun initializeLocked(model: DownloadedModel, contextTokens: Int) {
@@ -129,14 +142,16 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
             bridge.releaseEngine()
             delay(GPU_DRAIN_DELAY_MS.milliseconds)
 
-            val errorMessage = suspendCancellableCoroutine<String?> { cont ->
-                bridge.initializeEngine(
-                    modelPath = model.filePath,
-                    cacheDir = getModelCacheDirectory(),
-                    maxNumTokens = contextTokens,
-                    onComplete = { msg -> if (cont.isActive) cont.resume(msg) },
-                )
-            }
+            val completion = CompletableDeferred<String?>()
+            activeInitialization = completion
+            bridge.initializeEngine(
+                modelPath = model.filePath,
+                cacheDir = getModelCacheDirectory(),
+                maxNumTokens = contextTokens,
+                onComplete = { msg -> completion.complete(msg) },
+            )
+            val errorMessage = withTimeout(180_000) { completion.await() }
+            activeInitialization = null
             if (errorMessage != null) throw IllegalStateException(errorMessage)
 
             currentModelId = model.id
@@ -184,9 +199,13 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
 
     override suspend fun release() {
         val bridge = LiteRTBridgeRegistry.bridge ?: return
-        bridge.releaseEngine()
-        currentModelId = null
-        _engineState.value = EngineState.UNINITIALIZED
+        bridge.cancelChat()
+        initMutex.withLock {
+            checkNativeIdle()
+            bridge.releaseEngine()
+            currentModelId = null
+            _engineState.value = EngineState.UNINITIALIZED
+        }
     }
 
     override fun releaseInBackground() {
@@ -194,11 +213,10 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
         idleReleaseJob = scope.launch { release() }
     }
 
-    override suspend fun chat(
-        messages: List<InferenceMessage>,
-        systemPrompt: String?,
-        tools: List<LocalTool>,
-    ): String {
+    override suspend fun chat(messages: List<InferenceMessage>, systemPrompt: String?, tools: List<LocalTool>): String = chatStreaming(messages, systemPrompt, tools) {}
+
+    override suspend fun chatStreaming(messages: List<InferenceMessage>, systemPrompt: String?, tools: List<LocalTool>, onText: suspend (String) -> Unit): String = initMutex.withLock {
+        checkNativeIdle()
         idleReleaseJob?.cancel()
         val bridge = requireBridge()
         if (!bridge.isEngineReady()) throw IllegalStateException("Engine not initialized")
@@ -208,21 +226,47 @@ class IosLiteRTInferenceEngine : LocalInferenceEngine {
         }
         val messagesJson = Json.encodeToString(sanitizedMessages)
 
-        try {
-            val (response, errorMessage) = withTimeout(INFERENCE_TIMEOUT_MS.milliseconds) {
-                suspendCancellableCoroutine<Pair<String?, String?>> { cont ->
-                    bridge.chat(
-                        messagesJson = messagesJson,
-                        systemPrompt = sanitizeForLiteRt(systemPrompt),
-                        onResult = { resp, err -> if (cont.isActive) cont.resume(resp to err) },
-                    )
+        val chunks = Channel<String>(64)
+        val completion = CompletableDeferred<Pair<String?, String?>>()
+        activeCompletion = completion
+        val output = LocalStreamText()
+        bridge.chatStreaming(
+            messagesJson = messagesJson,
+            systemPrompt = sanitizeForLiteRt(systemPrompt),
+            onText = { delta ->
+                if (chunks.trySend(delta).isFailure) {
+                    bridge.cancelChat()
+                    chunks.close(IllegalStateException("Local stream could not be saved fast enough; execution was stopped."))
                 }
+            },
+            onResult = { response, error ->
+                completion.complete(response to error)
+                chunks.close()
+            },
+        )
+        try {
+            while (true) {
+                val delta = withTimeout(180_000) { chunks.receiveCatching() }
+                if (delta.isClosed) {
+                    delta.exceptionOrNull()?.let { throw it }
+                    break
+                }
+                val visible = output.append(delta.getOrThrow())
+                if (visible.isNotEmpty()) onText(visible)
             }
+            val (_, errorMessage) = completion.await()
             if (errorMessage != null) throw IllegalStateException(errorMessage)
-            return stripThinkBlocks(response ?: "")
+            output.answer()
         } catch (e: TimeoutCancellationException) {
             throw InferenceTimeoutException()
         } finally {
+            bridge.cancelChat()
+            chunks.close()
+            withContext(NonCancellable) {
+                // A missing acknowledgement blocks native reuse instead of falsely declaring it safe.
+                runCatching { withTimeout(5000) { completion.await() } }.onFailure { _engineState.value = EngineState.ERROR }
+            }
+            if (completion.isCompleted) activeCompletion = null
             scheduleIdleRelease()
         }
     }

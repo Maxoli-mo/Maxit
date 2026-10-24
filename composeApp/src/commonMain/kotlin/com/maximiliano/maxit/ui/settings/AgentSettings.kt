@@ -45,8 +45,11 @@ import androidx.compose.ui.unit.dp
 import com.maximiliano.maxit.data.HeartbeatLogEntry
 import com.maximiliano.maxit.data.MemoryEntry
 import com.maximiliano.maxit.data.ScheduledTask
+import com.maximiliano.maxit.data.TaskStatus
 import com.maximiliano.maxit.data.TaskTrigger
+import com.maximiliano.maxit.network.UiError
 import com.maximiliano.maxit.ui.KaiOutlinedTextField
+import com.maximiliano.maxit.ui.chat.composables.uiErrorText
 import com.maximiliano.maxit.ui.components.SettingsListItem
 import com.maximiliano.maxit.ui.handCursor
 import com.maximiliano.maxit.ui.icons.Replay
@@ -58,6 +61,9 @@ import kotlinx.datetime.toLocalDateTime
 import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.execution_log_status_fail
 import maxit.composeapp.generated.resources.execution_log_status_ok
+import maxit.composeapp.generated.resources.run_task_prompt
+import maxit.composeapp.generated.resources.run_task_resume
+import maxit.composeapp.generated.resources.run_task_resume_warning
 import maxit.composeapp.generated.resources.settings_agent_instructions
 import maxit.composeapp.generated.resources.settings_agent_instructions_description
 import maxit.composeapp.generated.resources.settings_agent_instructions_load_error
@@ -106,6 +112,8 @@ internal fun AgentContent(uiState: SettingsUiState, actions: SettingsActions) {
                     tasks = uiState.scheduledTasks,
                     heartbeatLog = uiState.heartbeatLog,
                     onCancelTask = actions.onCancelTask,
+                    onResumeTask = actions.onResumeTask,
+                    resumeError = uiState.taskResumeError,
                     isSchedulingEnabled = uiState.isSchedulingEnabled,
                     onToggleScheduling = actions.onToggleScheduling,
                 )
@@ -492,6 +500,8 @@ private fun ScheduledTaskList(
     tasks: ImmutableList<ScheduledTask>,
     heartbeatLog: ImmutableList<HeartbeatLogEntry>,
     onCancelTask: (String) -> Unit,
+    onResumeTask: (String) -> Unit,
+    resumeError: UiError?,
     isSchedulingEnabled: Boolean,
     onToggleScheduling: (Boolean) -> Unit,
 ) {
@@ -506,6 +516,7 @@ private fun ScheduledTaskList(
         )
         Spacer(Modifier.height(12.dp))
 
+        resumeError?.let { Text(uiErrorText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         val onEveryHeartbeat = stringResource(Res.string.settings_task_details_on_every_heartbeat)
         if (isSchedulingEnabled && tasks.isNotEmpty()) {
             tasks.forEach { task ->
@@ -540,6 +551,10 @@ private fun ScheduledTaskList(
             task = selectedTask,
             heartbeatLog = heartbeatLog,
             onDismiss = { selectedTaskId = null },
+            onResume = {
+                onResumeTask(selectedTask.id)
+                selectedTaskId = null
+            },
         )
     }
 }
@@ -549,7 +564,23 @@ private fun TaskDetailsSheet(
     task: ScheduledTask,
     heartbeatLog: ImmutableList<HeartbeatLogEntry>,
     onDismiss: () -> Unit,
+    onResume: () -> Unit,
 ) {
+    var confirmResume by remember(task.id) { mutableStateOf(false) }
+    if (confirmResume) {
+        AlertDialog(
+            onDismissRequest = { confirmResume = false },
+            title = { Text(stringResource(Res.string.run_task_resume)) },
+            text = { Text(stringResource(Res.string.run_task_resume_warning)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmResume = false
+                    onResume()
+                }) { Text(stringResource(Res.string.run_task_resume)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmResume = false }) { Text(stringResource(Res.string.settings_soul_reset_cancel)) } },
+        )
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -566,6 +597,8 @@ private fun TaskDetailsSheet(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Spacer(Modifier.height(12.dp))
+            TaskDetailRow(stringResource(Res.string.run_task_prompt), task.prompt)
+            if (task.status == TaskStatus.PAUSED) TextButton(onClick = { confirmResume = true }) { Text(stringResource(Res.string.run_task_resume)) }
 
             TaskDetailRow(
                 label = stringResource(Res.string.settings_task_details_trigger),

@@ -35,14 +35,20 @@ The `free` service ID is retained only as a history/settings compatibility senti
 2. Instances must meet their provider's credential requirements; local models and endpoints with optional authentication do not require an API key
 3. If no usable instances are configured, the user must configure a provider or local model
 4. Only configured instances enter the chain; no built-in proxy is appended
-5. Each individual API request retries up to 2 times with increasing delays before the service is considered failed. During a tool-use loop, each request inside the loop retries independently — a failure mid-loop never replays the loop (and its tool executions) from the start. On-device (Local Model) attempts are not retried, since their failures are deterministic rather than transient
-6. On failure, the next instance in the chain is tried; if all fail, the last error is shown
+5. Eligible pre-output API failures retry up to twice with increasing delays. Requests inside a tool loop retry independently, never by restarting the entire loop. Interrupted streams, persistence failures, cancellation, and guard pauses are not silently retried. Local inference has only its separately guarded, pre-output/no-action parser fallback
+6. Before assistant output or an action proposal is recorded, eligible failures can move to the next configured instance. Once this attempt has recorded assistant/tool activity, it stops with saved evidence instead of falling back into a replay. If all eligible instances fail, the last error is shown
 7. If a fallback succeeds, the response indicates which service answered
 8. While the chain is being walked, the thinking indicator shows per-attempt status — the name of the service currently being tried, or the reason the previous one failed before moving on — so silent fallbacks are visible to the user
-9. Entries whose context window can't fit the current chat history are skipped during the walk
+9. Each request uses bounded, non-destructive context projection; the complete saved transcript is not dropped to fit a fallback. Estimated context/endpoint limits can still reject or skip a target
 10. On-device (Local Model) failures are not silently absorbed — they short-circuit the fallback chain so the user sees the actual error rather than being quietly bumped to a cloud service
 11. On-device entries are also never used as fallback targets: a local model is only tried when it is the primary (first) service in the chain. A cloud-service failure never silently starts a local model load
-12. Errors that a retry can't fix skip further **per-service** retries and fail that service immediately: exhausted credits or quota, an invalid API key, an unknown model, a request the provider rejects as malformed, too large or disallowed by moderation, a history that exceeds the context window, and attachments rejected locally for size or type. Unknown or generic errors stay retryable. The fallback chain still continues to the next instance. Only on-device (Local Model) failures short-circuit the entire chain
+12. Errors that a retry can't fix skip further **per-service** retries and fail that service immediately: exhausted credits or quota, an invalid API key, an unknown model, a request the provider rejects as malformed, too large or disallowed by moderation, a history that exceeds the context window, and attachments rejected locally for size or type. Unknown or generic errors stay retryable. The chain can continue only before recorded output/action activity. Local errors, stream interruption, persistence failure, cancellation, and guard pauses short-circuit it
+
+## Streaming and Provider Changes
+
+Chat Completions, Responses/Codex, Anthropic, and Gemini use bounded incremental response parsing. An endpoint returning ordinary JSON is handled as a complete-response fallback, not fake streaming. Tool arguments are assembled and terminally validated before dispatch. Cancellation stops the owning request; it cannot guarantee that provider billing or external actions were rolled back.
+
+Raw continuation blocks, exposed reasoning, signatures, and usage survive storage when supplied. Native replay is scoped to the same provider instance/model and complete exchanges. Switching providers or disabling tools quotes incompatible prior activity as untrusted historical evidence while retaining its original saved records. No additional provider, proxy, or fallback service is introduced by this reliability feature. See [chat.md](chat.md) and [reasoning.md](reasoning.md).
 
 ## API Formats
 
@@ -58,10 +64,11 @@ Maxit reads the GPT version from the model id and, from 5.6 upward, sends their 
 
 Everything ahead of the wire call is shared with the chat-completions path: system prompt placement, attachment handling, tool-call pairing, and context trimming. Only the payload shape differs -- messages become input items, tool calls become `function_call` items, tool results become `function_call_output` items, and images move from a nested `image_url` object to a flat string.
 
-Two deliberate limits:
+Stateless continuation:
 
-- **Responses are not stored** (`store: false`); Maxit replays the full conversation on each request rather than chaining response ids. Provider retention policies still apply.
-- **Reasoning items are not replayed.** OpenAI recommends echoing back the reasoning that preceded a tool call, but replaying one whose following item was dropped by context trimming is a hard error. Maxit trades a re-reasoned tool round-trip for a request that cannot fail that way. Reasoning summaries, when the account is eligible to receive them, are shown in the usual "Thinking" section.
+- **Responses are not stored server-side** (`store: false`); Maxit sends the projected conversation rather than chaining stored response IDs. Provider retention policies still apply.
+- **Compatible reasoning/output items are retained and replayed.** Encrypted reasoning is requested, opaque output stays intact, and native call IDs must match the complete tool exchange before raw replay. Context reduction keeps paired exchanges together; incompatible metadata becomes semantic historical evidence rather than a broken native continuation. Eligible exposed summaries still appear in the Thinking disclosure.
+- Images and supported PDFs become native input-image/input-file items. Unsupported attachment formats are explicitly noted as unavailable rather than silently treated as inspected.
 
 Matching on the version rather than a fixed list means a new OpenAI family is routed correctly on release, with no app update.
 
@@ -77,13 +84,13 @@ After sign-in, the compact card places connection status beside **Sign out**, fo
 
 Each configured instance has its own session, stored in the native encrypted settings backend. Tokens are refreshed before expiry and after one unauthorized response; rotated credentials are saved together. Sign-out, removal, and settings replacement invalidate pending authentication so a late response cannot restore a removed session. In-flight turns stay bound to their original login: retries and later tool rounds cannot send that turn's history under a replacement account, and stale results are rejected. Tokens never appear in the settings UI, debug HTTP logs, or settings exports. Imported Codex configurations require sign-in again.
 
-Available models come from the signed-in account's Codex model list, not the API-key model list. All Codex models use the ChatGPT Responses endpoint, including older model families. Normal chat, images where supported, tool calls, MCP, skills, silent requests, and scheduled/background requests share the existing app flows. Automatic background and silent requests skip signed-out accounts, just as foreground chat does; an explicitly selected background account reports its own authentication error instead of switching accounts. If no usable provider remains, background and silent requests fail rather than returning an empty success. Scheduled tasks record failure, heartbeat inputs remain pending, and failed conversation summarization keeps older turns while the history still fits the context window. The required event stream is consumed internally; answers still appear as completed turns, not token-by-token. Failed, incomplete, and interrupted streams are errors, not successful empty answers. Full history is resent with server-side storage disabled; the same reasoning-replay limits described above apply. Uncompressed request bodies are capped at 1 MiB locally, with an actionable error for oversized conversations or attachments; request compression is not implemented.
+Available models come from the signed-in account's Codex model list, not the API-key model list. All Codex models use the ChatGPT Responses endpoint, including older model families. Normal chat, images where supported, tool calls, MCP, skills, silent requests, and scheduled/background requests share the existing app flows. Automatic background and silent requests skip signed-out accounts, just as foreground chat does; an explicitly selected background account reports its own authentication error instead of switching accounts. If no usable provider remains, background and silent requests fail rather than returning an empty success. Scheduled occurrences recover safely without automatic replay, and failed heartbeat inputs remain pending. The event stream supplies incremental text checkpoints to the chat. Failed, incomplete, and disconnected streams retain committed output and surface an error rather than a successful empty answer or a replay. The projected transcript is sent with server-side storage disabled; the same compatible reasoning replay described above applies. Uncompressed request bodies are capped at 1 MiB locally, with an actionable error for oversized conversations or attachments; request compression is not implemented.
 
 Codex is unavailable in the Web build: its credential store is browser localStorage and cross-origin endpoint access is not established. No proxy or new dependency is added. This integration follows the public Codex device-login protocol; it is not a guarantee that OpenAI will keep that protocol unchanged. Live account sign-in and inference require an authorized user's acceptance test.
 
 ### Session Header (OpenCode)
 
-OpenCode Zen identifies the client behind a request by an `x-opencode-session` header and rejects requests that arrive without one. Maxit sends the current conversation id as that session id, so one chat -- however many turns, tool round-trips or bailout retries it takes -- reads as a single session upstream, and separate chats read as separate sessions. Requests that belong to no conversation (fetching the model list, connection validation) carry a session id generated once per app process instead.
+OpenCode Zen identifies the client behind a request by an `x-opencode-session` header and rejects requests that arrive without one. Maxit sends the current conversation id as that session id, so one chat -- however many turns, tool round-trips or reviewed continuation attempts it takes -- reads as a single session upstream, and separate chats read as separate sessions. Requests that belong to no conversation (fetching the model list, connection validation) carry a session id generated once per app process instead.
 
 An OpenAI-Compatible service whose base URL points at `opencode.ai` -- the usual way to reach the OpenCode Go subscription gateway -- is sent the header too.
 
@@ -199,7 +206,10 @@ Users manage services through the settings screen:
 | `composeApp/src/commonMain/.../network/CodexAuth.kt` | Codex device authorization, native session persistence, refresh and disconnect |
 | `composeApp/src/commonMain/.../network/CodexResponses.kt` | Authenticated Codex event streams, safe errors and account model discovery |
 | `composeApp/src/commonMain/.../data/BackgroundServiceSelection.kt` | Credential-aware automatic background and silent target selection |
-| `composeApp/src/desktopTest/.../data/SignedOutCodexWorkTest.kt` | Signed-out request, scheduler, heartbeat queue and conversation-compaction regressions |
+| `composeApp/src/desktopTest/.../data/SignedOutCodexWorkTest.kt` | Signed-out requests, scheduler, heartbeat queues, retained-history regressions |
+| `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Shared SSE/JSON response decoding and terminal validation |
+| `composeApp/src/commonMain/.../data/ConversationContext.kt` | Non-destructive context and provider compatibility |
+| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Framing, fragmented calls, truncation, signatures and interruption tests |
 | `composeApp/src/commonMain/.../data/ModelCapabilities.kt` | Per-model gates: tool support, image support, Responses API routing |
 | `composeApp/src/commonMain/.../data/providers/OpenAIResponsesInput.kt` | Translates chat-completions messages into Responses API input items |
 | `composeApp/src/commonMain/.../network/dtos/openairesponses/` | OpenAI Responses API DTOs |

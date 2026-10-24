@@ -67,19 +67,20 @@ data class InferenceMessage(
     val content: String,
 )
 
+data class LocalToolResult(val content: String, val historyId: String? = null)
+
 /**
  * A tool definition handed to the on-device inference engine.
  *
  * @param name the tool's identifier as the model will see it
  * @param descriptionJsonString a complete OpenAPI/OpenAI-style JSON object describing the
  *        tool, e.g. `{"name":"get_time","description":"...","parameters":{"type":"object",...}}`
- * @param execute receives the JSON arguments object as a string and returns the
- *        JSON-encoded result string
+ * @param execute receives JSON arguments and returns the complete result and its durable retrieval ID
  */
 data class LocalTool(
     val name: String,
     val descriptionJsonString: String,
-    val execute: suspend (jsonArgs: String) -> String,
+    val execute: suspend (jsonArgs: String) -> LocalToolResult,
 )
 
 /**
@@ -142,6 +143,7 @@ interface LocalInferenceEngine {
     val importError: StateFlow<ModelImportError?>
 
     val currentModelId: String?
+    val supportsToolExecution: Boolean get() = true
 
     /**
      * What the model file for [modelId] declares it can do. Reads the bundle's own
@@ -170,6 +172,18 @@ interface LocalInferenceEngine {
         systemPrompt: String?,
         tools: List<LocalTool> = emptyList(),
     ): String
+
+    /** Engines with no streaming bridge return one complete update; callers do not fake deltas. */
+    suspend fun chatStreaming(
+        messages: List<InferenceMessage>,
+        systemPrompt: String?,
+        tools: List<LocalTool> = emptyList(),
+        onText: suspend (String) -> Unit,
+    ): String {
+        val answer = chat(messages, systemPrompt, tools)
+        onText(answer)
+        return answer
+    }
 
     fun getDownloadedModels(): List<DownloadedModel>
     fun getAvailableModels(): List<LocalModel>

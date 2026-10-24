@@ -1,0 +1,23 @@
+<resources>
+    <string name="run_generating">Generating · saved as it arrives</string>
+    <string name="run_stopping">Stopping · saving completed work</string>
+    <string name="run_interrupted">Interrupted · saved work kept</string>
+    <string name="run_paused">Execution paused</string>
+    <string name="run_failed">Attempt did not finish</string>
+    <string name="run_continue">Continue</string>
+    <string name="run_activity">Tool activity</string>
+    <string name="run_previous_attempt">Previous attempt · actions were not undone</string>
+    <string name="run_load_earlier">Load earlier messages (%1$d)</string>
+    <string name="run_approval_title">Approve action: %1$s</string>
+    <string name="run_approval_description">Review the exact arguments. This approval applies once, to this action only.</string>
+    <string name="run_approve_once">Approve once</string>
+    <string name="run_decline">Decline</string>
+    <string name="run_unknown_outcome">Outcome unknown · verify before repeating</string>
+    <string name="run_arguments">Arguments</string>
+    <string name="run_result">Recorded result</string>
+    <string name="run_task_resume">Resume task</string>
+    <string name="run_task_prompt">Task instructions</string>
+    <string name="run_task_resume_warning">Review the saved heartbeat activity first. Resuming may repeat actions that already happened; prior work is not undone. Actions requiring approval will pause again if unattended.</string>
+    <string name="run_approval_waiting">Waiting for your approval</string>
+    <string name="run_background_stopped">Background execution stopped</string>
+</resources>

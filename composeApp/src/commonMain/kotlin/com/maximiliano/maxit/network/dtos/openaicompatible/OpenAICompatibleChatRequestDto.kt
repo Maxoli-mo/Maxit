@@ -11,6 +11,7 @@ data class OpenAICompatibleChatRequestDto(
     val messages: List<Message>,
     val model: String? = null,
     val tools: List<Tool>? = null,
+    val stream: Boolean? = null,
 ) {
     @Serializable
     data class Message(
@@ -25,6 +26,10 @@ data class OpenAICompatibleChatRequestDto(
         // Service.reasoningRequestMode.
         @SerialName("reasoning_content")
         val reasoningContent: String? = null,
+        @SerialName("reasoning_details")
+        val reasoningDetails: kotlinx.serialization.json.JsonArray? = null,
+        @kotlinx.serialization.Transient
+        val responsesItems: kotlinx.serialization.json.JsonArray? = null,
     )
 
     @Serializable

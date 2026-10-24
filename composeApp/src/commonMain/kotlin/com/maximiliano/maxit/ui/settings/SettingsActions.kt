@@ -31,6 +31,7 @@ data class SettingsActions(
     val onUpdateMemory: (String, String) -> Unit,
     val onToggleScheduling: (Boolean) -> Unit,
     val onCancelTask: (String) -> Unit,
+    val onResumeTask: (String) -> Unit = {},
     val onToggleDaemon: (Boolean) -> Unit,
     val onToggleHeartbeat: (Boolean) -> Unit,
     val onChangeHeartbeatInterval: (Int) -> Unit,

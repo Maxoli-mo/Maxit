@@ -171,9 +171,8 @@ fun QuestionInput(
 
         fun submitQuestion() {
             val text = textState.text
-            if (text.isNotBlank()) {
-                ask(text.trim())
-                onTextStateChange(TextFieldValue(""))
+            if (!isLoading && text.isNotBlank()) {
+                ask(text)
             }
         }
 

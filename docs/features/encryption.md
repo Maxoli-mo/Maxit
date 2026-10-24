@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Encryption & Secure Storage
 
-**Last verified:** 2026-10-20
+**Last verified:** 2026-10-24. Conversation persistence regressions do not establish physical power-loss or browser-quota durability.
 
 App settings, including API keys and email passwords, use a platform-specific settings store. Android and Linux encrypt that store; Web uses unencrypted browser localStorage. The `createSecureSettings` API name does not guarantee encryption on every platform.
 
@@ -77,8 +77,10 @@ Prior to the current database-backed storage, conversations were stored in an en
 
 1. Read `conversations.enc` from the app files directory
 2. Decrypt using XOR with the key from `encryption_key` in settings
-3. Persist to the current conversation storage (database, or settings blob on the browser build)
-4. Delete the legacy file
+3. Commit the complete records to the current store (cursor-safe database payload chunks, or immutable browser blobs with a manifest commit)
+4. Remove the legacy source only after successful decoding and persistence
+
+A missing/empty key or corrupt legacy record raises a restoration error and leaves the original file intact. It is not silently interpreted as an empty conversation list. Duplicate conversation IDs are rejected before either store replaces committed data. Browser quota/write failures retain the previous committed manifest and best-effort remove only newly staged blobs, without removing reused or committed messages. These durability changes do not add encryption.
 
 On database-capable platforms, a conversation blob found in secure settings is likewise imported into the database and removed from settings on first load.
 
@@ -94,7 +96,8 @@ The XOR encryption key is retained in settings for any devices that haven't migr
 | `composeApp/src/desktopMain/.../Platform.jvm.kt` | Desktop EncryptedFileSettings wiring |
 | `composeApp/src/desktopMain/.../data/EncryptedFileSettings.kt` | AES-256-GCM file-backed Settings implementation |
 | `composeApp/src/wasmJsMain/.../Platform.wasmJs.kt` | Web localStorage setup |
-| `composeApp/src/commonMain/.../data/ConversationStorage.kt` | Legacy XOR migration logic |
+| `composeApp/src/commonMain/.../data/ConversationStorage.kt` | Source-preserving legacy migration and storage-generation fences |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Settings access layer for all app data |
 | `composeApp/src/commonMain/.../data/AppSettingsMigrations.kt` | One-time copy from legacy plaintext settings (Android/iOS) |
-| `composeApp/src/commonMain/.../data/ConversationPersistence.kt` | Database vs. settings-blob conversation storage; imports a settings blob into the database |
+| `composeApp/src/commonMain/.../data/ConversationPersistence.kt` | Incremental/chunked database, duplicate-ID validation, staged browser writes and cleanup |
+| `composeApp/src/commonTest/.../data/SettingsConversationStagingTest.kt` | Pre-reload staging-failure, finite-quota, and committed-blob preservation checks |

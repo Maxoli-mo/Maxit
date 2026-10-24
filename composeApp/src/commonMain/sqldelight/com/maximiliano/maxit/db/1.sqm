@@ -1,0 +1,7 @@
+CREATE TABLE messagePayloadEntity (
+    conversationId TEXT NOT NULL,
+    orderIndex INTEGER NOT NULL,
+    chunkIndex INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (conversationId, orderIndex, chunkIndex)
+);

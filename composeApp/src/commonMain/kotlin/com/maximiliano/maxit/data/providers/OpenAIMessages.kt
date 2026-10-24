@@ -3,6 +3,7 @@
 package com.maximiliano.maxit.data.providers
 
 import com.maximiliano.maxit.data.Service
+import com.maximiliano.maxit.data.compatibleToolHistory
 import com.maximiliano.maxit.data.modelSupportsImages
 import com.maximiliano.maxit.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto
 import com.maximiliano.maxit.ui.chat.History
@@ -15,6 +16,7 @@ internal fun buildOpenAIMessages(
     systemPrompt: String?,
     modelId: String,
     declaredToolNames: Set<String>? = null,
+    providerKey: String? = null,
 ): List<OpenAICompatibleChatRequestDto.Message> = buildList {
     // Images go through only when both the service and the specific model accept them.
     // Mixed services (e.g. Z.AI) host text-only and vision models side by side.
@@ -29,7 +31,7 @@ internal fun buildOpenAIMessages(
     }
     addAll(
         sanitizeToolMessages(
-            messages.map { it.toGroqMessageDto(service.reasoningRequestMode, supportsImages) },
+            compatibleToolHistory(messages, declaredToolNames, providerKey).map { it.toGroqMessageDto(service.reasoningRequestMode, supportsImages, supportsPdf = service.supportsPdf, supportsReasoningDetails = service in setOf(Service.OpenRouter, Service.Requesty, Service.Minimax, Service.OpenAICompatible)) },
             declaredToolNames,
         ),
     )

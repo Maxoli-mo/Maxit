@@ -406,17 +406,5 @@ private fun sanitizeMemories(element: JsonElement): String {
     return SharedJson.encodeToString(memories)
 }
 
-private fun sanitizeConversations(element: JsonElement): List<Conversation> {
-    val array = try {
-        element.jsonArray
-    } catch (_: Exception) {
-        return emptyList()
-    }
-    return array.mapNotNull { item ->
-        try {
-            SharedJson.decodeFromString<Conversation>(item.toString())
-        } catch (_: Exception) {
-            null
-        }
-    }
-}
+private fun sanitizeConversations(element: JsonElement): List<Conversation> = element.jsonArray.map { SharedJson.decodeFromString<Conversation>(it.toString()) }
+    .also { requireUniqueConversationIds(it) }

@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # On-Device Inference (LiteRT)
 
-**Last reviewed:** 2026-10-21
+**Last verified:** 2026-10-24. Native streaming/cancellation changes require real-device acceptance; iOS source has not been compiled or exercised in this Linux environment.
 
 Maxit can run AI models directly on the user's device using Google's LiteRT LM SDK. Once a model is downloaded, inference requires no API key or network connection. The maintained targets for local inference are **Android** and **Linux desktop**. The iOS, macOS, and Windows implementations described below are retained source only.
 
@@ -39,15 +39,15 @@ Models are `.litertlm` files from the [litert-community](https://huggingface.co/
 
 ## Tool support
 
-The application uses **litert-lm's native function calling**: each exposed Maxit tool is wrapped in an adapter, registered on the conversation, and the engine drives the tool loop internally. The model uses its trained tool format, and the engine returns the final assistant text after all tool round-trips complete. Automatic tool calling is switched on only when the conversation actually has tools. Tools are available **at any context size** — there's no threshold gating.
+The application uses **native function-call generation with an app-owned loop**. The SDK generates one turn at a time; Maxit records proposals, obtains exact approval where required, dispatches tools, commits their outcomes, and supplies the responses to the next native turn. The SDK-owned automatic loop is disabled, so its fixed round ceiling does not cut off useful work. Tools remain available at any supported context size, subject to the model/engine capability gates and independent timeout/resource safeguards.
 
 Two filters decide what the model actually receives.
 
-**The model file decides whether it gets tools at all.** Before building the tool list, Maxit asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer (older metadata, or the iOS bridge, whose LiteRT-LM release predates the capability API) reports *unknown*, and unknown is treated as before: the allowlist is offered.
+**The model file decides whether it gets tools at all.** Before building the tool list, Maxit asks the `.litertlm` bundle what it declares about itself — a metadata read that needs no engine and no loaded weights. A bundle that declares no function-calling support carries no tool section in its chat template, and such a model does not politely ignore tools it was handed: it answers *instead* of calling them, inventing whatever the tool would have returned. Those models are given no tools and no tool guidance in the system prompt, which makes them plain chat models — which is what they are. A bundle that cannot answer reports unknown; compatible Android/JVM engines can still offer the allowlist. Engine support is checked independently: the retained iOS bridge explicitly reports no tool execution and is given no tools, even when model metadata is unknown.
 
 **The allowlist then narrows what a tool-capable model sees**, because small Gemma models (2-4B params) struggle to emit valid function-call syntax for tools with many parameters or complex value types, and litert-lm's strict ANTLR parser crashes the call when the syntax is malformed.
 
-The on-device tool allowlist includes `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, and `memory_reinforce`. Skills add `load_skill` for lazy instruction/reference reads and `create_skill` for saving new instruction-only bundles at the user's explicit request, without a sandbox. Android's `execute_shell_command` still requires the installed and enabled sandbox; the rework adds no desktop shell execution. Email tools, task scheduling (`schedule_task` / `list_tasks` / `cancel_task`), MCP server tools, and structured `memory_learn` are excluded; those tools require a remote model. Heartbeat configuration is user-controlled in settings, and `promote_learning` has been removed for all models. Live on-device skill selection and creation have not been exercised.
+The on-device tool allowlist includes `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, and `memory_reinforce`. Skills add `load_skill` for lazy instruction/reference reads and `create_skill` for saving new instruction-only bundles at the user's explicit request, without a sandbox. A tool-capable engine also receives `read_conversation_history` for bounded access to complete saved evidence. Android's `execute_shell_command` still requires the installed and enabled sandbox; the rework adds no desktop shell execution. Email tools, task scheduling (`schedule_task` / `list_tasks` / `cancel_task`), MCP server tools, and structured `memory_learn` are excluded; those tools require a remote model. Heartbeat configuration is user-controlled in settings, and `promote_learning` has been removed for all models. Live on-device skill selection and creation have not been exercised.
 
 Remote skill creation additionally accepts nested bundled-file objects, but `SkillTools.localSchema` projects its local description back to the original required `markdown` string only. This preserves basic local creation without exposing a complex array/object schema to small models' strict function-call parser. The authoring guide still requires self-review, and must explain the limitation rather than omit required assets or claim they were saved. Use a remote model or ZIP import for bundles with files.
 
@@ -65,7 +65,21 @@ Each conversation is configured with the sampling defaults the model's own bundl
 
 ## Tool-call failures
 
-If the engine throws (e.g. the model does emit malformed tool-call syntax that the ANTLR parser rejects), the application catches the failure, logs it, and retries the call **once** with no tools — the user gets a plain-chat answer instead of a hard error.
+A runtime failure before any observed output or tool execution can retry once with no tools; malformed native tool syntax is the motivating case. The retry removes tool/catalog guidance while retaining selected-skill and caller instructions. Cancellation, failure after text was observed, and failure after entering a tool never silently restart the attempt. Their committed evidence is retained and the error/pause is surfaced.
+
+## Streaming, Context, and Stop
+
+Android/JVM uses asynchronous native generation, not simulated typing. The retained iOS bridge uses the Swift streaming API and advertises its narrower capabilities honestly. Visible native text uses the same stable assistant identity and committed batching as remote chat. Thinking markers are filtered incrementally rather than spoken as answer text. Completion preserves the emitted whitespace between phases, including paragraph boundaries around tool calls.
+
+Native tools use the shared repetition/failure guard, exact-action approval, dispatch checkpoints, and per-result persistence. A detected loop can receive one different recovery opportunity before a durable pause. Independent new requests do not inherit an earlier request's cycle count; Continue retains the continued request's saved rounds.
+
+Large tool results remain complete in storage. Outgoing native receipts have a separate allowance that includes system instructions, schemas, the current input, complete action arguments, receipt framing, and output headroom. An excerpt identifies itself as partial, links to the durable tool-call record, reports total size and the next character offset, and warns against inferring success or failure from omitted data. Estimates are conservative, not an exact tokenizer guarantee. If mandatory input and receipt metadata cannot fit, the attempt pauses instead of sending an oversized request or dropping evidence.
+
+Near the native token budget, the conversation is reconstructed with the current request and recent untrusted tool references instead of deleting the saved transcript. Optional historical references can be omitted when current work needs the space. Saved unsupported binaries become honest unavailable notices before text-only budgeting; original attachments remain available for a compatible target.
+
+Stop cancels the owning coroutine and requests native cancellation. Cleanup acknowledgement is required before reuse. Each owned live conversation is closed once; a replacement-allocation failure after a successful close does not cause a second close or poison later reuse. A genuine close failure still blocks reuse. A five-second acknowledgement timeout surfaces an erroneous/stopping engine and blocks unsafe overlap; it is not proof that JNI/Swift work physically stopped. Initialization and generation share lifecycle coordination. Initialization callbacks and streamed chunks remain tied to their original request.
+
+The Android/JVM path has a 180-second stream-inactivity timeout per generated phase; the retained iOS path bounds initialization and waiting for chunks at 180 seconds. These are not total tool-round limits. Hardware-specific behavior, cancellation latency, and late-callback suppression still require runtime verification. No equivalence to Claude's behavior is claimed.
 
 ## Other limitations
 
@@ -101,10 +115,10 @@ When the last LiteRT service instance is removed, all downloaded and imported mo
 2. **GPU-first** -- attempts GPU backend, falls back to CPU if unavailable (where the platform supports both)
 3. **Memory check (Android/JVM path)** -- refuses to load when available memory is below a fixed **512 MB** headroom floor (not model-size + headroom). Desktop skips the check and reports effectively unlimited available memory so the OS swap/cache path is trusted
 4. **Persistent across messages** -- stays loaded for the duration of the conversation
-5. **Inference timeout** -- individual inference calls are capped at 2 minutes
+5. **Inference timeout** -- native chunk/phase inactivity is bounded at 180 seconds; tool calls keep their own timeouts
 6. **Auto-release** -- released after 5 minutes of inactivity to free memory (always re-armed, even on errors)
 7. **Status indicator** -- the chat shows "Initializing {model name}" with a pulsing dot during engine load
-8. **Stop during load** -- the native model load cannot be interrupted; pressing stop cancels the message, and the load finishes in the background without marking the engine as failed. A follow-up message waits for the in-flight load instead of starting a second one
+8. **Stop during load/cleanup** -- cancellation does not guarantee an underlying native load or cleanup can be interrupted. Follow-up initialization/generation must not overlap unacknowledged work; an acknowledgement failure is surfaced rather than silently reusing the engine
 
 ## Platform Differences
 
@@ -116,21 +130,33 @@ When the last LiteRT service instance is removed, all downloaded and imported mo
 | Download notification | Foreground service with notification | No notification (no OS restriction) | Platform bridge |
 | Model import | FileKit file picker → stream-copy into app storage | Same | Same |
 | Runtime version | litert-lm 0.18.0 (Google Maven) | Same | LiteRT-LM 0.16.1 (Swift package) — behind Android/Desktop; newer Swift package tags exist but iOS has not been moved yet |
-| Capability probe | Reads the bundle's declared tool support, modalities and sampler defaults | Same | Unavailable — the Swift capability API at 0.16.1 exposes only speculative-decoding support, so the probe reports *unknown* and callers keep their defaults |
+| Capability probe | Reads declared tool support, modalities and sampler defaults | Same | Metadata reports unknown; tool execution is explicitly unsupported and no tools are declared |
 
 ## Fallback Behavior
 
 - Configure a Local Model instance to use on-device inference; no built-in Free proxy or fallback is available
 - In chat, a local model is tried only when primary. Its failure is shown directly rather than silently switching to a cloud provider; cloud failures do not start a local model as a fallback target
 - On unsupported platforms (web), LiteRT instances are silently skipped
-- Background tool runs (heartbeat and scheduled tasks) use an explicitly chosen instance when there is one, otherwise prefer remote services and fall back to on-device only when no remote is configured. The on-device fallback works at any context size, since the simple-tool allowlist has no schema-overhead penalty.
+- Background tool runs (heartbeat and scheduled tasks) use an explicitly chosen instance when there is one, otherwise prefer remote services and fall back to on-device only when no remote is configured. There is no context-size-based blanket tool ban or total-round ceiling, but instructions, schemas, arguments, and receipts must still fit the configured context allowance.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `composeApp/src/commonMain/.../data/Service.kt` | `Service.LiteRT` definition with `isOnDevice = true` |
-| `composeApp/src/commonMain/.../inference/LocalInferenceEngine.kt` | Platform-agnostic interface for on-device inference, including the declared-capability probe and its sampler-defaults helper |
+| `composeApp/src/commonMain/.../data/Service.kt` | On-device service definition |
+| `composeApp/src/commonMain/.../inference/LocalInferenceEngine.kt` | Streaming/capability contract and honest complete-response fallback |
+| `composeApp/src/commonMain/.../inference/LocalStreamText.kt` | Incremental thinking-marker filtering with exact emitted phase whitespace |
+| `composeApp/src/commonMain/.../inference/NativeConversationOwner.kt` | Close-once replacement ownership and acknowledged cleanup failures |
+| `composeApp/src/commonMain/.../inference/NativeToolProjection.kt` | Outgoing receipt budgeting and explicit, retrievable partial results |
+| `composeApp/src/commonTest/.../inference/NativeConversationOwnerTest.kt` | Replacement-creation and genuine close-failure regressions |
+| `composeApp/src/commonTest/.../inference/NativeToolProjectionTest.kt` | Complete source preservation, bounded dense receipts, and mandatory-input pauses |
+| `composeApp/src/commonTest/.../inference/LocalStreamTextPhaseTest.kt` | Whitespace and split thinking-marker agreement |
+| `composeApp/src/commonTest/.../data/TextOnlyConversationContextTest.kt` | Small-window saved attachment projection |
+| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Scheduled native partial-output failure requires review, not automatic replay |
+| `composeApp/src/commonMain/.../data/ConversationRun.kt` | Durable run ownership and tool checkpoints |
+| `composeApp/src/commonMain/.../data/ToolLoopGuard.kt` | Shared repetition/failure recovery |
+| `iosApp/iosApp/KaiLiteRTBridge.swift` | Swift stream tasks, cancellation, initialization acknowledgements |
+| `composeApp/src/commonTest/.../data/LocalToolParserFallbackTest.kt` | No-replay and safe plain-chat retry regressions |
 | `composeApp/src/commonMain/.../inference/LocalModelCatalog.kt` | Bundled model list (pinned revisions, expected digests, sizes, GPU baselines, context defaults) and digest-comparison helpers |
 | `composeApp/src/commonTest/.../inference/LocalModelCatalogTest.kt` | Checks immutable download URLs, digest format, sizes, and catalog invariants |
 | `composeApp/src/commonMain/.../inference/LocalModelImport.kt` | Import path helpers, custom model id/filename sanitization, synthetic metadata |

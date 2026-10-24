@@ -6,17 +6,26 @@ import com.maximiliano.maxit.email.EmailPoller
 import com.maximiliano.maxit.getBackgroundDispatcher
 import com.maximiliano.maxit.isEmailSupported
 import com.maximiliano.maxit.isSmsSupported
+import com.maximiliano.maxit.network.UiError
+import com.maximiliano.maxit.network.toUiError
 import com.maximiliano.maxit.sendHeartbeatNotification
 import com.maximiliano.maxit.sms.SmsPoller
 import com.maximiliano.maxit.ui.markdown.parseMarkdown
 import com.maximiliano.maxit.ui.markdown.toSpeakableText
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
@@ -41,7 +50,6 @@ class TaskScheduler(
     private companion object {
         const val POLL_INTERVAL_MS = 60_000L
         const val MAX_BACKOFF_MS = 3_600_000L // 1 hour
-        const val HEARTBEAT_CONTEXT_COUNT = 3
 
         /** Per-task execution log size — surfaced in the task details sheet. */
         const val MAX_TASK_LOG_ENTRIES = 10
@@ -61,8 +69,13 @@ class TaskScheduler(
      * is cancelled — as long as the OS keeps the process alive (which on Android means
      * `DaemonService` holding a foreground notification).
      */
+    private val _executionError = MutableStateFlow<UiError?>(null)
+    val executionError = _executionError.asStateFlow()
+    private val lifecycleLock = ConversationLock()
     private val schedulerScope = CoroutineScope(
-        SupervisorJob() + backgroundDispatcher + CoroutineName("TaskScheduler"),
+        SupervisorJob() + backgroundDispatcher + CoroutineName("TaskScheduler") + CoroutineExceptionHandler { _, error ->
+            _executionError.value = (error as? Exception)?.toUiError() ?: UiError.Text("Background execution stopped. Review saved activity before resuming tasks.")
+        },
     )
 
     private var activeJob: Job? = null
@@ -93,10 +106,12 @@ class TaskScheduler(
      * calls (e.g. from both `DaemonService.onCreate` and `ChatViewModel.init`) return
      * immediately if the loop is already running.
      */
-    fun start() {
-        if (!enabled || taskStore == null || appSettings == null) return
-        if (activeJob?.isActive == true) return
+    fun start() = lifecycleLock.locked {
+        if (!enabled || taskStore == null || appSettings == null) return@locked
+        if (activeJob?.isActive == true) return@locked
+        _executionError.value = null
         activeJob = schedulerScope.launch {
+            taskStore.recoverInterruptedTasks()
             while (isActive) {
                 delay(POLL_INTERVAL_MS.milliseconds)
                 if (!appSettings.isSchedulingEnabled()) continue
@@ -104,24 +119,26 @@ class TaskScheduler(
                 val dueTasks = taskStore.getDueTasks()
                 for (task in dueTasks) {
                     if (isLoadingCheck()) break
+                    if (!taskStore.claimTask(task.id)) continue
 
                     try {
-                        // Bind tool calls to the heartbeat conversation's sandbox session
-                        // — the scheduled-task result also lands in that conversation
-                        // (see `addAssistantMessage`), so routing its shell commands
-                        // there too keeps shell state coherent with the visible output.
+                        // The run owns both its durable transcript and its sandbox session.
                         val taskConversationId = dataRepository.getOrCreateHeartbeatConversationId()
-                        val response = dataRepository.askWithTools(task.prompt, conversationIdOverride = taskConversationId)
-                        if (response.isNotBlank()) {
-                            val header = task.description.ifBlank { "Scheduled task" }
-                            dataRepository.addAssistantMessage("**$header**\n\n$response")
-                        }
+                        dataRepository.askWithTools(task.prompt, conversationIdOverride = taskConversationId)
                         handleTaskCompletion(task)
                     } catch (e: Exception) {
-                        // Stopped mid-run (daemon shut down): leave the task due so it runs next
-                        // time instead of recording a failure and advancing past this occurrence.
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        handleTaskFailure(task, formatException(e))
+                        if (e is kotlinx.coroutines.CancellationException || e is RunPausedException || e is ConversationWriteException || e is com.maximiliano.maxit.network.StreamInterruptedException) {
+                            withContext(NonCancellable) {
+                                taskStore.updateTask(task.copy(status = TaskStatus.PAUSED, lastResult = "Execution interrupted or paused. Review the saved heartbeat activity; this occurrence was not replayed.", recentExecutions = appendExecution(task, false, e.message)))
+                            }
+                            if (e is kotlinx.coroutines.CancellationException) {
+                                // A deleted conversation can abort a run without cancelling this loop.
+                                currentCoroutineContext().ensureActive()
+                                _executionError.value = UiError.Text("A background conversation was interrupted. Review the paused task before resuming it; other automation is still running.")
+                            }
+                        } else {
+                            handleTaskFailure(task, formatException(e))
+                        }
                     }
                 }
 
@@ -154,12 +171,8 @@ class TaskScheduler(
         val pendingSms = smsStore?.getPending().orEmpty()
         val pendingNotifications = notificationStore?.getPending().orEmpty()
         try {
-            val recentResponses = dataRepository.savedConversations.value
-                .find { it.type == Conversation.TYPE_HEARTBEAT }
-                ?.messages?.takeLast(HEARTBEAT_CONTEXT_COUNT)
-                ?.map { it.content }
-                ?: emptyList()
-            val heartbeatPrompt = manager.buildHeartbeatPrompt(recentResponses, pendingEmails, pendingSms, pendingNotifications)
+            // askWithTools already supplies the durable transcript; never embed it in a new prompt.
+            val heartbeatPrompt = manager.buildHeartbeatPrompt(pendingEmails, pendingSms, pendingNotifications)
             // Resolve the heartbeat conversation id BEFORE the AI starts emitting
             // tool calls, so any execute_shell_command call binds to the heartbeat's
             // own persistent bash session rather than the chat the user happens to
@@ -173,7 +186,6 @@ class TaskScheduler(
             manager.markHeartbeatExecuted()
             manager.recordHeartbeat(success = true)
             if (response.isNotBlank() && "HEARTBEAT_OK" !in response) {
-                dataRepository.addAssistantMessage(response)
                 // Push-notify only when the user won't see the in-app banner.
                 // Tapping the notification deep-links into the heartbeat
                 // conversation via `EXTRA_OPEN_HEARTBEAT` (Android actual).
@@ -220,7 +232,10 @@ class TaskScheduler(
             // Sweep retention bounds opportunistically after each heartbeat run.
             notificationStore?.sweep()
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is kotlinx.coroutines.CancellationException) {
+                currentCoroutineContext().ensureActive()
+                _executionError.value = UiError.Text("A heartbeat conversation was interrupted. Review saved activity; other automation is still running.")
+            }
             manager.recordHeartbeat(success = false, error = e.message ?: e.toString())
         }
     }

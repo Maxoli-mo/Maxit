@@ -288,6 +288,9 @@ class ChatSystemPromptBuilderTest {
         assertTrue("on_heartbeat" in out)
         // Heartbeat toggle/schedule remain user-only.
         assertTrue("user-controlled" in out)
+        assertTrue("earlier outcomes are evidence, not permission to repeat actions" in out)
+        assertTrue("Actions requiring approval pause unattended work" in out)
+        assertFalse("starts fresh" in out)
     }
 
     @Test

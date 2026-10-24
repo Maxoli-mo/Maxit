@@ -4,6 +4,7 @@ package com.maximiliano.maxit.data
 
 import androidx.compose.runtime.Immutable
 import com.maximiliano.maxit.TerminalLine
+import com.maximiliano.maxit.ui.chat.ToolCallInfo
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -19,6 +20,9 @@ data class Attachment(
     val mimeType: String,
     val fileName: String? = null,
 )
+
+@Serializable
+enum class MessageState { COMPLETE, GENERATING, RUNNING, INTERRUPTED, FAILED, PAUSED }
 
 @Serializable
 data class Conversation(
@@ -45,6 +49,17 @@ data class Conversation(
         val attachments: List<Attachment> = emptyList(),
         val uiSubmission: UiSubmission? = null,
         val isThinking: Boolean = false,
+        val toolCalls: List<ToolCallInfo>? = null,
+        val providerBlocks: kotlinx.serialization.json.JsonArray? = null,
+        val providerKey: String? = null,
+        val providerUsage: kotlinx.serialization.json.JsonObject? = null,
+        val toolCallId: String? = null,
+        val toolName: String? = null,
+        val runId: String? = null,
+        val state: MessageState = MessageState.COMPLETE,
+        val isStatusMessage: Boolean = false,
+        val superseded: Boolean = false,
+        val fallbackServiceName: String? = null,
         // Most messages have no reasoning trace; skip the null to keep the persisted blob lean.
         @EncodeDefault(EncodeDefault.Mode.NEVER)
         val reasoningContent: String? = null,

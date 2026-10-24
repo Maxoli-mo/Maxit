@@ -22,6 +22,7 @@ interface LiteRTSwiftBridge {
     )
 
     fun releaseEngine()
+    fun cancelChat()
 
     fun isEngineReady(): Boolean
 
@@ -34,6 +35,13 @@ interface LiteRTSwiftBridge {
     fun chat(
         messagesJson: String,
         systemPrompt: String?,
+        onResult: (response: String?, errorMessage: String?) -> Unit,
+    )
+
+    fun chatStreaming(
+        messagesJson: String,
+        systemPrompt: String?,
+        onText: (delta: String) -> Unit,
         onResult: (response: String?, errorMessage: String?) -> Unit,
     )
 }

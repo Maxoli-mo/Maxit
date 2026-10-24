@@ -130,7 +130,6 @@ class CodexResponsesTest {
             """{"type":"response.completed","response":{"status":"incomplete"}}""",
             """{"type":"response.completed","response":{"error":{"message":"SECRET"}}}""",
             """{"type":"response.completed","response":{"output":"SECRET invalid"}}""",
-            """{"type":"response.created"}""",
             "[DONE]",
             "SECRET invalid JSON",
         )
@@ -141,7 +140,11 @@ class CodexResponsesTest {
             assertFalse(error.message.orEmpty().contains("SECRET"))
             assertNull(error.cause)
         }
-        assertFailsWith<OpenAICompatibleApiException> { readCodexResponse(ByteReadChannel(byteArrayOf())) }
+        for (body in listOf("", "data: {\"type\":\"response.created\"}\n\n")) {
+            val error = assertFailsWith<StreamInterruptedException> { readCodexResponse(ByteReadChannel(body.encodeToByteArray())) }
+            assertFalse(error.message.orEmpty().contains("SECRET"))
+            assertNull(error.cause)
+        }
     }
 
     @Test

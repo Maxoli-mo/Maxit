@@ -28,13 +28,17 @@ import kotlinx.serialization.json.put
  * | assistant `tool_calls[]` | one `function_call` item each, `id` → `call_id` |
  * | `{role: "tool", tool_call_id, content}` | `{type: "function_call_output", call_id, output}` |
  *
- * Reasoning is not replayed. OpenAI recommends echoing back the `reasoning` items that preceded a
- * `function_call`, but replaying one whose following item was trimmed away is a hard 400
- * (`Item 'rs_…' of type 'reasoning' was provided without its required following item`), so the
- * trade is a re-reasoned tool round-trip instead of a request that can fail outright.
+ * Native Responses items are replayed only as complete, provider-compatible turns. Context
+ * projection keeps each reasoning/tool/result exchange together; legacy chat turns use translation.
  */
 internal fun toResponsesInput(messages: List<OpenAICompatibleChatRequestDto.Message>): List<JsonObject> = buildList {
     for (message in messages) {
+        val native = message.responsesItems?.mapNotNull { it as? JsonObject }
+        val nativeCallIds = native.orEmpty().filter { (it["type"] as? JsonPrimitive)?.contentOrNull == "function_call" }.map { (it["call_id"] as? JsonPrimitive)?.contentOrNull }.toSet()
+        if (!native.isNullOrEmpty() && native.any { (it["type"] as? JsonPrimitive)?.contentOrNull in setOf("reasoning", "message", "function_call") } && nativeCallIds == message.tool_calls.orEmpty().map { it.id }.toSet()) {
+            addAll(native)
+            continue
+        }
         when {
             message.role == "tool" -> add(
                 buildJsonObject {
@@ -104,6 +108,13 @@ private fun JsonElement.toResponsesContentPart(): JsonObject {
     val part = this as? JsonObject ?: return buildJsonObject {
         put("type", "input_text")
         put("text", (this@toResponsesContentPart as? JsonPrimitive)?.contentOrNull.orEmpty())
+    }
+    (part["file"] as? JsonObject)?.let { file ->
+        return buildJsonObject {
+            put("type", "input_file")
+            file["filename"]?.let { put("filename", it) }
+            file["file_data"]?.let { put("file_data", it) }
+        }
     }
     val url = (part["image_url"] as? JsonObject)?.get("url")?.let { (it as? JsonPrimitive)?.contentOrNull }
     return if (url != null) {

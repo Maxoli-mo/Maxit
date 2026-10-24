@@ -4,6 +4,7 @@ package com.maximiliano.maxit.network.dtos.openairesponses
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Response body of OpenAI's Responses API (`POST /v1/responses`).
@@ -18,6 +19,8 @@ data class OpenAIResponsesResponseDto(
     val output: List<OutputItem> = emptyList(),
     val status: String? = null,
     val error: ResponseError? = null,
+    val rawOutput: kotlinx.serialization.json.JsonArray? = null,
+    val usage: JsonObject? = null,
 ) {
     @Serializable
     data class OutputItem(

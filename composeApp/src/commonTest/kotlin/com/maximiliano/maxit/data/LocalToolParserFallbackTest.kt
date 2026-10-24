@@ -7,6 +7,7 @@ import com.maximiliano.maxit.inference.InferenceMessage
 import com.maximiliano.maxit.inference.LocalInferenceEngine
 import com.maximiliano.maxit.inference.LocalModel
 import com.maximiliano.maxit.inference.LocalTool
+import com.maximiliano.maxit.inference.LocalToolResult
 import com.maximiliano.maxit.inference.ModelImportError
 import com.maximiliano.maxit.inference.ModelImportResult
 import com.maximiliano.maxit.skills.SkillManifest
@@ -73,7 +74,7 @@ class LocalToolParserFallbackTest {
             assertEquals("answer", answer)
             assertEquals(1, rebuilds)
             assertEquals(2, engine.calls.size)
-            assertEquals(tools, engine.calls[0].tools)
+            assertEquals(tools.map { it.name to it.descriptionJsonString }, engine.calls[0].tools.map { it.name to it.descriptionJsonString })
             assertEquals(originalPrompt, engine.calls[0].systemPrompt)
             assertTrue("## Installed Skills" in originalPrompt)
             val retry = engine.calls[1]
@@ -101,7 +102,7 @@ class LocalToolParserFallbackTest {
             },
         )
         assertEquals(1, engine.calls.size)
-        assertEquals(tools, engine.calls.single().tools)
+        assertEquals(tools.map { it.name to it.descriptionJsonString }, engine.calls.single().tools.map { it.name to it.descriptionJsonString })
     }
 
     @Test
@@ -157,6 +158,59 @@ class LocalToolParserFallbackTest {
         assertEquals(2, engine.calls.size)
         assertEquals("without tools", engine.calls[1].systemPrompt)
         assertTrue(engine.calls[1].tools.isEmpty())
+    }
+
+    @Test
+    fun `failure after tool entry never retries the action`() = runTest {
+        val failure = RuntimeException("Native completion failed after the action")
+        var attempts = 0
+        var executions = 0
+        val engine = object : LocalInferenceEngine by RecordingEngine() {
+            override suspend fun chat(messages: List<InferenceMessage>, systemPrompt: String?, tools: List<LocalTool>): String {
+                attempts++
+                assertEquals("saved", tools.single().execute("{}").content)
+                throw failure
+            }
+        }
+        assertSame(
+            failure,
+            assertFailsWith<RuntimeException> {
+                engine.chatWithToolParserFallback(
+                    messages,
+                    "custom",
+                    listOf(
+                        LocalTool("action", "{}") {
+                            executions++
+                            LocalToolResult("saved")
+                        },
+                    ),
+                ) { error("Must not rebuild after an action") }
+            },
+        )
+        assertEquals(1, attempts)
+        assertEquals(1, executions)
+    }
+
+    @Test
+    fun `failure after streamed text never retries the response`() = runTest {
+        val failure = RuntimeException("Native stream disconnected")
+        var attempts = 0
+        val received = StringBuilder()
+        val engine = object : LocalInferenceEngine by RecordingEngine() {
+            override suspend fun chatStreaming(messages: List<InferenceMessage>, systemPrompt: String?, tools: List<LocalTool>, onText: suspend (String) -> Unit): String {
+                attempts++
+                onText("Saved prefix")
+                throw failure
+            }
+        }
+        assertSame(
+            failure,
+            assertFailsWith<RuntimeException> {
+                engine.chatWithToolParserFallback(messages, "custom", tools, { received.append(it) }) { error("Must not rebuild after text") }
+            },
+        )
+        assertEquals(1, attempts)
+        assertEquals("Saved prefix", received.toString())
     }
 
     private data class Call(val messages: List<InferenceMessage>, val systemPrompt: String?, val tools: List<LocalTool>)

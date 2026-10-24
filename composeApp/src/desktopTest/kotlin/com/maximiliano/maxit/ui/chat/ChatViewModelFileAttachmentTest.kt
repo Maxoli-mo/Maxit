@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import com.maximiliano.maxit.data.TaskScheduler
 import com.maximiliano.maxit.testutil.FakeDataRepository
 import io.github.vinceglb.filekit.PlatformFile
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -128,7 +129,7 @@ class ChatViewModelFileAttachmentTest {
     }
 
     @Test
-    fun `ask clears the queued files after submitting`() = runTest {
+    fun `synchronous accepted input clears queued files even before the observer can run`() = runTest {
         fakeRepository.fileAttachmentSupported = true
         val viewModel = createViewModel()
         val pngFile = tempPlatformFile("png")
@@ -139,7 +140,7 @@ class ChatViewModelFileAttachmentTest {
             awaitItem()
 
             viewModel.state.value.actions.ask("describe this")
-            // drain states until files is empty (ask clears them on dispatch)
+            // Files are cleared after acceptance, not merely when Send is pressed.
             var filesCleared = false
             while (true) {
                 val next = awaitItem()
@@ -149,8 +150,65 @@ class ChatViewModelFileAttachmentTest {
                 }
             }
             assertTrue(filesCleared)
+            assertTrue(viewModel.state.value.acceptedInputId > 0)
             assertEquals(1, fakeRepository.askCalls.size)
             assertEquals(listOf(pngFile), fakeRepository.askCalls.first().second.toList())
+        }
+    }
+
+    @Test
+    fun `a failure before input acceptance keeps the queued files`() = runTest {
+        fakeRepository.askException = IllegalStateException("Could not save input")
+        val viewModel = createViewModel()
+        val file = tempPlatformFile("png")
+        viewModel.state.test {
+            awaitItem().actions.addFile(file)
+            awaitItem().actions.ask("Keep my attachment")
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(file), viewModel.state.value.files)
+            assertNotNull(viewModel.state.value.error)
+            assertEquals(0L, viewModel.state.value.acceptedInputId)
+            fakeRepository.chatHistory.value = listOf(History(role = History.Role.USER, content = "Keep my attachment"))
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(0L, viewModel.state.value.acceptedInputId)
+            assertEquals(listOf(file), viewModel.state.value.files)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `another matching history message does not acknowledge the pending submission`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        fakeRepository.askGate = gate
+        val viewModel = createViewModel()
+        val file = tempPlatformFile("png")
+        viewModel.state.test {
+            awaitItem().actions.addFile(file)
+            awaitItem().actions.ask("Same question")
+            fakeRepository.chatHistory.value = listOf(History(role = History.Role.USER, content = "Same question"))
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(0L, viewModel.state.value.acceptedInputId)
+            assertEquals(listOf(file), viewModel.state.value.files)
+            gate.complete(Unit)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertTrue(viewModel.state.value.acceptedInputId > 0)
+            assertTrue(viewModel.state.value.files.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `Continue does not consume files queued for an unsent new message`() = runTest {
+        val viewModel = createViewModel()
+        val file = tempPlatformFile("png")
+        viewModel.state.test {
+            awaitItem().actions.addFile(file)
+            awaitItem().actions.retry()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(file), viewModel.state.value.files)
+            assertTrue(fakeRepository.askCalls.single().second.isEmpty())
+            assertEquals(0L, viewModel.state.value.acceptedInputId)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

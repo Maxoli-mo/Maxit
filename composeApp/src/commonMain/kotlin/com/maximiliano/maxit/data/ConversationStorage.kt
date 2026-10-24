@@ -3,10 +3,10 @@
 package com.maximiliano.maxit.data
 
 import com.maximiliano.maxit.TerminalLine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 expect fun readLegacyConversationFile(): ByteArray?
 expect fun deleteLegacyConversationFile()
@@ -17,37 +17,54 @@ class ConversationStorage(
     private val appSettings: AppSettings,
     private val persistence: ConversationPersistence,
 ) {
+    private val lock = ConversationLock()
+    private val deletedIds = mutableSetOf<String>()
+    private var loaded = false
+    private var generation = 0L
+    internal fun generation(): Long = lock.locked { generation }
     private val mutableConversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = mutableConversations.asStateFlow()
 
-    fun loadConversations() {
-        val loaded = persistence.loadAll()
-        mutableConversations.value = loaded
-        if (loaded.isEmpty()) {
-            migrateLegacy()
-        }
-    }
-
-    fun saveConversation(conversation: Conversation) {
-        var saved = conversation
-        mutableConversations.update { current ->
-            val index = current.indexOfFirst { it.id == conversation.id }
-            if (index >= 0) {
-                val existing = current[index]
-                // Chat-layer save paths rebuild Conversation without the shell
-                // transcript; preserve the stored tail rather than wiping it.
-                val merged = if (conversation.shellTranscript.isEmpty() && existing.shellTranscript.isNotEmpty()) {
-                    conversation.copy(shellTranscript = existing.shellTranscript)
-                } else {
-                    conversation
-                }
-                saved = merged
-                current.toMutableList().apply { set(index, merged) }
+    fun loadConversations() = lock.locked {
+        if (loaded && appSettings.getConversationsJson() == null) return@locked
+        generation++
+        val original = persistence.loadAll()
+        val loaded = original.map { conversation ->
+            if (conversation.messages.any { it.state == MessageState.RUNNING || it.state == MessageState.GENERATING }) {
+                conversation.copy(
+                    messages = settleInterruptedHistory(
+                        conversation.messages.map { it.toHistory() },
+                        MessageState.INTERRUPTED,
+                        "Interrupted when the app closed. Completed actions are preserved; verify unknown outcomes before repeating them.",
+                    ).map { it.toStoredMessage() },
+                )
             } else {
-                current + conversation
+                conversation
             }
         }
-        persistence.save(saved, mutableConversations.value)
+        loaded.forEachIndexed { index, conversation ->
+            if (conversation != original[index]) persistence.save(conversation, loaded)
+        }
+        deletedIds.clear()
+        mutableConversations.value = loaded
+        if (loaded.isEmpty()) migrateLegacy()
+        this.loaded = true
+    }
+
+    fun saveConversation(conversation: Conversation, expectedGeneration: Long? = null) = lock.locked {
+        if (appSettings.getConversationsJson() != null || (expectedGeneration != null && expectedGeneration != generation)) throw CancellationException("Conversation storage was replaced; the old run cannot write into it")
+        if (conversation.id in deletedIds) throw CancellationException("Conversation was deleted")
+        val current = mutableConversations.value
+        val index = current.indexOfFirst { it.id == conversation.id }
+        val existing = current.getOrNull(index)
+        val saved = if (conversation.shellTranscript.isEmpty() && existing?.shellTranscript?.isNotEmpty() == true) {
+            conversation.copy(shellTranscript = existing.shellTranscript)
+        } else {
+            conversation
+        }
+        val next = if (index >= 0) current.toMutableList().apply { set(index, saved) } else current + saved
+        persistence.save(saved, next)
+        mutableConversations.value = next
     }
 
     /**
@@ -57,22 +74,17 @@ class ConversationStorage(
      * within the per-conversation char budget — older lines drop first so the
      * tail (most recent activity) survives a restart.
      */
-    fun updateShellTranscript(conversationId: String, lines: List<TerminalLine>) {
+    fun updateShellTranscript(conversationId: String, lines: List<TerminalLine>, expectedGeneration: Long? = null) = lock.locked {
+        if (appSettings.getConversationsJson() != null || (expectedGeneration != null && expectedGeneration != generation)) return@locked
         val trimmed = trimToCharLimit(lines, MAX_SHELL_TRANSCRIPT_CHARS)
-        var changed: Conversation? = null
-        mutableConversations.update { current ->
-            val idx = current.indexOfFirst { it.id == conversationId }
-            if (idx < 0) {
-                current
-            } else if (current[idx].shellTranscript == trimmed) {
-                current
-            } else {
-                val updated = current[idx].copy(shellTranscript = trimmed)
-                changed = updated
-                current.toMutableList().apply { set(idx, updated) }
-            }
+        val current = mutableConversations.value
+        val idx = current.indexOfFirst { it.id == conversationId }
+        if (idx >= 0 && current[idx].shellTranscript != trimmed) {
+            val updated = current[idx].copy(shellTranscript = trimmed)
+            val next = current.toMutableList().apply { set(idx, updated) }
+            persistence.saveShellTranscript(updated, next)
+            mutableConversations.value = next
         }
-        changed?.let { persistence.saveShellTranscript(it, mutableConversations.value) }
     }
 
     private fun trimToCharLimit(lines: List<TerminalLine>, limit: Int): List<TerminalLine> {
@@ -97,27 +109,28 @@ class ConversationStorage(
         return listOf(last.withText(last.text.takeLast(limit)))
     }
 
-    fun deleteConversation(id: String) {
-        mutableConversations.update { current ->
-            current.filter { it.id != id }
-        }
-        persistence.delete(id, mutableConversations.value)
+    fun deleteConversation(id: String) = lock.locked {
+        val next = mutableConversations.value.filter { it.id != id }
+        persistence.delete(id, next)
+        deletedIds.add(id)
+        mutableConversations.value = next
     }
 
     private fun migrateLegacy() {
         val legacyData = readLegacyConversationFile() ?: return
-        val key = appSettings.getEncryptionKey() ?: return
+        val key = appSettings.getEncryptionKey() ?: error("Legacy conversation encryption key is missing; the original file was preserved")
+        check(key.isNotEmpty()) { "Legacy conversation encryption key is empty; the original file was preserved" }
         val decrypted = ByteArray(legacyData.size)
         for (i in legacyData.indices) {
             decrypted[i] = (legacyData[i].toInt() xor key[i % key.size].toInt()).toByte()
         }
         val conversations = try {
             ConversationJson.decodeFromString<ConversationsData>(decrypted.decodeToString()).conversations
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: Exception) {
+            throw IllegalStateException("Legacy conversations could not be decoded; the original file was preserved", e)
         }
-        mutableConversations.value = conversations
         persistence.replaceAll(conversations)
+        mutableConversations.value = conversations
         deleteLegacyConversationFile()
     }
 }

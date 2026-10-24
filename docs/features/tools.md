@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Tools
 
-**Last reviewed:** 2026-10-23. All 1,124 isolated desktop tests, two targeted Android host directory-reading tests, Android FOSS/WebAssembly source compilation, and formatting passed after the skills review fixes. Desktop Settings now explicitly describes shell execution with host-user permissions, not sandbox isolation. Live-model, real-device, and live-profile execution remain untested.
+**Last verified:** 2026-10-24. Conversation reliability changes are covered by the [verification plan](../plans/conversation-reliability.md); previous test totals are not certification of this revision. Live-model and real-device execution remain separate acceptance checks.
 
 Maxit's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -24,7 +24,7 @@ Every tool a platform can execute must have a definition, including tools no per
 
 ### Tool Executor
 
-The component that looks up a tool by name, parses JSON arguments into a typed map, runs the tool with its declared timeout, catches errors, and truncates oversized results. Acts as the bridge between raw AI tool-call JSON and the typed tool implementations.
+The component that looks up a tool by name, parses JSON arguments into a typed map, runs the tool with its declared timeout, validates execution permission, and returns complete results or explicit errors. Acts as the bridge between raw AI tool-call JSON and the typed tool implementations.
 
 An argument explicitly sent as JSON `null` is treated as not provided, so the tool falls back to its default instead of receiving the text "null". Failures (unknown tool, unparseable arguments, timeout, exception) come back to the AI as a JSON object with `success: false` and an `error` message, built as proper JSON so messages containing quotes or newlines stay valid.
 
@@ -38,7 +38,7 @@ An argument explicitly sent as JSON `null` is treated as not provided, so the to
 | `get_local_time` | Get the current local date and time | Enabled |
 | `get_location_from_ip` | Get estimated location from IP address | Enabled |
 | `open_url` | Open a URL, link, or local file on the device | Enabled |
-| `fetch_url` | Fetch an http(s) URL and return the response body to the agent (GET, POST, HEAD). Blocks loopback, private, link-local and CGNAT addresses (including IPv4-mapped IPv6 and numeric shorthands like `2130706433`), checked again on every redirect hop (GET/HEAD follow up to 5 redirects; POST never redirects). Hostnames that only resolve to private addresses are not detected. Reads at most 512 KB of the body, which is then subject to the global 20K tool-result truncation. Used for reading pages and acting on links from emails (e.g. RFC 8058 one-click unsubscribe). | Enabled |
+| `fetch_url` | Fetch an http(s) URL and return the response body to the agent (GET, POST, HEAD). Blocks loopback, private, link-local and CGNAT addresses (including IPv4-mapped IPv6 and numeric shorthands like `2130706433`), checked again on every redirect hop (GET/HEAD follow up to 5 redirects; POST never redirects). Hostnames that only resolve to private addresses are not detected. Reads at most 512 KB of the body; that bounded result is retained without an additional global 20K cut. Used for reading pages and acting on links from emails (e.g. RFC 8058 one-click unsubscribe). | Enabled |
 
 #### open_url platform behavior
 
@@ -177,7 +177,7 @@ The `manage_process` tool is automatically available when the shell command tool
 
 Command output uses smart middle truncation: when output exceeds the limit, both the beginning and end are preserved with a truncation marker in the middle. This ensures error messages (typically at the end) are not lost.
 
-Android output limits: 15,000 chars per stream. Final tool results are truncated at 20,000 chars.
+Android shell capture retains its own 15,000-character per-stream limit. There is no additional global 20,000-character cut after a tool returns; tool-specific capture limits still apply.
 
 ### Desktop skills and execution
 
@@ -185,56 +185,54 @@ Desktop skills use the same catalog and `load_skill` interface as Android, with 
 
 ## Execution Flow
 
-1. The AI responds with one or more tool calls (name + JSON arguments)
-2. For each call, a TOOL_EXECUTING entry is added to chat history (shows a spinning icon in the UI)
-3. All tool calls in the response are executed in parallel using coroutine async/await
-4. Each execution goes through the tool executor: find tool by name, parse arguments, run with timeout, truncate result
-5. TOOL_EXECUTING entries are removed and replaced with TOOL result entries (tool call id, tool name, result string)
-6. The updated history (including tool results) is sent back to the AI
-7. The AI may respond with more tool calls — repeat from step 1
-8. When the AI responds with no tool calls, the final text is returned to the user
+1. The model produces a complete, terminally validated proposal: tool names, identities, and JSON arguments. Partial streamed arguments are never dispatched.
+2. The assistant proposal is committed to the run's own conversation before any action.
+3. Potentially harmful actions request approval of their exact arguments. Unattended runs pause instead of inferring authorization. Read-only operations are exempt; SMS sending retains its separate draft/send gate.
+4. A dispatch marker is committed before entering execution. Enabled-tool lookup, argument parsing/size validation, exact permission checks, and the tool's timeout remain enforced.
+5. Remote calls execute with at most four concurrent workers. Each result is committed immediately when it finishes, independently of slower siblings, and executing indicators are removed.
+6. The next model request uses a compatible, bounded copy of the recorded exchanges. The model may request further tools, finish, or encounter a recoverable guard pause.
 
-Pressing stop cancels in-flight tool executions and removes the executing indicators from the chat; a cancelled tool is not reported to the AI as a failed result.
+Stop preserves proposals, completed receipts, and partial text. A proposal that never started is labelled not started; a dispatched action without a confirmed outcome is labelled outcome unknown. A timeout or generic execution exception also warns that the effect may already have happened. Neither cancellation nor regeneration proves rollback. Previously uncertain side effects require explicit review before repetition, even for a normally read-only tool or if the model claims permission. Re-enabling a tool between proposal classification and final lookup does not grant approval; the action is recorded as not started and pauses if its exact invocation was not authorized. A denied exact invocation is not re-requested within the same attempt. Approval buttons identify a fresh request: an old click cannot authorize different work in another run/chat even when the provider reuses a call ID.
 
-The loop supports OpenAI-compatible, Gemini, and Anthropic provider formats, with provider-specific serialization of tool calls and results. GPT-family models on OpenAI's own endpoint that require it go through OpenAI's Responses API instead of Chat Completions; the same tool loop drives both.
+OpenAI-compatible Chat Completions, Responses/Codex, Anthropic, Gemini, and supported native inference share these durability and authorization rules. Native inference drives its own app-owned tool loop rather than relying on an SDK-owned total-round ceiling.
 
 ## Safety Guards
 
-### Iteration limit
+### No total-round ceiling
 
-The tool loop runs a maximum of 15 iterations. If exceeded, the AI is asked to respond with the best answer it has so far, with tools removed from the request.
+There is no fixed maximum number of tool rounds or calls per run and no automatic tools-less final answer after 15 rounds. Useful work may continue. Guard state is bounded rather than the task's total length.
 
-### Repeated call detection
+### Repetition, cycles, and failures
 
-Each tool call produces a signature from its name and arguments hash. If the same signature pattern appears 3 consecutive times, the loop is stopped and the AI is asked to respond with what it has.
+The last 24 call/result rounds are inspected for repeated canonical batches and cycles of one to four rounds. Canonicalization sorts JSON object keys without changing strings or array order. Only the logical request being continued seeds the detector after Continue; a new user request or scheduled occurrence starts fresh, and replaced attempts do not count toward the replacement's cycle history. All saved outcomes remain available for approval and uncertainty checks.
 
-### Timeout
+A detected repetition allows one different recovery approach; renewed non-progress pauses with a durable reason. Six consecutive failed rounds similarly allow one different safe diagnostic attempt, then pause if failure continues. A final answer is not forced back into another tool request. These are deterministic heuristics, not proof that arbitrary changing output represents meaningful progress.
 
-Each tool has a configurable timeout defaulting to 30 seconds. If execution exceeds the timeout, the call is cancelled and an error is returned as the tool result. The shell tool enforces its own per-call timeout (up to 60 s on Android, 120 s on desktop), so its outer limit sits above that maximum.
+Running-process list/log/status polling is not classified as a dead loop merely because its output stays the same. Repeated running-process polling backs off by two seconds. Process termination is not exempted as polling.
 
-Cancelling a shell call — the user pressing stop, or the outer timeout — stops the command instead of abandoning it. On Android the persistent shell interrupts the foreground command (SIGINT → SIGTERM → SIGKILL) and resets the session if that fails, before the next call can start, so a stale command's output never leaks into the next result. On desktop the command's process tree is killed. A desktop command that leaves a background child holding its output open (e.g. `server &`) returns after a short grace with the output collected so far and a hint to use `background=true`.
+### Independent resource bounds
 
-### Result truncation
+- At most 256 proposed actions in one response/batch; larger batches pause before dispatch and must be split.
+- Tool arguments are bounded at 1,048,576 characters per call.
+- Remote execution has four concurrent workers, not an unlimited parallel launch.
+- Stream events and response payloads have separate size/framing bounds. Malformed or incomplete output is not an executable proposal.
+- Each tool retains its declared timeout, normally 30 seconds. Shell calls retain their platform-specific timeout and output-capture policies.
 
-Ordinary tool results longer than 20,000 characters are truncated with a note indicating the original length. `load_skill` instead preserves complete instructions and file listings up to 256,000 characters; exceeding that bound returns an error rather than silently removing instructions. The loader separately bounds skill bodies and text-reference reads (see [skills.md](skills.md)).
+These limits protect a single operation or response; none is a replacement total-call ceiling.
 
-### Context trimming
+### Cancellation and outcomes
 
-Before every tool loop request, the message history sent to the model is trimmed to fit within the model's context window. All three providers (OpenAI-compatible, Gemini, Anthropic) trim per request. Only the outgoing copy is trimmed: the conversation shown in the chat and saved to disk keeps every message. Context window sizes are estimated per model (e.g. Gemini 2.5 = 1M tokens, Claude = 200K, GPT-4o = 128K, small local models = 8–32K) and oldest messages are dropped first while preserving the system prompt.
+Android foreground shell cancellation interrupts the command and escalates signals/reset as needed; desktop attempts to terminate the process tree. A background process or a third-party service may continue after cancellation. Even successful process termination cannot undo earlier file writes, sent messages, or other completed external effects. Verify ambiguous outcomes rather than blindly repeating the action.
 
-Trimming preserves the tool-call pairing required by strict OpenAI-compatible providers (e.g. DeepSeek via OpenCode Zen): an assistant turn that requested tool calls is dropped together with the tool responses that answer it, never split. A tool result is never kept without the assistant message that requested it; on Gemini and Anthropic, tool results left at the start of the trimmed history are dropped.
+### Complete results and bounded request context
 
-### Tool-call message sanitization (OpenAI-compatible)
+Ordinary returned results are saved without a global 20,000-character cut. Individual tools can still have explicit capture/read bounds. `load_skill` retains its 256,000-character limit and returns an error rather than silently dropping instructions beyond it; skill/reference read limits remain documented in [skills.md](skills.md).
 
-Strict OpenAI-compatible providers reject a request when an assistant message carrying `tool_calls` is not immediately followed by one tool response per `tool_call_id`, when a tool response has no preceding `tool_calls`, or when a `tool_calls` entry references a tool that is not also declared in the request's `tools[]` array (HTTP 400). Before every OpenAI-compatible request, the outgoing message list is sanitized to enforce these invariants: each assistant tool-call turn is paired with the tool responses that follow it, any tool call referencing a tool not declared on the current request (e.g. because the user toggled the tool off mid-conversation, or the request makes a final tools-less bailout call) is stripped along with its paired response, any tool call left unanswered (e.g. by an interrupted run or aggressive trimming) is stripped, orphan tool responses are dropped, and an assistant turn left with neither text nor tool calls is removed. Gemini and Anthropic use their own native serialization and are unaffected by this pass.
+Request projection reserves output headroom and estimates system text, schemas, arguments, reasoning, and attachments. It retains the current user request and complete tool exchanges, while older work becomes bounded, source-linked, explicitly untrusted historical evidence. The `read_conversation_history` tool searches/pages the saved transcript and retrieves complete large records in bounded character slices. Stored history is never compacted or deleted to fit a model request; no separate summarization-model call is made.
 
-### Context window overflow protection
+Native outgoing receipts have their own budget, including system instructions, schemas, current input, action arguments, framing, and output reserve. Oversized receipts become explicitly partial excerpts with durable retrieval IDs, total size, next offset, and uncertainty warnings; the stored result remains complete. Mandatory input that cannot fit pauses honestly. Text-only requests budget supported decoded attachments and unsupported-format notices before context selection.
 
-When the fallback chain is active, each fallback service is checked before use. If the current conversation exceeds a fallback model's estimated context window, that service is skipped. If no service in the chain has a large enough window, an error message is shown to the user.
-
-### Chat history compaction
-
-When conversation history exceeds 70% of the primary model's context window, an AI-powered compaction runs before the next API call. Older messages are summarized into a single compact entry via a separate LLM call, while the most recent 4 user exchanges are kept verbatim. If the summarization call fails, the history is left intact while it still fits the context window; older messages are dropped only when it no longer fits at all. Stopping the request during compaction never changes the history.
+For provider switches, disabled tools, and incomplete exchanges, incompatible tool traffic is quoted as historical evidence rather than silently removed. Opaque reasoning/signature blocks are replayed only for the matching provider instance/model and complete exchanges. Strict native tool-call/result pairing remains enforced. Context estimates are not exact tokenizer accounting, and endpoint-specific limits can still reject a request.
 
 ## MCP Servers
 
@@ -251,7 +249,7 @@ Tool availability is controlled at multiple levels:
 - **Per-tool toggles** — individual tools can be enabled or disabled in settings, persisted with a `tool_enabled_` key prefix
 - **Default state** — most tools default to enabled. On Android the shell has no per-tool switch — it follows the sandbox switch, which is on by default once the sandbox is installed
 - **Master-toggle-only** — memory, scheduling, email, SMS, and notification tools have no individual per-tool toggle; they are on whenever their master switch in Settings → Agent is on. Android sandbox tools follow the sandbox switch and likewise carry no switch of their own
-- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. This includes `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, `load_skill`, and `create_skill`. Android's `execute_shell_command` also requires its sandbox gate. Memory tools beyond the three listed, email tools, and scheduling tools are not surfaced to local models even when their master switches are on. Models without function-calling support receive no tools.
+- **On-device (LiteRT) allowlist** — when the active model is an on-device LiteRT model, only a small allowlist of tools is exposed regardless of which other tools are enabled. This includes `get_local_time`, `get_location_from_ip`, `web_search`, `open_url`, `memory_store`, `memory_forget`, `memory_reinforce`, `load_skill`, and `create_skill`. Android's `execute_shell_command` also requires its sandbox gate. Memory tools beyond the three listed, email tools, and scheduling tools are not surfaced to local models even when their master switches are on. Models without function-calling support receive no tools. Tool-capable engines also receive bounded saved-history retrieval. The retained iOS engine declares no tool execution and receives no tools.
 
 The platform layer assembles the final list of available tools by checking all gates and per-tool settings, and only enabled tools are sent to the AI provider.
 
@@ -285,7 +283,7 @@ The indicator accepts styling parameters (dot size, colors, text style).
 
 ### Waiting response row (standard chat)
 
-When loading, a chip appears at the bottom of the chat list containing the pulsing status indicator with surface variant colors, a 16dp dot, and `bodyMedium` text style. The chip uses `animateContentSize` (300ms) for smooth text transitions.
+When loading, a chip appears at the bottom of the chat list with the pulsing indicator, surface variant colors, and a 16dp dot. Standard chat explicitly distinguishes generating, waiting for approval, and stopping; tool summaries remain visible where applicable. The chip animates size changes over 300ms. Stop remains in cleanup state until the old job settles.
 
 ### Interactive mode loading feedback
 
@@ -305,7 +303,17 @@ Dynamic/Interactive UI generation and entry points are parked; previous interact
 |---|---|
 | `composeApp/src/commonMain/.../network/tools/Tool.kt` | Tool interface, ToolSchema, ParameterSchema |
 | `composeApp/src/commonMain/.../network/tools/ToolInfo.kt` | Display metadata for settings |
-| `composeApp/src/commonMain/.../data/ToolExecutor.kt` | Execution, JSON parsing, timeout, truncation |
+| `composeApp/src/commonMain/.../data/ToolExecutor.kt` | Execution, exact permission checks, JSON parsing, timeouts, complete results |
+| `composeApp/src/commonMain/.../data/ConversationRun.kt` | Commit ordering and stable run ownership |
+| `composeApp/src/commonMain/.../data/ToolApproval.kt` | Exact approvals, same-attempt denial, uncertain-outcome checks |
+| `composeApp/src/commonMain/.../data/ToolLoopGuard.kt` | Bounded repetition/cycle/failure detection and polling backoff |
+| `composeApp/src/commonMain/.../data/ConversationContext.kt` | Historical evidence, complete exchanges, full-record retrieval |
+| `composeApp/src/commonMain/.../ui/chat/composables/RunActivity.kt` | Approval prompts and saved action inspection |
+| `composeApp/src/commonTest/.../data/ConversationContextAndLoopTest.kt` | Long useful runs, request-scoped loop seeding, polling, context compatibility |
+| `composeApp/src/commonTest/.../data/ToolApprovalRaceTest.kt` | Final lookup rejects missing or mismatched exact authorization |
+| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Foreground/unattended approval races and real durable execution |
+| `composeApp/src/commonMain/.../inference/NativeToolProjection.kt` | Bounded native receipts without truncating saved outcomes |
+| `composeApp/src/commonTest/.../data/ConversationContinuationTest.kt` | Wire identity, reasoning, denial, retrieval and recovery regressions |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Tool loop (OpenAI-compatible, Responses API, Gemini, Anthropic), parallel execution, context trimming, on-device allowlist |
 | `composeApp/src/commonMain/.../data/providers/OpenAIMessages.kt` | OpenAI-compatible message building + tool-call pairing sanitization |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | Common tool implementations and the cross-platform definition list |

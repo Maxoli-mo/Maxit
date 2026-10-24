@@ -30,6 +30,7 @@ import com.maximiliano.maxit.network.OpenAICompatibleConnectionException
 import com.maximiliano.maxit.network.OpenAICompatibleInvalidApiKeyException
 import com.maximiliano.maxit.network.OpenAICompatibleQuotaExhaustedException
 import com.maximiliano.maxit.network.OpenAICompatibleRateLimitExceededException
+import com.maximiliano.maxit.network.toUiError
 import com.maximiliano.maxit.skills.parseGitHubSkillUrl
 import com.maximiliano.maxit.tools.AppPermission
 import com.maximiliano.maxit.tools.PermissionController
@@ -167,6 +168,7 @@ class SettingsViewModel(
         onUpdateMemory = ::onUpdateMemory,
         onToggleScheduling = ::onToggleScheduling,
         onCancelTask = ::onCancelTask,
+        onResumeTask = ::onResumeTask,
         onToggleDaemon = ::onToggleDaemon,
         onToggleHeartbeat = ::onToggleHeartbeat,
         onChangeHeartbeatInterval = ::onChangeHeartbeatInterval,
@@ -531,6 +533,20 @@ class SettingsViewModel(
     private fun onToggleScheduling(enabled: Boolean) {
         dataRepository.setSchedulingEnabled(enabled)
         _state.update { it.copy(isSchedulingEnabled = enabled) }
+    }
+
+    private fun onResumeTask(id: String) {
+        _state.update { it.copy(taskResumeError = null) }
+        viewModelScope.launch(backgroundDispatcher) {
+            try {
+                dataRepository.resumeScheduledTask(id)
+                _state.update { it.copy(scheduledTasks = dataRepository.getScheduledTasks().toImmutableList()) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(taskResumeError = e.toUiError()) }
+            }
+        }
     }
 
     private fun onCancelTask(id: String) {

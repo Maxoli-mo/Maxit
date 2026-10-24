@@ -1,148 +1,150 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Chat & Conversations
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-24. Post-review checks and remaining runtime limits are recorded in the [verification plan](../plans/conversation-reliability.md).
 
-Maxit's chat system manages the message history, conversation persistence, file attachments, and speech output. Conversations are service-independent — switching providers does not affect which conversation is loaded or restored. Multiple conversations are persisted and browsable via a history sheet.
-
-## Concepts
-
-### Conversation
-
-A persisted chat session containing an id (UUID), message list, timestamps (`createdAt`, `updatedAt`), a title, and a type (`chat`, `heartbeat`, or `interactive`). Conversations are stored in a local database (browser builds use the settings store) and restored across app launches.
-
-### History
-
-The in-memory message list that drives the UI. Each entry has a role: USER, ASSISTANT, TOOL, or TOOL_EXECUTING. History is the source of truth during a session; it is written to a Conversation on save.
-
-### Conversation Title
-
-Auto-derived from the first user message when a conversation is saved for the first time. Truncated to ~50 characters at a word boundary. Once set, titles are not updated.
+Conversations survive Stop, failed requests, navigation, and app restarts without deliberately discarding saved work. Switching providers changes the request format, not the saved conversation. See the [implementation and verification plan](../plans/conversation-reliability.md) for acceptance results and outstanding platform checks.
 
 ## Conversation Lifecycle
 
-- The "current conversation" pointer is persisted across launches: opening the app restores whichever conversation was last active, including an empty new chat the user explicitly started
-- If the persisted pointer references a conversation that no longer exists (or is null because the user started a new chat), the app opens to an empty new chat
-- "New Chat" clears history, unsets the current conversation pointer, and persists the empty state — so an unused new chat survives an app restart
-- A new conversation ID (UUID) is generated on first successful save (after the first assistant response) and immediately becomes the persisted current pointer
-- Conversations are saved after each assistant response
-- Only the most recent 20 exchanges are persisted per chat conversation; heartbeat conversations have a separate, larger cap of 50 messages so longer automation runs are not truncated as aggressively
-- Multiple conversations are persisted — starting a new chat preserves previous conversations
-- Conversations are service-independent — switching services does not affect which conversation is loaded
-- Interactive vs normal chat mode is persisted alongside the current pointer, so an empty interactive chat also survives a restart
-- On the first launch after upgrading from a build that did not persist the current-conversation pointer, a one-time migration pins the most recently updated conversation as the current pointer so the user resumes where they left off
-- On Android, sharing plain text into Maxit from another app (the system share sheet) starts a new conversation and puts the shared text in the input field, unsent. The previous conversation stays in history. The user can edit the text or add an instruction, then send as usual. Opening Maxit from the launcher or the assist gesture is unchanged; assist still starts an empty new chat
+- Each conversation has a stable ID, title, creation/update times, and a normal, heartbeat, or legacy interactive type.
+- The current-conversation pointer survives launches, including an empty new chat the user deliberately opened. A missing/deleted pointer opens an empty chat.
+- On the first upgrade from a version without that pointer, the most recently updated saved conversation becomes current.
+- New Chat preserves previous conversations. A new ID is reserved when sending; accepted input and its running-attempt marker are committed together before generation starts.
+- The title comes from the first user message, cut at a word boundary near 50 characters. An established title is retained.
+- There is no 20-exchange chat cap or separate 50-message heartbeat cap. Saved messages remain until the user deletes or explicitly replaces them.
+- Android's plain-text share sheet opens a new conversation with the shared text unsent. The previous conversation remains saved. Launcher and assist entry points keep their existing behavior.
 
-## Chat History
+## Saving and Run Ownership
 
-- A history icon appears in the top bar when saved conversations other than the current one exist
-- Tapping it opens a bottom sheet listing all chat conversations sorted by last updated (newest first)
-- Each item shows the title and formatted date
-- Non-interactive conversations are outlined with a primary-colored border; interactive-mode conversations get an animated gradient border. The active conversation's title is rendered in the primary color (inactive titles use onBackground)
-- Tapping an item loads that conversation and dismisses the sheet
-- Each item has a delete button that defers deletion with a snackbar "Undo" option (~4 seconds) before the conversation is permanently removed. The snackbar appears inside the history sheet so it remains visible while the sheet is open, and the sheet stays open so multiple conversations can be deleted in sequence
-- Deleting the active conversation clears the chat
-- Heartbeat conversations are included in the history list with a "Heartbeat" label badge, and can also be accessed via the heartbeat banner
+The visible saved transcript follows successful storage commits, not speculative updates. Accepted messages, assistant checkpoints, tool proposals, dispatch markers, and individual tool outcomes are saved before publication or subsequent actions. A failed write stops execution rather than allowing an action without recorded intent.
 
-## Message Sending
+Each attempt owns its original conversation and independent transcript. Navigation cannot redirect callbacks into another chat. Deleted conversations reject stale writes; replacing imported storage invalidates old attempts. Foreground requests wait for prior cancellation cleanup, and foreground/background model execution is serialized.
 
-- Configure a provider or local model before chatting; there is no built-in Free service
-- User message is added to history, then the configured service chain handles the request
-- Tool calls are executed inline (TOOL_EXECUTING shown during execution, TOOL result stored after)
-- On success, the conversation is saved
-- On failure, an error is displayed with a retry button
+The transcript preserves tool names, exact arguments, linked results, partial output, provider continuation metadata and usage when supplied, and attempt status. Older versions' missing or discarded records cannot be reconstructed.
 
-## Cancel
+## Sending and Streaming
 
-- While a request is in progress, a stop button replaces the send button in the input field
-- Clicking stop cancels the ongoing API request and any in-flight tool executions
-- After cancellation, the loading state clears and the send button reappears when typing
+- Configure a remote provider or local model; there is no built-in Free service.
+- While input and attachments are being prepared, the draft and queued files are retained until their own accepted user record is committed, including synchronous completion. Opening the sandbox or collapsing the composer does not lose that acknowledgement. Only unchanged submitted text and submitted files clear; later edits remain. Rejected input remains available to send again. Continue does not consume files queued for an unsent message.
+- A restored pending draft can still receive its own live request's acknowledgement. After request ownership is recreated, reset counters are not treated as proof that an unacknowledged draft was sent.
+- Remote Chat Completions, Responses/Codex, Anthropic, and Gemini consume real incremental response streams. Transport chunks do not become new paragraph boundaries on completion, and refusal text remains visible when normal content is absent or null. A normal JSON response is an honest complete-response fallback, not simulated typing.
+- A stable assistant message receives the first text checkpoint immediately, then pending deltas are checkpointed on a roughly 100 ms timer. Completion and interruption flush the remaining received tail. Storage/decoder backpressure can delay presentation.
+- Only committed batches are guaranteed after abrupt process death. Bytes still in network/native buffers or an uncommitted checkpoint can be lost.
+- Incomplete streamed tool arguments never execute. Missing completion, malformed events, truncation, and stream disconnects surface as failures, preserving committed text rather than silently replaying the request.
+- Potentially harmful actions require one-shot approval of their exact arguments. Read-only operations normally do not require that gate, but a previously uncertain outcome still requires approval and an additional warning. Enabling a tool during execution does not manufacture permission. Tool output cannot supply authorization.
+- Tool activity shows running work and expandable saved arguments/results. See [tools.md](tools.md) for execution safeguards.
 
-## Retry & Regenerate
+## Stop, Failure, and Restart
 
-- **Retry** resends the current prompt
-- **Regenerate** removes all messages after the last user message, then resends
+- Stop requests cancellation of the network/native operation and in-flight tools. The input remains in a stopping state until coordinated finalization finishes. Cancelling before dispatch also returns the composer to idle; an older attempt's cleanup cannot settle a newer submission.
+- Saved user messages, partial text, and completed outcomes remain. A completed parallel result is committed without waiting for its siblings.
+- An unstarted proposal is recorded as not started. A dispatched call without a confirmed receipt is recorded as **outcome unknown**; cancellation does not prove that an external action was undone.
+- Startup settles unfinished saved records as interrupted and reconstructs missing outcome records without executing them.
+- Failed, interrupted, and paused attempts remain inspectable. Continue starts a new attempt using the saved evidence; it does not replay recorded tool calls.
+- If storage cannot save finalization, the UI shows the storage failure; it does not pretend the terminal state was saved. The last committed checkpoint remains authoritative.
+- Native cleanup is bounded. An engine whose cleanup cannot be acknowledged is blocked from reuse instead of overlapping a second native run. Actual device cancellation remains a runtime acceptance requirement.
 
-## File Attachments
+## Retry, Regenerate, and Editing
 
-Multiple files can be attached to a single prompt. Each file is added one at a time via the file picker or drag-and-drop, and appears as a chip below the input. Clicking a chip removes that specific file from the queue. All queued files are cleared after the prompt is sent. Three categories of files are supported:
+Retry/Continue asks the model to proceed from recorded work. Regenerate and editing mark replaced messages as previous attempts instead of deleting them. Supersession waits for the same execution ownership as background output, so a running background attempt cannot overwrite the replacement decision. Earlier action receipts and uncertainty remain available as historical evidence; external effects are not rolled back.
+
+Whole-attempt fallback/retry is restricted after streamed output or tool activity. Pre-output request failures can still use the configured bounded retry/fallback policy; see [multi-service.md](multi-service.md).
+
+## Context Is Not the Transcript
+
+Request copies reserve output space, include tool-schema and message/attachment estimates, and retain complete tool exchanges plus the current user input. Older material becomes bounded, source-linked, explicitly untrusted historical evidence. This reduction never rewrites the saved transcript and makes no separate summarization-model request.
+
+The `read_conversation_history` tool can search/page saved records, including previous attempts, and read complete large payloads in bounded character slices using saved message or tool-call IDs. Provider switches, disabled tools, and incomplete native exchanges convert incompatible tool traffic to quoted historical text rather than silently dropping its outcomes. Compatible opaque continuation blocks are replayed only for the matching provider instance/model and complete exchanges.
+
+Budgets are conservative character estimates, not exact tokenizer counts or a guarantee that every third-party endpoint accepts the projected request. Binary attachment token costs are approximate.
+
+## Attachments
+
+Files can be added individually through the picker or drag-and-drop and removed through their chips. Unsupported types show an error. Size is checked before reading the full file.
 
 ### Images
-- Attach via file picker or drag-and-drop
-- Compressed to JPEG and Base64-encoded
-- Maximum raw input size: 50 MB; maximum size after compression: 15 MB — rejected with a size error if exceeded
-- Sent as `image_url` (OpenAI-compatible), `image` block (Anthropic), or `inline_data` (Gemini)
-- Not offered on 1min.AI
-- Also hidden when the active model is known to be text-only (e.g. DeepSeek chat models, GLM text models), even on services that otherwise accept images
-- Shown as a preview thumbnail (max 200dp wide) inside the user message bubble
-- Clicking the thumbnail opens a full-screen viewer with pinch-to-zoom, double-tap to toggle zoom, pan when zoomed, and a close button in the top-right (also dismissable via the Android back button or by tapping the backdrop; desktop has no keyboard shortcut for dismissal)
+
+- Maximum raw size: 50 MB; maximum compressed size: 15 MB. Images are compressed to JPEG and Base64-encoded.
+- Sent in the target provider's image format. The picker hides images for known text-only targets and 1min.AI.
+- User bubbles show thumbnails up to 200 dp wide. Tapping opens a full-screen pinch/double-tap zoom viewer with pan and dismissal controls.
 
 ### Text files
-- Supports `.txt`, `.md`, `.json`, `.csv`, `.xml`, `.yaml`, `.html`, `.css`, `.js`, `.ts`, `.kt`, `.py`, `.rs`, `.go`, `.c`, `.cpp`, `.swift`, `.sh`, `.sql`, `.toml`, `.ini`, `.log`, `.gradle`, and more
-- Maximum size: 200 KB per file
-- Content is decoded at send time and concatenated into the user message with a filename header per file
-- Works with all providers (content is inlined as text)
-- Shown as a filename chip in the user message bubble
+
+- Maximum size: 200 KB per file. Common text, source, configuration, and data extensions are supported.
+- Decoded content is prepended to the request with a filename header. The original attachment remains saved.
+- Text attachments in restored remote history can also be read by the text-only local path.
 
 ### PDFs
-- Base64-encoded without compression
-- Maximum size: 20 MB — rejected with a size error if exceeded
-- PDF attachments are advertised only by services with native document support: Anthropic, Gemini, OpenAI, and OpenRouter. The file picker offers PDF on those services only
-- Sent as a `document` block (Anthropic) or `inline_data` (Gemini). On the OpenAI-compatible wire path (OpenAI, OpenRouter, and other OpenAI-compatible services), PDF binaries are currently dropped from the request body — only image parts are encoded as `image_url` — so a PDF attach on OpenAI/OpenRouter is accepted by the UI but not transmitted to the model
-- Shown as a filename chip in the user message bubble
 
-### General behavior
-- The attachment button is shown whenever the active service supports file attachments (text files work with all remote models); it is hidden when the active service runs on-device, since on-device services do not support attachments
-- Unsupported file types (e.g., `.zip`) show an error message
-- Files exceeding the per-category size limit show a size error; size is checked by stat before the file is read, so multi-gigabyte attachments are rejected without allocating memory for the full contents
-- Long filenames in chips are truncated with an ellipsis while preserving the extension
-- File attachments persist across conversation save/restore via an `attachments` list on each message; older conversations saved with a single-file schema are migrated on load. An attachment large enough to push its message past the storage cap is dropped from the saved copy (see [Conversation Storage](#conversation-storage)) — the message text stays
+- Maximum size: 20 MB; Base64-encoded without compression.
+- Offered for Anthropic, Gemini, OpenAI, and OpenRouter. Sent as document/inline data, a file content part, or a Responses input-file item, as appropriate.
+- Endpoint/model-specific PDF support still applies; a provider can reject an unsupported model or an over-budget document.
 
-## Speech Output (TTS)
+Binary attachments unsupported by a selected target are explicitly described as unavailable in its request, not silently treated as inspected. Text-only context accounting uses the decoded text or unavailable notice before budgeting, rather than charging an unsupported binary as though it would be sent. They stay in the saved conversation for a compatible target. The local picker remains hidden because local inference accepts text only. Long filenames are ellipsized while preserving extensions. Legacy single-file records are upgraded on load without dropping their bytes.
 
-- Toggle in the top bar enables auto-play of new assistant messages
-- Per-message play button on assistant messages
-- Markdown is stripped before speaking
-- Speech uses the engine the user selected in the platform's system speech settings, so third-party engines are honoured; on Android, Google's engine is only used as a fallback when the system default cannot start
-- The engine's own default voice is kept as-is. Maxit only picks a different voice when the default one does not speak the system language, in which case the first voice matching that language is selected
+## Speech and Structured Output
+
+- The top-bar speech toggle can play the successfully completed answer belonging to that request, once, including across screen remounts. A failed, stopped, or paused new request does not cause an earlier answer to play. Partial, interrupted, failed, and superseded output is not automatically spoken.
+- Markdown is stripped for speech. The system-selected speech engine and its normal voice are preferred; Android falls back to Google's engine only if the system default cannot start.
+- Interactive UI generation remains parked. Retained structured content is not executable/resubmittable while incomplete or superseded, or while another run is loading.
 
 ## Conversation Storage
 
-- On Android, iOS, and desktop, conversations live in a local SQLite database in app-private storage: one row per conversation plus one row per message, so saving a turn writes only the affected conversation instead of re-serializing the whole history
-- The browser build has no persistent database and keeps the full conversation list as a JSON blob in the settings store (see [encryption.md](encryption.md))
-- Conversations are upserted — updating a conversation replaces the existing entry by ID, new conversations are appended; the list loads ordered by creation time
-- Each conversation also retains a rolling tail of its sandbox shell transcript (last ~10,000 characters) so that follow-up commands in a resumed conversation see the prior shell context; transcript updates write only that field
-- Migration chain, run once on first load: the legacy encrypted `conversations.enc` file (XOR with a 32-byte random key) migrates into the settings-store blob; a settings-store blob found on a database-capable platform is imported into the database and removed. Settings import reuses the same path — imported conversations are staged in the settings store and absorbed into the database on the next load, replacing its content
-- The database structure is versioned and lives on user devices: any future change to its tables or columns requires an accompanying migration step so existing installs upgrade in place (message contents are stored as JSON and tolerate unknown fields, so message-level additions do not need one)
-- A stored message is capped at roughly one megabyte, because Android reads database rows through a fixed-size window and a larger row would abort the whole load and crash the app on every launch. A message past the cap is stored without its file attachments; if it is still too large, its text is kept only up to a fixed head length. The in-memory message the model sees during the ongoing turn is untouched — only the persisted copy shrinks
-- Messages already stored above that cap by an earlier version are skipped when the conversation loads, so a database that used to crash the app opens with the rest of its history intact
+- Native platforms use SQLite with conversation metadata, ordered message rows, and payload chunks. Saves update changed messages rather than serializing/replacing all prior messages.
+- Large text and attachments are stored in cursor-safe chunks, including surrogate-safe Unicode boundaries. Old oversized rows are recovered with bounded database substring reads instead of being skipped. There is no storage-only text/attachment truncation.
+- Browser storage uses immutable message blobs and snapshot envelopes behind an atomically replaced manifest. A failed preparation/manifest write leaves the previous committed snapshot readable and best-effort removes only that write's new blobs immediately, without waiting for reload. Committed or reused blobs are not removed on failure. Successful checkpoints reuse unchanged messages; obsolete-key cleanup avoids quadratic scans.
+- Native SQLite and browser localStorage conversations are **not application-encrypted**; see [encryption.md](encryption.md). Browser quota, available disk space, and OS durability still apply. Concurrent app processes/browser tabs sharing a store are not a supported multi-writer mode.
+- Legacy encrypted-file and settings-blob imports commit to the new store before removing their source. Missing keys, corrupt records, or failed writes surface errors rather than masquerading as empty history. A malformed conversation import or duplicate retained conversation IDs reject the entire conversation section before replacement, instead of skipping records or corrupting the old data.
+- Settings exports remain self-contained and retain attempts, tool records, attachments, and continuation metadata. Import replacement is explicit and fences callbacks from the old storage generation.
+- A separate sandbox console tail remains limited to about 10,000 characters; this convenience tail is not the complete tool transcript or a backup of workspace files. Sessions predating storage replacement cannot overwrite the new console snapshot. The next shell access replaces stale cached ownership so new commands on an imported conversation can save their output.
+- SQL table changes include numbered migrations so existing databases upgrade in place.
 
-## UI Elements
+## History and UI
 
-- **Top bar**: Chat History (only when other saved conversations exist), New Chat (only when the current chat has messages), a Sandbox toggle (Android only; it flashes briefly while a shell command runs), TTS toggle, Settings (on mobile; on non-mobile, Settings is in the navigation tab bar)
-- **Scroll to bottom**: a small floating action button (down arrow) appears when the user has scrolled up past the latest messages; tapping it animates back to the bottom
-- **Messages**: user (right-aligned, with optional image preview), assistant (Markdown-rendered + action buttons), tool executing (spinner), loading indicator, error with retry. When the configured fallback chain answers with an alternate service, a small "Answered by …" label names the service that produced the response
-- **Input**: text field, send/stop button, attachment button, file chip
-- **Empty state**: animated logo + welcome message
-- **Drag-and-drop**: supported for file attachments
-- **History sheet**: bottom sheet listing saved conversations with title, date, active highlight, and delete
+- The history sheet lists saved chats newest-first, with title, date, active styling, and a Heartbeat badge where appropriate. Legacy interactive chats keep their distinct border styling.
+- Deletion has an approximately four-second Undo window. Deleting the active chat clears its selection; stale callbacks cannot resurrect it.
+- The chat initially renders a 200-record tail, with Load earlier messages for older records. Tool activity follows the displayed page; load earlier records to inspect older parts of a long run.
+- Opening a conversation starts at the latest work. While following the bottom, the view stays at the actual end of a growing reply, including replies taller than the viewport, approval/loading/error rows, Markdown reflow, and viewport resizing.
+- Scrolling upward pauses following immediately; generation continues without pulling the reader back down. Touch/trackpad/mouse-wheel input, scrollbar dragging, and accessibility scrolling retain user control. Following resumes only after scrolling back to the bottom or using the down-arrow button. Loading earlier history does not force a jump.
+- The down-arrow is available while following is paused or any content remains below the viewport, including the lower part of a tall final message. Restoring the screen preserves both its reading position and whether following was paused.
+- Run status, previous-attempt labels, approvals, Continue, pending SMS drafts, background execution errors, and ordinary request errors remain visible in the chat surface.
 
 ## Key Files
 
 | File | Purpose |
 |---|---|
-| `composeApp/src/commonMain/.../data/Conversation.kt` | Conversation and message data classes, type constants |
-| `composeApp/src/commonMain/.../data/ConversationStorage.kt` | In-memory conversation flow, transcript trimming, legacy migration |
-| `composeApp/src/commonMain/.../data/ConversationPersistence.kt` | SQL and settings-blob persistence backends, staged-import handling |
-| `composeApp/src/commonMain/sqldelight/com/maximiliano/maxit/db/conversation.sq` | Conversation and message table schema and queries |
-| `composeApp/src/commonMain/.../data/FileClassification.kt` | File category enum, MIME/extension classifier, size constants, file exceptions |
-| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | History management, conversation save/restore/delete, title derivation, message sending |
-| `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Chat UI state, send/retry/regenerate/cancel/loadConversation/deleteConversation actions |
-| `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Chat UI composables, history sheet and heartbeat banner wiring |
-| `composeApp/src/commonMain/.../ui/chat/composables/ChatHistorySheet.kt` | Bottom sheet listing saved conversations |
-| `composeApp/src/commonMain/.../ui/chat/composables/HeartbeatBanner.kt` | Dismissable banner for heartbeat notifications |
-| `composeApp/src/commonMain/.../ui/chat/composables/TopBar.kt` | Top bar with history, new chat, sandbox, TTS, and settings icons |
-| `composeApp/src/commonMain/.../ui/chat/composables/QuestionInput.kt` | Text input with send/stop button |
-| `androidApp/src/main/AndroidManifest.xml` | Share-sheet registration for plain text (`ACTION_SEND`) |
-| `androidApp/src/main/kotlin/.../MainActivity.kt` | Reads shared text from `ACTION_SEND` and hands it to chat |
+| `composeApp/src/commonMain/.../data/Conversation.kt` | Durable messages, attachments, attempt metadata |
+| `composeApp/src/commonMain/.../data/ConversationHistory.kt` | Storage conversion and interrupted-record settlement |
+| `composeApp/src/commonMain/.../data/ConversationRun.kt` | Run ownership and commit-before-publication |
+| `composeApp/src/commonMain/.../data/StreamedAssistant.kt` | Stable streamed identity, timed checkpoints, tail flush |
+| `composeApp/src/commonMain/.../data/ConversationStorage.kt` | Published storage state, migration, deletion and generation fences |
+| `composeApp/src/commonMain/.../data/ConversationPersistence.kt` | Incremental SQL and manifest-backed browser persistence |
+| `composeApp/src/commonMain/sqldelight/com/maximiliano/maxit/db/conversation.sq` | Versioned schema and chunk queries |
+| `composeApp/src/commonMain/sqldelight/com/maximiliano/maxit/db/1.sqm` | Existing-database payload migration |
+| `composeApp/src/commonMain/.../data/ConversationContext.kt` | Non-destructive request projection and historical retrieval |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Foreground/background dispatch, history, attempts, approvals |
+| `composeApp/src/commonMain/.../data/ToolApproval.kt` | Exact-action approval and uncertain-outcome matching |
+| `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Bounded SSE/JSON response decoding |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Authenticated Responses streaming |
+| `composeApp/src/commonMain/.../data/FileClassification.kt` | Attachment categories and size validation |
+| `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Request lifecycle, restore, navigation, file acceptance |
+| `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Transcript paging, scroll integration, completion gates |
+| `composeApp/src/commonMain/.../ui/chat/ChatScrollState.kt` | Layout-driven bottom following and user-scroll ownership |
+| `composeApp/src/desktopTest/.../ui/chat/ChatScrollStateTest.kt` | Off-screen rendered streaming, user-scroll, resume, and restoration regressions |
+| `composeApp/src/commonMain/.../ui/chat/composables/RunActivity.kt` | Status, approval, and saved tool activity cards |
+| `composeApp/src/commonMain/.../ui/chat/composables/QuestionInput.kt` | Controlled composer and submission gestures |
+| `composeApp/src/commonMain/.../ui/chat/ComposerSubmission.kt` | Hoisted pending submission and durable acknowledgement ownership |
+| `composeApp/src/commonTest/.../ui/chat/ChatViewModelCompletionTest.kt` | Cancellation ownership and once-only successful-answer speech |
+| `composeApp/src/desktopTest/.../ui/chat/ComposerSubmissionLifecycleTest.kt` | Hidden composer, delayed acceptance, owner-aware restoration, rejection, and later edits |
+| `composeApp/src/commonMain/.../ui/chat/composables/ChatHistorySheet.kt` | Saved conversation browsing and deletion |
+| `composeApp/src/androidMain/.../sandbox/LinuxSandboxManager.kt` | Generation-bound console-tail persistence |
+| `androidApp/src/main/AndroidManifest.xml` | Plain-text share registration |
+| `androidApp/src/main/kotlin/.../MainActivity.kt` | Share/notification entry points |
+| `composeApp/src/commonTest/.../data/ConversationReliabilityTest.kt` | Durability, storage failure, stream timer, task recovery regressions |
+| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Loopback execution, approval races, serialized regeneration, and native partial-output pause |
+| `composeApp/src/commonTest/.../data/SettingsConversationStagingTest.kt` | Duplicate IDs, failed staging/quota recovery, and long-history checkpoints |
+| `composeApp/src/commonTest/.../data/TextOnlyConversationContextTest.kt` | Target-specific attachment budgeting without changing saved files |
+| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Incremental/final text agreement, refusal text, and continuation boundaries |
+| `composeApp/src/desktopTest/.../data/ConversationDatabaseRecoveryTest.kt` | Migration, rollback, and fresh-store recovery boundaries |

@@ -117,7 +117,7 @@ class SignedOutCodexWorkTest {
     }
 
     @Test
-    fun `failed silent compaction preserves older turns while history still fits`() = runTest {
+    fun `signed out continuation preserves every older turn and records the failed attempt`() = runTest {
         val f = Fixture(this)
         // This family disables tools, so prompt construction does not need platform tool services.
         f.settings.settings.putString(Service.OpenAICodex.modelIdKey, "gemma:2b")
@@ -126,6 +126,8 @@ class SignedOutCodexWorkTest {
         assertTrue(history.sumOf { it.content.length } > maxChars * 0.7)
         f.repository.chatHistory.value = history
         assertFailsWith<CodexAuthException> { f.repository.ask(question = null, files = emptyList()) }
-        assertEquals(history, f.repository.chatHistory.value)
+        assertEquals(history, f.repository.chatHistory.value.take(history.size))
+        assertEquals(MessageState.FAILED, f.repository.chatHistory.value.last().state)
+        assertEquals(history, f.repository.savedConversations.value.single().messages.take(history.size).map { it.toHistory() })
     }
 }

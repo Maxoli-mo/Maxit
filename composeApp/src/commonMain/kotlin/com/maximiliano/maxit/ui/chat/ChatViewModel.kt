@@ -5,6 +5,7 @@ package com.maximiliano.maxit.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.maximiliano.maxit.data.Conversation
+import com.maximiliano.maxit.data.ConversationInputAccepted
 import com.maximiliano.maxit.data.DataRepository
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.TaskScheduler
@@ -21,6 +22,7 @@ import io.github.vinceglb.filekit.extension
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +33,9 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.conversation_untitled
 import maxit.composeapp.generated.resources.error_local_network_permission
@@ -65,7 +69,7 @@ class ChatViewModel(
         clearUnreadHeartbeat = ::clearUnreadHeartbeat,
         clearSnackbar = ::clearSnackbar,
         undoDeleteConversation = ::undoDeleteConversation,
-        submitUiCallback = ::submitUiCallback,
+        submitUiCallback = { event, data -> submitUiCallback(event, data) },
         resubmit = ::resubmit,
         enterInteractiveMode = ::enterInteractiveMode,
         exitInteractiveMode = ::exitInteractiveMode,
@@ -73,10 +77,17 @@ class ChatViewModel(
         sendSmsDraft = ::sendSmsDraft,
         discardSmsDraft = ::discardSmsDraft,
         consumeComposerPrefill = ::consumeComposerPrefill,
+        resolveToolApproval = dataRepository::resolveToolApproval,
+        loadEarlierMessages = { _state.update { it.copy(historyLimit = it.historyLimit + 200) } },
+        consumeAutomaticSpeech = ::consumeAutomaticSpeech,
     )
+    private val requestGeneration = MutableStateFlow(0L)
+    private val selectionGeneration = MutableStateFlow(0L)
+    private val restored = CompletableDeferred<Unit>()
+    private var storageReady = false
     private var currentJob: Job? = null
     private var pendingConversationDeleteJob: Job? = null
-    private val _state = MutableStateFlow(
+    private val _state: MutableStateFlow<ChatUiState> = MutableStateFlow(
         ChatUiState(
             actions = actions,
             showPrivacyInfo = dataRepository.isUsingSharedKey(),
@@ -94,17 +105,24 @@ class ChatViewModel(
         // Keep restoreCurrentConversation off the main thread; see issue #197 (large persisted
         // tool outputs caused ANRs when JSON-decoded synchronously during VM construction).
         viewModelScope.launch(backgroundDispatcher) {
-            dataRepository.loadConversations()
-            // Share and assist both want a fresh chat. Skip restore so a slow
-            // load cannot clobber startNewChat() when Kai is cold-started from
-            // ACTION_SEND or ACTION_ASSIST.
-            val skipRestore = dataRepository.pendingShareText.value != null ||
-                dataRepository.openAssistRequested.value
-            if (!skipRestore) {
-                dataRepository.restoreCurrentConversation()
-                presetInteractiveModeForCurrentConversation()
+            val selection = selectionGeneration.value
+            try {
+                dataRepository.loadConversations()
+                val skipRestore = selectionGeneration.value != selection || dataRepository.pendingShareText.value != null || dataRepository.openAssistRequested.value
+                if (!skipRestore) {
+                    dataRepository.restoreCurrentConversation()
+                    presetInteractiveModeForCurrentConversation()
+                }
+                storageReady = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(error = e.toUiError()) }
+            } finally {
+                _state.update { it.copy(isRestoring = false) }
+                restored.complete(Unit)
+                if (storageReady) taskScheduler.start()
             }
-            _state.update { it.copy(isRestoring = false) }
         }
 
         viewModelScope.launch(backgroundDispatcher) {
@@ -115,8 +133,13 @@ class ChatViewModel(
                 _state.update { it.copy(fallbackStatus = status) }
             }
         }
+        viewModelScope.launch {
+            taskScheduler.executionError.collect { error -> _state.update { it.copy(backgroundError = error) } }
+        }
+        viewModelScope.launch {
+            dataRepository.toolApprovals.collect { approvals -> _state.update { it.copy(toolApprovals = approvals.toImmutableList()) } }
+        }
         taskScheduler.isLoadingCheck = { _state.value.isLoading }
-        taskScheduler.start()
 
         viewModelScope.launch {
             dataRepository.smsDrafts.collect { drafts ->
@@ -177,8 +200,13 @@ class ChatViewModel(
                     isInteractive = isInteractive,
                 )
             }
+        val tail = history.takeLast(state.historyLimit)
+        val marker = history.lastOrNull { it.isStatusMessage && it.role == History.Role.ASSISTANT }
+        val displayed = if (marker != null && tail.none { it.id == marker.id }) listOf(marker) + tail else tail
         state.copy(
-            history = history.toImmutableList(),
+            history = displayed.toImmutableList(),
+            earlierMessageCount = (history.size - displayed.size).coerceAtLeast(0),
+            toolApprovals = state.toolApprovals.filter { it.conversationId == conversationId }.toImmutableList(),
             supportedFileExtensions = dataRepository.supportedFileExtensions().toImmutableList(),
             savedConversations = summaries.toImmutableList(),
             currentConversationId = conversationId,
@@ -191,7 +219,7 @@ class ChatViewModel(
         initialValue = _state.value,
     )
 
-    private fun submitUiCallback(event: String, data: Map<String, String>) {
+    private fun submitUiCallback(event: String, data: Map<String, String>, beforeAsk: (suspend () -> Unit)? = null) {
         val message = if (data.isNotEmpty()) {
             val formattedData = data.entries.joinToString(", ") { "${it.key}: ${it.value}" }
             "Responded with: $formattedData"
@@ -202,48 +230,52 @@ class ChatViewModel(
         val submission = lastAssistant?.let {
             UiSubmission(sourceContent = it.content, values = data, pressedEvent = event)
         }
-        askInternal(message, submission)
+        askInternal(message, submission, beforeAsk)
     }
 
     private fun ask(question: String?) {
         askInternal(question, null)
     }
 
-    private fun askInternal(question: String?, uiSubmission: UiSubmission?) {
-        // Prevent concurrent requests
+    private fun askInternal(question: String?, uiSubmission: UiSubmission?, beforeAsk: (suspend () -> Unit)? = null, regenerate: Boolean = false) {
         if (_state.value.isLoading) return
 
         // Capture files before launching coroutine to avoid race with files being cleared
-        val files = _state.value.files
+        val files = if (question != null) _state.value.files else persistentListOf()
 
         val (strippedQuestion, activeSkillId) = parseSkillInvocation(question)
 
-        currentJob = viewModelScope.launch(backgroundDispatcher) {
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    error = null,
-                    showFreeProviderSuggestions = false,
-                    files = persistentListOf(),
-                )
-            }
-            // Android 17+ blocks LAN traffic without the local network permission — without
-            // asking first, requests to self-hosted servers silently never leave the device.
-            if (!ensureLocalNetworkPermission()) {
-                _state.update {
-                    it.copy(
-                        error = UiError.Resource(Res.string.error_local_network_permission),
-                        showFreeProviderSuggestions = false,
-                        isLoading = false,
-                    )
-                }
-                return@launch
-            }
+        val generation = requestGeneration.updateAndGet { it + 1 }
+        val previousJob = currentJob
+        // Claim loading before launch, so two UI submissions cannot both enter.
+        _state.update { it.copy(isLoading = true, isStopping = false, error = null, showFreeProviderSuggestions = false, automaticSpeech = null) }
+        var completedAnswer: History? = null
+        val job = viewModelScope.launch(backgroundDispatcher) {
             try {
-                dataRepository.ask(strippedQuestion, files, uiSubmission, activeSkillId)
-
-                _state.update {
-                    it.copy(isLoading = false)
+                previousJob?.join()
+                restored.await()
+                check(storageReady) { "Conversation history could not be loaded. Resolve the storage error before starting another run." }
+                if (requestGeneration.value != generation) return@launch
+                beforeAsk?.invoke()
+                // Android 17+ blocks LAN traffic without the local network permission — without
+                // asking first, requests to self-hosted servers silently never leave the device.
+                if (!ensureLocalNetworkPermission()) {
+                    _state.update {
+                        it.copy(
+                            error = UiError.Resource(Res.string.error_local_network_permission),
+                            showFreeProviderSuggestions = false,
+                        )
+                    }
+                    return@launch
+                }
+                completedAnswer = withContext(
+                    ConversationInputAccepted {
+                        _state.update { state ->
+                            if (requestGeneration.value != generation) state else state.copy(acceptedInputId = generation, files = state.files.filterNot { file -> file in files }.toImmutableList())
+                        }
+                    },
+                ) {
+                    if (regenerate) dataRepository.regenerate() else dataRepository.ask(strippedQuestion, files, uiSubmission, activeSkillId)
                 }
             } catch (exception: Exception) {
                 // CancellationException must be re-thrown to properly propagate coroutine cancellation
@@ -253,11 +285,21 @@ class ChatViewModel(
                     noConfiguredServices = dataRepository.getConfiguredServiceInstances().isEmpty(),
                     exception = exception,
                 )
-                _state.update {
-                    it.copy(
-                        error = exception.toUiError(),
-                        showFreeProviderSuggestions = showUpsell,
+                if (requestGeneration.value == generation) _state.update { it.copy(error = exception.toUiError(), showFreeProviderSuggestions = showUpsell) }
+            }
+        }
+        currentJob = job
+        // Completion also runs when cancellation prevents dispatch, after all owned cleanup.
+        job.invokeOnCompletion { cause ->
+            _state.update { state ->
+                if (requestGeneration.value != generation) {
+                    state
+                } else {
+                    state.copy(
                         isLoading = false,
+                        isStopping = false,
+                        settledInputId = generation,
+                        automaticSpeech = completedAnswer.takeIf { cause == null && state.isSpeechOutputEnabled && !state.isStopping },
                     )
                 }
             }
@@ -275,12 +317,7 @@ class ChatViewModel(
         return localNetworkPermissionController.requestPermission()
     }
 
-    private fun clearHistory() {
-        dataRepository.clearHistory()
-        _state.update {
-            it.copy(error = null, showFreeProviderSuggestions = false)
-        }
-    }
+    private fun clearHistory() = startNewChat()
 
     /**
      * If [text] begins with `/<skill-id>`, look up the skill among the currently-
@@ -345,19 +382,27 @@ class ChatViewModel(
         ask(null)
     }
 
+    private fun consumeAutomaticSpeech(answerId: String): Boolean {
+        while (true) {
+            val state = _state.value
+            if (state.automaticSpeech?.id != answerId) return false
+            if (_state.compareAndSet(state, state.copy(automaticSpeech = null))) return true
+        }
+    }
+
     private fun toggleSpeechOutput() {
         _state.update {
             it.copy(
                 isSpeechOutputEnabled = !it.isSpeechOutputEnabled,
+                automaticSpeech = null,
             )
         }
     }
 
     private fun cancel() {
-        currentJob?.cancel()
-        currentJob = null
-        _state.update {
-            it.copy(isLoading = false)
+        if (currentJob?.isActive == true) {
+            _state.update { it.copy(isStopping = true) }
+            currentJob?.cancel()
         }
     }
 
@@ -384,13 +429,13 @@ class ChatViewModel(
     }
 
     private fun regenerate() {
-        dataRepository.regenerate()
-        ask(null)
+        askInternal(null, null, regenerate = true)
     }
 
     private fun loadConversation(id: String) {
+        selectionGeneration.updateAndGet { it + 1 }
+        requestGeneration.update { it + 1 }
         currentJob?.cancel()
-        currentJob = null
         dataRepository.setInteractiveMode(false)
         dataRepository.loadConversation(id)
         _state.update {
@@ -399,7 +444,10 @@ class ChatViewModel(
                 showFreeProviderSuggestions = false,
                 isInteractiveMode = false,
                 isLoading = false,
+                isStopping = false,
+                settledInputId = requestGeneration.value,
                 composerPrefill = null,
+                automaticSpeech = null,
             )
         }
     }
@@ -458,8 +506,9 @@ class ChatViewModel(
     }
 
     private fun startNewChat(composerPrefill: String? = null) {
+        selectionGeneration.updateAndGet { it + 1 }
+        requestGeneration.update { it + 1 }
         currentJob?.cancel()
-        currentJob = null
         dataRepository.startNewChat()
         dataRepository.setInteractiveMode(false)
         _state.update {
@@ -468,7 +517,10 @@ class ChatViewModel(
                 showFreeProviderSuggestions = false,
                 isInteractiveMode = false,
                 isLoading = false,
+                isStopping = false,
+                settledInputId = requestGeneration.value,
                 composerPrefill = composerPrefill,
+                automaticSpeech = null,
             )
         }
     }
@@ -482,14 +534,17 @@ class ChatViewModel(
     }
 
     private fun exitInteractiveMode() {
+        requestGeneration.update { it + 1 }
         currentJob?.cancel()
-        currentJob = null
         dataRepository.startNewChat()
         dataRepository.setInteractiveMode(false)
         _state.update {
             it.copy(
                 isInteractiveMode = false,
                 isLoading = false,
+                isStopping = false,
+                settledInputId = requestGeneration.value,
+                automaticSpeech = null,
                 error = null,
                 showFreeProviderSuggestions = false,
             )
@@ -498,17 +553,27 @@ class ChatViewModel(
 
     private fun resubmit(messageId: String, event: String, data: Map<String, String>) {
         if (_state.value.isLoading) return
-        dataRepository.truncateFrom(messageId)
-        submitUiCallback(event, data)
+        submitUiCallback(event, data) { dataRepository.truncateFrom(messageId) }
     }
 
     private fun goBackInteractiveMode() {
-        val userCount = dataRepository.chatHistory.value.count { it.role == History.Role.USER }
+        if (_state.value.isLoading) return
+        val userCount = dataRepository.chatHistory.value.count { it.role == History.Role.USER && !it.superseded }
         if (userCount <= 1) {
             // Go back to initial prompt — clear history but stay in interactive mode
             dataRepository.clearHistory()
         } else {
-            dataRepository.popLastExchange()
+            val generation = requestGeneration.value
+            viewModelScope.launch(backgroundDispatcher) {
+                if (requestGeneration.value != generation) return@launch
+                try {
+                    dataRepository.popLastExchange()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (requestGeneration.value == generation) _state.update { it.copy(error = e.toUiError()) }
+                }
+            }
         }
     }
 

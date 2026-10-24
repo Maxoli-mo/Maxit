@@ -72,7 +72,6 @@ class HeartbeatManager(
     }
 
     fun buildHeartbeatPrompt(
-        recentResponses: List<String> = emptyList(),
         pendingEmails: List<EmailMessage> = emptyList(),
         pendingSms: List<SmsMessage> = emptyList(),
         pendingNotifications: List<NotificationRecord> = emptyList(),
@@ -139,7 +138,6 @@ class HeartbeatManager(
         return buildHeartbeatPrompt(
             customOrDefaultPrompt = customPrompt.ifEmpty { DEFAULT_HEARTBEAT_PROMPT },
             heartbeatAdditions = heartbeatAdditions,
-            recentResponses = recentResponses,
             pendingTasks = pendingTasks,
             emailAccounts = emailAccounts,
             pendingEmails = heartbeatPending,

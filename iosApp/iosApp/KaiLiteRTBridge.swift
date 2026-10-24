@@ -14,6 +14,10 @@ import LiteRTLM
 @objc public class KaiLiteRTBridge: NSObject, LiteRTSwiftBridge {
 
     private var engine: Engine?
+    private var chatTask: Task<Void, Never>?
+    private var activeRequest: UUID?
+    private var conversation: Conversation?
+    private let stateLock = NSLock()
 
     public func initializeEngine(
         modelPath: String,
@@ -27,14 +31,14 @@ import LiteRTLM
             do {
                 let newEngine = try await Self.tryInit(modelPath: modelPath, cacheDir: cacheDir, maxNumTokens: maxTokens, backend: .gpu)
                 await MainActor.run {
-                    self?.engine = newEngine
+                    self?.stateLock.withLock { self?.engine = newEngine }
                     onComplete(nil)
                 }
             } catch let gpuError {
                 do {
                     let newEngine = try await Self.tryInit(modelPath: modelPath, cacheDir: cacheDir, maxNumTokens: maxTokens, backend: .cpu())
                     await MainActor.run {
-                        self?.engine = newEngine
+                        self?.stateLock.withLock { self?.engine = newEngine }
                         onComplete(nil)
                     }
                 } catch let cpuError {
@@ -56,11 +60,18 @@ import LiteRTLM
     public func releaseEngine() {
         // Engine is a Swift actor; nulling the reference drops the retain count and lets
         // deinit release the native handle.
-        engine = nil
+        cancelChat()
+        stateLock.withLock { engine = nil }
+    }
+
+    public func cancelChat() {
+        let active = stateLock.withLock { (chatTask, conversation) }
+        active.0?.cancel()
+        try? active.1?.cancel()
     }
 
     public func isEngineReady() -> Bool {
-        return engine != nil
+        return stateLock.withLock { engine != nil }
     }
 
     public func chat(
@@ -68,13 +79,29 @@ import LiteRTLM
         systemPrompt: String?,
         onResult: @escaping (String?, String?) -> Void
     ) {
-        guard let engine = self.engine else {
+        chatStreaming(messagesJson: messagesJson, systemPrompt: systemPrompt, onText: { _ in }, onResult: onResult)
+    }
+
+    public func chatStreaming(
+        messagesJson: String,
+        systemPrompt: String?,
+        onText: @escaping (String) -> Void,
+        onResult: @escaping (String?, String?) -> Void
+    ) {
+        guard let engine = stateLock.withLock({ self.engine }) else {
             onResult(nil, "Engine not initialized")
             return
         }
-
-        Task {
+        let requestId = UUID()
+        stateLock.withLock { activeRequest = requestId }
+        let task = Task { [weak self] in
+            defer {
+                self?.stateLock.withLock {
+                    if self?.activeRequest == requestId { self?.conversation = nil; self?.chatTask = nil; self?.activeRequest = nil }
+                }
+            }
             do {
+                try Task.checkCancellation()
                 let messages = try Self.parseMessages(messagesJson)
                 guard let lastUserIndex = messages.lastIndex(where: { $0.role == .user }) else {
                     await MainActor.run { onResult(nil, "No user message in history") }
@@ -92,14 +119,22 @@ import LiteRTLM
                 )
 
                 let conversation = try await engine.createConversation(with: convConfig)
-                let response = try await conversation.sendMessage(lastMessage)
-
-                let text = Self.extractText(from: response)
+                self?.stateLock.withLock { self?.conversation = conversation }
+                try Task.checkCancellation()
+                var text = ""
+                for try await chunk in conversation.sendMessageStream(lastMessage) {
+                    try Task.checkCancellation()
+                    let delta = Self.extractText(from: chunk)
+                    text += delta
+                    await MainActor.run { onText(delta) }
+                }
+                try Task.checkCancellation()
                 await MainActor.run { onResult(text, nil) }
             } catch {
                 await MainActor.run { onResult(nil, error.localizedDescription) }
             }
         }
+        stateLock.withLock { chatTask = task }
     }
 
     private static func parseMessages(_ json: String) throws -> [Message] {
@@ -115,12 +150,10 @@ import LiteRTLM
     }
 
     private static func extractText(from message: Message) -> String {
-        for content in message.contents {
-            if case .text(let value) = content {
-                return value
-            }
-        }
-        return ""
+        return message.contents.compactMap { content in
+            if case .text(let value) = content { return value }
+            return nil
+        }.joined()
     }
 }
 

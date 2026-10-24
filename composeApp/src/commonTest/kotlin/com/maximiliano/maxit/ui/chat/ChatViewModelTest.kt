@@ -431,7 +431,7 @@ class ChatViewModelTest {
 
             assertNull(clearedState.error)
             assertTrue(clearedState.history.isEmpty())
-            assertEquals(1, fakeRepository.clearHistoryCalls)
+            assertNull(fakeRepository.currentConversationId.value)
         }
     }
 

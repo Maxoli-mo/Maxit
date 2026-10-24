@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Heartbeat
 
-**Last reviewed:** 2026-10-21
+**Last verified:** 2026-10-24. Scheduler cancellation and repeated-prompt checks use synthetic data; device/background acceptance remains separate.
 
 > Heartbeat is user-controlled (on/off toggle, interval, active hours live in the settings UI). The AI cannot enable, disable, or reschedule it. To customise *what happens on each heartbeat*, the AI creates heartbeat-triggered scheduled tasks via `schedule_task` with `on_heartbeat: true` — these are `HEARTBEAT`-trigger tasks (see [tasks.md](tasks.md)) and their prompts are appended to every heartbeat run under `## Heartbeat Additions`. Each addition is a first-class task the user can see, edit, and cancel.
 
@@ -45,15 +45,20 @@ When the overall scheduling-enabled toggle is off, heartbeats do not run regardl
 
 ## Response Handling
 
-- If the AI response contains "HEARTBEAT_OK", nothing is shown to the user
-- Any other non-blank response is appended to a dedicated heartbeat conversation, which keeps its 50 most recent messages, and the unread-heartbeat indicator is set
+- A response containing "HEARTBEAT_OK" does not raise a report banner or notification. Its saved run can still be inspected in the heartbeat conversation
+- Every attempt owns the dedicated heartbeat conversation: input, streamed partial text, tool intent, each outcome, and final status are committed there. There is no 50-message retention cap
+- Other non-blank reports set the unread indicator. The scheduler does not append a second copy after the run has already saved its answer
 - A dismissable banner appears at the top of the chat when the heartbeat has something to report
 - **Android push notification**: when the heartbeat produces a non-OK report *and* the app is not currently in the foreground (tracked at the process level, so any visible activity counts), a push notification titled "Maxit heartbeat" fires. Tapping it launches/foregrounds the app and opens the heartbeat conversation. The notification uses a fixed id so a fresh report replaces the previous unread one instead of stacking. The body is the heartbeat response with markdown and dynamic-UI blocks stripped, capped at 240 characters with an ellipsis; the cut lands on a word boundary when one falls within the last 40 characters, otherwise it is a hard cut. Desktop/iOS/web no-op (banner-only).
 - Tapping the banner loads the heartbeat conversation so the user can read the report and reply
 - The X button dismisses the banner without navigating
 - Heartbeat conversations are included in the chat history list with a "Heartbeat" label badge, and can also be accessed via the banner
-- The heartbeat prompt is sent as a standalone message (not including user chat history as context)
-- If the API call fails, a failure entry is recorded in the heartbeat log and the pending email/SMS/notification queues are left untouched for the next run. A run cut short because the scheduler itself stopped is not logged as a failure
+- Foreground chat history is not used. Saved heartbeat work supplies continuity through the same bounded request projection and historical retrieval as normal conversations; earlier instructions and outcomes are evidence, not an instruction to replay actions
+- Tool actions requiring exact approval pause unattended execution rather than borrowing authorization from the task, model, or a previous attempt. Read-only built-ins can proceed; SMS still requires its separate explicit send action
+- Failed/paused/interrupted attempts keep partial output and confirmed receipts. Missing dispatched outcomes are labelled unknown; unstarted proposals are labelled not started. No failure is proof that an external effect was undone
+- API/approval/loop failures are logged, and pending email/SMS/notification snapshots remain queued. Deleting or invalidating a heartbeat conversation aborts that occurrence and exposes an error without stopping unrelated automation or recreating the deleted history. Actual scheduler-job cancellation still propagates; the durable conversation records interruption where storage permits
+- Failed/paused work raises the heartbeat attention indicator; startup also restores attention for an unresolved latest terminal status. Scheduled occurrences interrupted after their durable claim remain paused until reviewed; see [tasks.md](tasks.md)
+- An escaping scheduler/storage error is shown as a background execution error in chat. A failed write cannot publish a false saved result or authorize the next action
 
 ## Prompt Building
 
@@ -61,14 +66,15 @@ The heartbeat prompt is assembled by a pure, unit-tested builder; every conditio
 
 1. **Custom prompt** — user-defined text from settings, or the default prompt if empty. The default instructs the AI to review memories and tasks, respond "HEARTBEAT_OK" if nothing needs attention, or address anything that does, and reminds it that it cannot change the heartbeat schedule
 2. **Heartbeat Additions** — the prompts of all pending heartbeat-triggered tasks, each with its description and id, under `## Heartbeat Additions`. The section tells the AI to address each one and to reply with an acknowledgement rather than HEARTBEAT_OK, since the additions themselves are the attention
-3. **Previous heartbeat results** — the last 3 messages in the heartbeat conversation (which can include scheduled-task output), so the AI can track trends, avoid repeating notifications, and detect persistent issues (e.g. "email still unread since last check")
-4. **Pending tasks** — pending time- and cron-triggered tasks are listed with their description, id, scheduled time, and cron expression (if recurring). Heartbeat-triggered tasks appear under Heartbeat Additions instead
-5. **Email status** — if email is enabled and accounts exist, each account's email address, unread count, and last sync time are included
-6. **New emails** — headers (subject, from, preview) for emails polled since the last heartbeat pickup. Emails are fetched in the background by the email poll loop and buffered in a pending queue (capped at 100, FIFO). The heartbeat consumes the queue: everything the heartbeat saw is removed from the queue after a successful run, while emails that arrive during the heartbeat call remain for the next run. After consumption the heartbeat also advances each account's delivery watermark, so a follow-up `check_email` call from the user won't re-surface the same messages — Maxit tracks read/unread internally and ignores the provider's `\Seen` flag
-7. **New SMS** — SMS messages received since the last heartbeat (only while SMS is enabled). Consumed analogously to emails: buffered as they arrive, surfaced once under `## New SMS`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
-8. **New notifications** — Android notifications captured since the last heartbeat (only while notification access is enabled), capped at 20 newest-first; any beyond the cap stay queued for later heartbeats. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New Notifications`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
+3. **Pending tasks** — pending time- and cron-triggered tasks are listed with their description, id, scheduled time, and cron expression (if recurring). Heartbeat-triggered tasks appear under Heartbeat Additions instead
+4. **Email status** — if email is enabled and accounts exist, each account's email address, unread count, and last sync time are included
+5. **New emails** — headers (subject, from, preview) for emails polled since the last heartbeat pickup. Emails are fetched in the background by the email poll loop and buffered in a pending queue (capped at 100, FIFO). The heartbeat consumes the queue: everything the heartbeat saw is removed from the queue after a successful run, while emails that arrive during the heartbeat call remain for the next run. After consumption the heartbeat also advances each account's delivery watermark, so a follow-up `check_email` call from the user won't re-surface the same messages — Maxit tracks read/unread internally and ignores the provider's `\Seen` flag
+6. **New SMS** — SMS messages received since the last heartbeat (only while SMS is enabled). Consumed analogously to emails: buffered as they arrive, surfaced once under `## New SMS`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
+7. **New notifications** — Android notifications captured since the last heartbeat (only while notification access is enabled), capped at 20 newest-first; any beyond the cap stay queued for later heartbeats. Consumed analogously to emails: buffered as they arrive, surfaced once under `## New Notifications`, and cleared from the pending queue after a successful run so the next heartbeat only sees newer arrivals
 
-The promotion-candidate section and `promote_learning` tool have been removed. `HeartbeatManager` no longer queries `MemoryStore`; memories still reach the model through the chat system prompt when memory is enabled. Existing custom heartbeat prompts are unchanged.
+Earlier reports, prompts, and attempt status stay in saved-history context; they are not automatically nested into the new heartbeat prompt as previous results. Repeated quiet cycles therefore do not recursively copy earlier prompts or consumed inbox snapshots.
+
+The promotion-candidate section and `promote_learning` tool have been removed. Memories reach the model through the chat system prompt when memory is enabled, not through a separate heartbeat-store query. Existing custom heartbeat prompts are unchanged.
 
 For the full contract of every prompt variation in Maxit (chat remote/local, heartbeat) see [system-prompts.md](system-prompts.md).
 
@@ -106,16 +112,21 @@ Heartbeat has no dedicated tool. Standing additions are created with `schedule_t
 | `composeApp/src/commonMain/.../data/SettingsJson.kt` | Shared settings-backed JSON persistence: decode-or-default, encode-and-write, locked read-modify-write |
 | `composeApp/src/commonMain/.../data/HeartbeatPromptBuilder.kt` | Pure heartbeat prompt assembly (sections, caps) |
 | `composeApp/src/commonMain/.../tools/SchedulingTools.kt` | Heartbeat-triggered tasks via `schedule_task`, plus task listing and cancellation |
-| `composeApp/src/commonMain/.../data/TaskScheduler.kt` | Poll loop that triggers heartbeat checks |
+| `composeApp/src/commonMain/.../data/TaskScheduler.kt` | Poll loop, heartbeat checks, and occurrence-versus-lifetime cancellation |
+| `composeApp/src/commonTest/.../data/TaskSchedulerAutomationRegressionTest.kt` | Continued automation after isolated aborts, true cancellation, and nonrecursive prompt cycles |
+| `composeApp/src/commonTest/.../data/HeartbeatPromptBuilderTest.kt` | Current-cycle prompt sections and omissions |
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | Persisted heartbeat config, prompt, and log storage |
-| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Heartbeat conversation creation, unread flag management; default model selection for `askWithTools` |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Run-owned heartbeat history, unread state, background model selection |
+| `composeApp/src/commonMain/.../data/ConversationRun.kt` | Commit ordering and durable terminal status |
+| `composeApp/src/commonMain/.../data/ToolApproval.kt` | Unattended permission pause and uncertainty handling |
+| `composeApp/src/commonMain/.../ui/chat/composables/RunActivity.kt` | Saved heartbeat action inspection and interactive continuation |
 | `composeApp/src/commonMain/.../ui/chat/composables/HeartbeatBanner.kt` | Dismissable notification banner UI |
 | `composeApp/src/commonMain/.../ui/settings/HeartbeatSection.kt` | Heartbeat settings UI section |
 | `composeApp/src/commonMain/.../ui/settings/AgentSettings.kt` | Agent tab layout that hosts the heartbeat section |
 | `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Heartbeat setting changes, eligible model list, manual refresh |
 | `composeApp/src/commonMain/.../tools/AgentToolSet.kt` | Gates scheduling tools on the scheduling switch |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Opens the heartbeat conversation when a notification tap requests it |
-| `composeApp/src/commonMain/.../Platform.kt` | `expect fun sendHeartbeatNotification` — push notification for background heartbeat reports |
+| `composeApp/src/commonMain/.../Platform.kt` | Platform notification boundary for background reports |
 | `composeApp/src/androidMain/.../HeartbeatNotifier.android.kt` | Android notification + deep-link intent extra |
 | `androidApp/src/main/kotlin/.../MainActivity.kt` | Reads the deep-link extra on launch/new intent and requests opening the heartbeat conversation |
 | `androidApp/src/main/kotlin/.../KaiApplication.kt` | Tracks process foreground state for the scheduler |

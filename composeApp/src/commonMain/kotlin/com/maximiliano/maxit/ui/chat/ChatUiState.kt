@@ -30,7 +30,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-private fun String.isTextMimeType(): Boolean = startsWith("text/") || this == "application/json" || this == "application/xml" ||
+internal fun String.isTextMimeType(): Boolean = startsWith("text/") || this == "application/json" || this == "application/xml" ||
     this == "application/javascript" || this == "application/x-yaml" || this == "application/yaml"
 
 /**
@@ -38,12 +38,12 @@ private fun String.isTextMimeType(): Boolean = startsWith("text/") || this == "a
  * (decoded text files with filename headers) and the remaining binary attachments
  * (images, PDFs) that become standalone content blocks in provider-specific formats.
  */
-private data class AttachmentSplit(
+internal data class AttachmentSplit(
     val textPrefix: String,
     val binaries: List<Attachment>,
 )
 
-private fun List<Attachment>.splitForMessage(): AttachmentSplit {
+internal fun List<Attachment>.splitForMessage(): AttachmentSplit {
     if (isEmpty()) return AttachmentSplit("", emptyList())
     val prefix = StringBuilder()
     val binaries = mutableListOf<Attachment>()
@@ -74,6 +74,15 @@ data class ChatUiState(
     val history: ImmutableList<History> = persistentListOf(),
     val isSpeechOutputEnabled: Boolean = false,
     val isLoading: Boolean = false,
+    val isStopping: Boolean = false,
+    val inputOwnerId: String = Uuid.random().toString(),
+    val acceptedInputId: Long = 0,
+    val settledInputId: Long = 0,
+    val automaticSpeech: History? = null,
+    val backgroundError: com.maximiliano.maxit.network.UiError? = null,
+    val historyLimit: Int = 200,
+    val earlierMessageCount: Int = 0,
+    val toolApprovals: ImmutableList<com.maximiliano.maxit.data.ToolApprovalRequest> = persistentListOf(),
     val error: UiError? = null,
     val showFreeProviderSuggestions: Boolean = false,
     val warning: StringResource? = null,
@@ -105,9 +114,15 @@ data class History(
     val role: Role,
     val content: String,
     val attachments: ImmutableList<Attachment> = persistentListOf(),
+    val runId: String? = null,
+    val state: com.maximiliano.maxit.data.MessageState = com.maximiliano.maxit.data.MessageState.COMPLETE,
+    val superseded: Boolean = false,
     val toolCallId: String? = null,
     val toolName: String? = null,
     val toolCalls: ImmutableList<ToolCallInfo>? = null,
+    val providerBlocks: JsonArray? = null,
+    val providerKey: String? = null,
+    val providerUsage: kotlinx.serialization.json.JsonObject? = null,
     val isThinking: Boolean = false,
     val isStatusMessage: Boolean = false,
     val fallbackServiceName: String? = null,
@@ -125,33 +140,31 @@ data class History(
 }
 
 /** Latest assistant message that should render in the UI (non-empty content, not a thinking-only entry). */
-fun List<History>.lastRenderedAssistant(): History? = lastOrNull { it.role == History.Role.ASSISTANT && it.content.isNotEmpty() && !it.isThinking }
+fun List<History>.lastRenderedAssistant(): History? = lastOrNull { it.role == History.Role.ASSISTANT && it.content.isNotEmpty() && !it.isThinking && !it.isStatusMessage && !it.superseded }
 
 @Immutable
+@kotlinx.serialization.Serializable
 data class ToolCallInfo(
     val id: String,
     val name: String,
     val arguments: String,
     val thoughtSignature: String? = null,
+    val dispatched: Boolean = false,
+    val providerCallId: String? = null,
 )
 
 fun History.toGroqMessageDto(
     reasoningMode: ReasoningRequestMode = ReasoningRequestMode.NONE,
     supportsImages: Boolean = true,
+    supportsPdf: Boolean = false,
+    supportsReasoningDetails: Boolean = false,
 ): OpenAICompatibleChatRequestDto.Message = when (role) {
     History.Role.USER -> {
         val split = attachments.splitForMessage()
-        // Images become image_url parts; PDFs are dropped (OpenAI-compatible has no native PDF
-        // support, matching the prior behavior). Text files get merged into the text prefix.
-        // When the target service can't accept content-parts (e.g. the kai9000 proxy whose
-        // Groq fallback uses text-only models), drop images and emit a plain string.
-        val imageAttachments = if (supportsImages) {
-            split.binaries.filter { it.mimeType.startsWith("image/") }
-        } else {
-            emptyList()
-        }
-        val fullText = "${split.textPrefix}$content"
-        val messageContent: JsonElement = if (imageAttachments.isEmpty()) {
+        val binaries = split.binaries.filter { (supportsImages && it.mimeType.startsWith("image/")) || (supportsPdf && it.mimeType == "application/pdf") }
+        val unavailable = split.binaries.filter { it !in binaries }
+        val fullText = "${split.textPrefix}$content" + unavailable.joinToString("") { "\n[Saved attachment ${it.fileName ?: it.mimeType} was not provided: this target does not support its format. Do not claim to have inspected it.]" }
+        val messageContent: JsonElement = if (binaries.isEmpty()) {
             JsonPrimitive(fullText)
         } else {
             JsonArray(
@@ -162,16 +175,22 @@ fun History.toGroqMessageDto(
                             put("text", fullText)
                         },
                     )
-                    for (att in imageAttachments) {
+                    for (att in binaries) {
                         add(
                             buildJsonObject {
-                                put("type", "image_url")
-                                put(
-                                    "image_url",
-                                    buildJsonObject {
-                                        put("url", "data:${att.mimeType};base64,${att.data}")
-                                    },
-                                )
+                                if (att.mimeType == "application/pdf") {
+                                    put("type", "file")
+                                    put(
+                                        "file",
+                                        buildJsonObject {
+                                            put("filename", att.fileName ?: "document.pdf")
+                                            put("file_data", "data:${att.mimeType};base64,${att.data}")
+                                        },
+                                    )
+                                } else {
+                                    put("type", "image_url")
+                                    put("image_url", buildJsonObject { put("url", "data:${att.mimeType};base64,${att.data}") })
+                                }
                             },
                         )
                     }
@@ -204,9 +223,11 @@ fun History.toGroqMessageDto(
                     )
                 },
                 reasoningContent = emittedReasoning,
+                reasoningDetails = providerBlocks.takeIf { supportsReasoningDetails },
+                responsesItems = providerBlocks,
             )
         } else {
-            OpenAICompatibleChatRequestDto.Message(role = "assistant", content = JsonPrimitive(content))
+            OpenAICompatibleChatRequestDto.Message(role = "assistant", content = JsonPrimitive(content), responsesItems = providerBlocks, reasoningDetails = providerBlocks.takeIf { supportsReasoningDetails })
         }
     }
 
@@ -271,7 +292,9 @@ fun History.toAnthropicContentBlocks(): JsonElement = when (role) {
     }
 
     History.Role.ASSISTANT -> {
-        if (toolCalls != null) {
+        if (providerBlocks != null) {
+            providerBlocks
+        } else if (toolCalls != null) {
             JsonArray(
                 buildList {
                     if (content.isNotEmpty()) {

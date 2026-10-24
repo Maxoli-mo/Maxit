@@ -8,9 +8,10 @@ import kotlinx.serialization.json.JsonElement
 @Serializable
 data class GeminiChatResponseDto(
     val candidates: List<Candidate>,
+    val usageMetadata: kotlinx.serialization.json.JsonObject? = null,
 ) {
     @Serializable
-    data class Candidate(val content: Content? = null)
+    data class Candidate(val content: Content? = null, val finishReason: String? = null)
 
     @Serializable
     data class Content(val parts: List<Part>? = null)
@@ -34,5 +35,6 @@ data class GeminiChatResponseDto(
 
 fun GeminiChatResponseDto.extractText(): String = candidates.firstOrNull()?.content?.parts
     ?.filterNot { it.isThought }
-    ?.joinToString("\n") { it.text ?: "" }
+    ?.mapNotNull { it.text }
+    ?.joinToString("\n")
     ?: ""

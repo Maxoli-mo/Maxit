@@ -18,10 +18,14 @@ import com.maximiliano.maxit.ui.settings.SettingsModel
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.flow.StateFlow
 
+private val emptyToolApprovals: StateFlow<List<ToolApprovalRequest>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+
 interface DataRepository {
     val chatHistory: StateFlow<List<History>>
     val currentConversationId: StateFlow<String?>
     val fallbackStatus: StateFlow<FallbackStatus?>
+    val toolApprovals: StateFlow<List<ToolApprovalRequest>> get() = emptyToolApprovals
+    fun resolveToolApproval(id: String, approved: Boolean) {}
 
     // Configured services management
     fun getConfiguredServiceInstances(): List<ServiceInstance>
@@ -56,12 +60,13 @@ interface DataRepository {
     suspend fun completeCodexSignIn(instanceId: String, authorization: CodexDeviceAuthorization)
     fun signOutCodex(instanceId: String)
 
+    /** Returns this request's completed answer, never another run's selected transcript. */
     suspend fun ask(
         question: String?,
         files: List<PlatformFile>,
         uiSubmission: UiSubmission? = null,
         activeSkillId: String? = null,
-    )
+    ): History?
     fun clearHistory()
     fun currentService(): Service
     fun isUsingSharedKey(): Boolean
@@ -73,9 +78,9 @@ interface DataRepository {
     fun loadConversation(id: String)
     suspend fun deleteConversation(id: String)
     fun startNewChat()
-    fun regenerate()
-    fun popLastExchange()
-    fun truncateFrom(messageId: String)
+    suspend fun regenerate(): History?
+    suspend fun popLastExchange()
+    suspend fun truncateFrom(messageId: String)
     fun restoreCurrentConversation()
 
     // Tool management
@@ -116,6 +121,7 @@ interface DataRepository {
     fun setSchedulingEnabled(enabled: Boolean)
     fun getScheduledTasks(): List<ScheduledTask>
     suspend fun cancelScheduledTask(id: String)
+    suspend fun resumeScheduledTask(id: String) {}
 
     // Dynamic UI
     fun isDynamicUiEnabled(): Boolean
@@ -217,7 +223,6 @@ interface DataRepository {
 
     // Silent ask (no tools, no chat history update)
     suspend fun askSilently(question: String): String
-    suspend fun addAssistantMessage(content: String)
 
     /**
      * Resolve the persistent heartbeat conversation's id, creating an empty

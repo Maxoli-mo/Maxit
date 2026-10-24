@@ -37,7 +37,7 @@ object SchedulingTools {
     fun scheduleTaskTool(taskStore: TaskStore) = object : Tool {
         override val schema = ToolSchema(
             name = "schedule_task",
-            description = "Schedule a prompt to run later, recurring, or on every heartbeat. This is the ONLY way to run something after this turn — reminders, follow-ups, periodic updates, check-ins, standing heartbeat additions (greetings, always-summarise-emails): all go through this tool. Each run starts a fresh conversation, so embed the context the prompt needs. Exactly one trigger must be provided: execute_at (one-off at a datetime), cron (recurring on a schedule), or on_heartbeat=true (appended to every heartbeat self-check). Schedule relative to the **Local time** shown in `## Context`, not UTC.",
+            description = "Schedule a prompt to run later, recurring, or on every heartbeat. This is the ONLY way to run something after this turn — reminders, follow-ups, periodic updates, check-ins, standing heartbeat additions (greetings, always-summarise-emails): all go through this tool. Runs retain their own saved heartbeat activity, not the user's foreground chat. Embed the task's context; saved outcomes are evidence, not permission to repeat actions. Approval-requiring actions pause unattended work. Exactly one trigger must be provided: execute_at (one-off at a datetime), cron (recurring on a schedule), or on_heartbeat=true (appended to every heartbeat self-check). Schedule relative to the **Local time** shown in `## Context`, not UTC.",
             parameters = mapOf(
                 "description" to ParameterSchema(type = "string", description = "Human-readable description of the task", required = true),
                 "prompt" to ParameterSchema(type = "string", description = "For execute_at/cron: the full prompt sent to the AI when it fires. For on_heartbeat: the instruction appended to each heartbeat self-check (e.g. 'Greet the user warmly with a time-appropriate greeting.').", required = true),
@@ -135,7 +135,7 @@ object SchedulingTools {
             name = "list_tasks",
             description = "List all scheduled tasks with their IDs, descriptions, and status. Call this before cancel_task if you need to find a task ID. Optionally filter by status.",
             parameters = mapOf(
-                "status" to ParameterSchema(type = "string", description = "Filter by status: PENDING or COMPLETED", required = false),
+                "status" to ParameterSchema(type = "string", description = "Filter by status: PENDING, RUNNING, PAUSED, or COMPLETED", required = false),
             ),
         )
 
@@ -147,7 +147,7 @@ object SchedulingTools {
                 val status = try {
                     TaskStatus.valueOf(statusFilter)
                 } catch (e: Exception) {
-                    return mapOf("success" to false, "error" to "Invalid status: $statusFilter. Use PENDING or COMPLETED")
+                    return mapOf("success" to false, "error" to "Invalid status: $statusFilter. Use PENDING, RUNNING, PAUSED, or COMPLETED")
                 }
                 allTasks.filter { it.status == status }
             } else {

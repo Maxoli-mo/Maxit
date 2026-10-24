@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # System Prompts
 
-**Last reviewed:** 2026-10-22
+**Last verified:** 2026-10-24. Prompt and scheduler regressions are local checks; the live-model probes below remain unexecuted.
 
 Maxit has several distinct prompt-construction paths. Each one is built by a **pure function** with explicit inputs (no DI, no suspend, no resource loading, no clocks) and is covered by a unit-test suite so future edits don't silently break unrelated variations.
 
@@ -11,6 +11,8 @@ For the readable pre-change default wording and behavior review, see [system-pro
 As of 2026-10-21, Dynamic/Interactive UI prompt generation is **parked**, not moved to a runtime loader. The full instructions, examples, and component/action catalog are preserved in [interactive-ui/SKILL.md](../skills/interactive-ui/SKILL.md), outside app resources. A local backup of that file and the original builder is at `.opencode/backups/interactive-ui-2026-10-21.tar.gz` (git-ignored). The skills rework does not register or load this archive.
 
 **Skills rework:** Android and desktop skills use app-private storage independently of the sandbox. Prompts include an installed-skills catalog of names/descriptions; `load_skill` reads a selected body or bundled text reference on demand. A leading slash command remains an explicit per-turn override. Desktop regression tests and Android/Web source compilation passed; live-model selection remains untested. See [skills.md](skills.md) for storage, imports, and migration.
+
+**Conversation reliability:** Scheduled/heartbeat guidance describes retained background activity, not a fresh foreground conversation. Prior outcomes are evidence, not permission to repeat actions; unknown outcomes require verification and unattended approval-requiring actions pause. Local plain-chat retries remove unavailable-tool guidance and can occur only before output/tool entry. Exact approvals, dispatch checkpoints, and no-replay decisions are enforced outside the model prompt. Context projection does not rewrite the saved transcript. See [Chat](chat.md), [Tools](tools.md), and [Tasks](tasks.md).
 
 ## Paths
 
@@ -74,13 +76,12 @@ Interactive UI entry and the Dynamic UI settings toggle are hidden while generat
 
 ## Heartbeat sections
 
-`buildHeartbeatPrompt` has no variant — it's a single shape sent as the user message.
+The heartbeat prompt has one shape, sent as the user message. It contains current-cycle sections only. Prior prompts, reports, and attempt status reach the model through bounded saved-history context, not a recursively nested previous-results section.
 
 | Section | Gating input |
 |---|---|
 | Opening prompt | `customOrDefaultPrompt` (custom or `DEFAULT_HEARTBEAT_PROMPT`) |
 | `## Heartbeat Additions` | `heartbeatAdditions` non-empty — appended standing instructions from `schedule_task(on_heartbeat=true)` tasks |
-| `## Previous Heartbeat Results` | `recentResponses` non-empty |
 | `## Pending Tasks` (with optional cron annotation) | `pendingTasks` non-empty |
 | `## Email Status` (per-account unread count + last sync) | `emailAccounts` non-empty |
 | `## New Emails` (unread header snapshots awaiting triage) | `pendingEmails` non-empty |
@@ -127,3 +128,4 @@ After the earlier prompt-review fixes, 1,024 desktop tests, WebAssembly source c
 | `composeApp/src/commonMain/.../data/AppSettings.kt` | `DEFAULT_MEMORY_INSTRUCTIONS` (basic block, used by both variants). The advanced `## Structured Learning` block lives in `ChatSystemPromptBuilder.kt` and is remote-only |
 | `composeApp/src/commonTest/.../data/ChatSystemPromptBuilderTest.kt` | Focused + golden tests for every chat variant section |
 | `composeApp/src/commonTest/.../data/HeartbeatPromptBuilderTest.kt` | Focused + golden tests for every heartbeat section |
+| `composeApp/src/commonTest/.../data/TaskSchedulerAutomationRegressionTest.kt` | Repeated heartbeat cycles do not embed prior saved prompts |

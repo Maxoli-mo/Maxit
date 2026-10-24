@@ -34,7 +34,6 @@ class HeartbeatPromptBuilderTest {
     private fun build(
         customOrDefaultPrompt: String = "[TEST HEARTBEAT]",
         heartbeatAdditions: List<ScheduledTask> = emptyList(),
-        recentResponses: List<String> = emptyList(),
         pendingTasks: List<ScheduledTask> = emptyList(),
         emailAccounts: List<EmailAccountSummary> = emptyList(),
         pendingEmails: List<HeartbeatPendingEmail> = emptyList(),
@@ -43,7 +42,6 @@ class HeartbeatPromptBuilderTest {
     ) = buildHeartbeatPrompt(
         customOrDefaultPrompt = customOrDefaultPrompt,
         heartbeatAdditions = heartbeatAdditions,
-        recentResponses = recentResponses,
         pendingTasks = pendingTasks,
         emailAccounts = emailAccounts,
         pendingEmails = pendingEmails,
@@ -78,15 +76,7 @@ class HeartbeatPromptBuilderTest {
     }
 
     @Test
-    fun `includes Previous Heartbeat Results when recentResponses non-empty`() {
-        val out = build(recentResponses = listOf("HEARTBEAT_OK", "All fine"))
-        assertTrue("## Previous Heartbeat Results" in out)
-        assertTrue("1. HEARTBEAT_OK" in out)
-        assertTrue("2. All fine" in out)
-    }
-
-    @Test
-    fun `omits Previous Heartbeat Results when empty`() {
+    fun `does not duplicate transcript continuity in the user prompt`() {
         val out = build()
         assertFalse("## Previous Heartbeat Results" in out)
     }
@@ -244,7 +234,6 @@ class HeartbeatPromptBuilderTest {
     fun `golden full heartbeat prompt with every section`() {
         val out = build(
             customOrDefaultPrompt = "[HEARTBEAT] check",
-            recentResponses = listOf("HEARTBEAT_OK"),
             pendingTasks = listOf(task(id = "t1", description = "First")),
             emailAccounts = listOf(
                 EmailAccountSummary(email = "me@example.com", unreadCount = 2, lastSyncEpochMs = 0L),
@@ -264,8 +253,6 @@ class HeartbeatPromptBuilderTest {
         // Section headers in the exact order they must appear.
         val order = listOf(
             "[HEARTBEAT] check",
-            "## Previous Heartbeat Results",
-            "1. HEARTBEAT_OK",
             "## Pending Tasks",
             "- **First** (id: t1",
             "## Email Status",

@@ -326,7 +326,9 @@ class LinuxSandboxManager(
     // package-manager UI, etc.). Lazily created on first access; tracked here so
     // the sandbox-level `reset()` and per-conversation deletion can tear them
     // down. Live during the app process only — not persisted.
-    private val shells = mutableMapOf<String, SessionShell>()
+    private class OwnedShell(val shell: SessionShell, val transcriptOwner: SessionTranscriptOwner?)
+
+    private val shells = mutableMapOf<String, OwnedShell>()
     private val _sessions = MutableStateFlow<List<String>>(emptyList())
     val sessions: StateFlow<List<String>> = _sessions
 
@@ -336,35 +338,49 @@ class LinuxSandboxManager(
     private val pendingSaves = mutableMapOf<String, Job>()
 
     fun shellFor(sessionId: String): SessionShell = synchronized(shells) {
-        shells[sessionId]?.let { return it }
-        val inner = PersistentSandboxShell(createProotExecutor(), tmpPath)
         val persistable = SandboxSessions.isPersistable(sessionId)
+        if (persistable) conversationStorage.loadConversations()
+        shells[sessionId]?.let { cached ->
+            if (cached.transcriptOwner?.isCurrent() != false) return cached.shell
+            // Detach before reset: settling a running command can invoke its old callback.
+            shells.remove(sessionId)
+            synchronized(pendingSaves) { pendingSaves.remove(sessionId)?.cancel() }
+            cached.shell.reset()
+        }
+        val inner = PersistentSandboxShell(createProotExecutor(), tmpPath)
+        val owner = if (persistable) SessionTranscriptOwner(conversationStorage, sessionId) else null
         val initialLines = if (persistable) {
             conversationStorage.conversations.value
                 .firstOrNull { it.id == sessionId }?.shellTranscript.orEmpty()
         } else {
             emptyList()
         }
-        val onChange: ((List<TerminalLine>) -> Unit)? = if (persistable) {
-            { lines -> scheduleTranscriptSave(sessionId, lines) }
-        } else {
-            null
+        val onChange: ((List<TerminalLine>) -> Unit)? = owner?.let {
+            { lines -> scheduleTranscriptSave(sessionId, lines, it) }
         }
         val wrapper = SessionShell(sessionId, inner, initialLines, onChange)
-        shells[sessionId] = wrapper
+        shells[sessionId] = OwnedShell(wrapper, owner)
         _sessions.value = shells.keys.toList()
         wrapper
     }
 
-    private fun scheduleTranscriptSave(sessionId: String, lines: List<TerminalLine>) {
-        synchronized(pendingSaves) {
-            pendingSaves[sessionId]?.cancel()
-            pendingSaves[sessionId] = scope.launch {
-                try {
-                    delay(TRANSCRIPT_SAVE_DEBOUNCE)
-                    conversationStorage.updateShellTranscript(sessionId, lines)
-                } finally {
-                    synchronized(pendingSaves) { pendingSaves.remove(sessionId) }
+    private fun scheduleTranscriptSave(sessionId: String, lines: List<TerminalLine>, owner: SessionTranscriptOwner) {
+        synchronized(shells) {
+            if (shells[sessionId]?.transcriptOwner !== owner || !owner.isCurrent()) return
+            synchronized(pendingSaves) {
+                pendingSaves[sessionId]?.cancel()
+                pendingSaves[sessionId] = scope.launch {
+                    try {
+                        delay(TRANSCRIPT_SAVE_DEBOUNCE)
+                        synchronized(shells) {
+                            if (shells[sessionId]?.transcriptOwner === owner) owner.save(lines)
+                        }
+                    } finally {
+                        val job = currentCoroutineContext()[Job]
+                        synchronized(pendingSaves) {
+                            if (pendingSaves[sessionId] === job) pendingSaves.remove(sessionId)
+                        }
+                    }
                 }
             }
         }
@@ -377,27 +393,32 @@ class LinuxSandboxManager(
      * — if there's no shell for [sessionId] yet there's no transcript to gate.
      */
     fun setSessionInteractive(sessionId: String, interacting: Boolean) {
-        val shell = synchronized(shells) { shells[sessionId] } ?: return
+        val shell = synchronized(shells) { shells[sessionId]?.shell } ?: return
         shell.setPrunePaused(interacting)
     }
 
     fun clearTranscript(sessionId: String) {
-        synchronized(shells) { shells[sessionId] }?.transcript?.clear()
+        synchronized(shells) { shells[sessionId]?.shell }?.transcript?.clear()
     }
 
     fun closeShell(sessionId: String) {
         val removed = synchronized(shells) {
             val s = shells.remove(sessionId)
+            synchronized(pendingSaves) { pendingSaves.remove(sessionId)?.cancel() }
             _sessions.value = shells.keys.toList()
-            s
+            s?.shell
         }
         removed?.reset()
     }
 
     /** Empties the session table and hands back the shells that were in it. */
     private fun detachShells(): List<SessionShell> = synchronized(shells) {
-        val snapshot = shells.values.toList()
+        val snapshot = shells.values.map { it.shell }
         shells.clear()
+        synchronized(pendingSaves) {
+            pendingSaves.values.forEach { it.cancel() }
+            pendingSaves.clear()
+        }
         _sessions.value = emptyList()
         snapshot
     }

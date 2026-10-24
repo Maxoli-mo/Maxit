@@ -2,6 +2,8 @@
 
 > **Skills rework (2026-10-22):** The sandbox paths and slash-only skill behavior quoted below describe the snapshot, not the new contract. Android and desktop skills now use app-private storage, an installed names/descriptions catalog, and lazy `load_skill` reads; slash commands remain explicit per-turn overrides. The built-in `create-skill` requires no sandbox. Interactive UI stays archived and unloaded. Desktop tests and Android/Web source compilation passed; live-model behavior is untested. See [Skills](../features/skills.md) for imports, limits, and copy-only legacy migration.
 
+> **Conversation reliability (2026-10-24):** The 15-round bailout, forced final-answer wording, destructive compaction, and native SDK-owned loop described below are retired. Transcript and request context are separate; complete exchanges and source-linked historical evidence replace deletion. Exact approvals and unknown-outcome enforcement are runtime boundaries, not model-granted authority. Local plain-chat fallback is allowed only before output/tool entry and removes unavailable-tool guidance. Scheduled/heartbeat instructions now describe retained background activity and unattended approval pauses, not a fresh conversation. See [Chat](../features/chat.md), [Tools](../features/tools.md), and the [implementation/verification plan](../plans/conversation-reliability.md). The original wording and line references below remain historical evidence, not the current contract.
+
 # System prompt review: before the identity/UI change
 
 Snapshot date: 2026-10-21. Source revision: `0484dc7e32d0cf6b686c93b0af4a8d7b76822548`.

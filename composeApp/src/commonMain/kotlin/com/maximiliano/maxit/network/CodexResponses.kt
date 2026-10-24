@@ -62,7 +62,7 @@ internal class CodexResponses(
     private val modelsGuard = Mutex()
     private val modelsWithoutSummary = mutableMapOf<String, Set<String>>()
 
-    suspend fun responses(instanceId: String, request: OpenAIResponsesRequestDto, sessionId: String, expectedGeneration: Long? = null): OpenAIResponsesResponseDto {
+    suspend fun responses(instanceId: String, request: OpenAIResponsesRequestDto, sessionId: String, expectedGeneration: Long? = null, onText: suspend (String) -> Unit = {}): OpenAIResponsesResponseDto {
         val supportsSummary = modelsGuard.withLock { request.model !in modelsWithoutSummary[instanceId].orEmpty() }
         val body = codexRequestBody(request, supportsSummary).toString()
         // shortcut: uncompressed backend requests can reject >1 MiB; add compression if needed.
@@ -80,7 +80,7 @@ internal class CodexResponses(
                     null
                 } else {
                     checkCodexStatus(response.status.value, response.status.isSuccess())
-                    readCodexResponse(response.bodyAsChannel())
+                    readCodexResponse(response.bodyAsChannel(), onText)
                 }
             }
         }
@@ -159,6 +159,7 @@ internal fun codexRequestBody(request: OpenAIResponsesRequestDto, supportsSummar
     return buildJsonObject {
         codexJson.encodeToJsonElement(OpenAIResponsesRequestDto.serializer(), request.copy(input = input)).jsonObject.forEach { (key, value) -> put(key, value) }
         put("store", false)
+        put("include", JsonArray(request.include.map { JsonPrimitive(it) }))
         put("stream", true)
         // Legacy device-token backend compatibility; newer Codex clients use input items instead.
         put("instructions", instructionText)
@@ -181,28 +182,36 @@ private fun codexModels(catalog: JsonArray): OpenAICompatibleModelResponseDto = 
     },
 )
 
-/** Retains one SSE event, not all deltas or the entire HTTP stream. */
-internal suspend fun readCodexResponse(channel: ByteReadChannel): OpenAIResponsesResponseDto {
-    var event: String? = null
-    val data = mutableListOf<String>()
-    while (true) {
-        val line = channel.readUTF8Line() ?: break
-        when {
-            line.isEmpty() -> {
-                if (data.isNotEmpty()) decodeCodexEvent(event, data.joinToString("\n"))?.let { return it }
-                event = null
-                data.clear()
+/** Deltas are delivered immediately; only a terminal completed event permits tool dispatch. */
+internal suspend fun readCodexResponse(channel: ByteReadChannel, onText: suspend (String) -> Unit = {}): OpenAIResponsesResponseDto {
+    var completed: OpenAIResponsesResponseDto? = null
+    var receivedText = false
+    var textChars = 0
+    try {
+        readSse(channel, { completed != null }) { event, data ->
+            if (completed == null) {
+                if (data != "[DONE]") {
+                    val payload = parseCodexObject(data)
+                    if ((payload.text("type") ?: event) == "response.output_text.delta") {
+                        val delta = payload.text("delta").orEmpty()
+                        textChars += delta.length
+                        if (textChars > 8_388_608) throw StreamInterruptedException("The response exceeded the per-response safety size.")
+                        receivedText = true
+                        onText(delta)
+                    }
+                }
+                completed = decodeCodexEvent(event, data)
             }
-
-            line.startsWith("event:") -> event = line.substringAfter(':').removePrefix(" ")
-
-            line.startsWith("data:") -> data.add(line.substringAfter(':').removePrefix(" "))
-
-            line == "data" -> data.add("")
         }
+        return completed ?: throw StreamInterruptedException("The response disconnected before completion. Received text was preserved.")
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: com.maximiliano.maxit.data.ConversationWriteException) {
+        throw e
+    } catch (e: Exception) {
+        if (receivedText && e !is StreamInterruptedException) throw StreamInterruptedException("The response stream was interrupted. Received text was preserved.", e)
+        throw e
     }
-    if (data.isNotEmpty()) decodeCodexEvent(event, data.joinToString("\n"))?.let { return it }
-    throw OpenAICompatibleGenericException("Codex disconnected before completing the response. Try again.")
 }
 
 private fun decodeCodexEvent(event: String?, data: String): OpenAIResponsesResponseDto? {
@@ -218,7 +227,7 @@ private fun decodeCodexEvent(event: String?, data: String): OpenAIResponsesRespo
             }
             if (dto.error != null || dto.status == "failed") throw codexTerminalError(payload)
             if (dto.status != null && dto.status != "completed") throw codexTerminalError(payload, incompleteCodexResponse())
-            return dto
+            return dto.copy(rawOutput = response["output"] as? JsonArray)
         }
 
         "response.failed", "error", "response.error" -> throw codexTerminalError(payload)

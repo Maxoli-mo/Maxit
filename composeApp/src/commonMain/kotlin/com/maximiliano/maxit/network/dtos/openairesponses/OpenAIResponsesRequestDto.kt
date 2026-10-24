@@ -30,6 +30,8 @@ data class OpenAIResponsesRequestDto(
      * history on every request, so it never needs `previous_response_id` chaining.
      */
     val store: Boolean = false,
+    val stream: Boolean? = null,
+    val include: List<String> = listOf("reasoning.encrypted_content"),
 ) {
     /**
      * Same JSON Schema as the chat-completions tool, minus the `function` wrapper — the Responses

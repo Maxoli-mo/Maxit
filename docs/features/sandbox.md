@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Linux Sandbox
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-24. Storage-generation ownership has hardware-free regression coverage; Android process reset and new-shell output still need on-device acceptance.
 
 Maxit ships a self-contained Linux environment on Android so the assistant — and the user, via the in-app Terminal — can run real shell commands. The agent can install packages, write and run scripts, hit the network, and reach external servers over SSH/SFTP/FTP. The sandbox runs the user-space `proot` runtime against a rootfs extracted into the app's private storage; no root or system access is required.
 
@@ -67,6 +67,8 @@ Each chat conversation gets its own long-running `bash` process. The agent's she
 So `cd /tmp` followed by `pwd` in the same chat returns `/tmp`. The assistant does not need to chain `cd dir && command` unless it specifically wants the directory change to be one-shot.
 
 A shell is created lazily on first use and lives for the duration of the app process. When a conversation is deleted, its shell is closed. Sandbox reset closes every live shell.
+
+Importing or replacing saved conversations invalidates old transcript ownership, even when a conversation retains the same ID. On the next access, a stale cached chat shell is reset and replaced with fresh ownership seeded from the imported transcript. New output can then save normally; late old callbacks and pending saves cannot cancel or overwrite the fresh owner's work. This does not retag an old callback or prove that every already-held process reference has physically stopped.
 
 The bash *process* itself dies with the app — cwd and exported env do not survive. The visible *transcript* of the current chat's session is kept in memory with a hard cap of 500 lines per session, and persisted to the conversation (capped at roughly 10,000 characters of trimmed output — about a screen and a half of scrollback) so re-opening an old chat after a restart still shows the tail of what was on screen, even though running another command starts a fresh shell. Persistence is debounced (~500 ms) so rapid output bursts coalesce into a single write rather than thrashing storage.
 
@@ -164,7 +166,9 @@ The shell session can break — the user types `exit`, a command crashes bash, t
 | --- | --- |
 | `composeApp/src/androidMain/kotlin/com/maximiliano/maxit/sandbox/LinuxSandboxManager.kt` | Owns the sandbox's install marker (distro + where `/root` lives), the optional-package install, and the session-keyed map of live persistent shells. `selectDistro()` re-points it at the other distribution's install, dropping live shells and touching neither rootfs; `surveyMigration()` / `migrateHome()` are how files follow the user across. Seeds new per-chat shells from the conversation's persisted transcript and pipes transcript snapshots back to `ConversationStorage` after each command. `refreshInstallState()` is how it learns Maxit Build installed the shared Debian. |
 | `composeApp/src/androidMain/kotlin/com/maximiliano/maxit/sandbox/SessionShell.kt` | Per-session facade over `PersistentSandboxShell`. Carries the live in-memory transcript, accepts an `initialLines` seed for restart restoration, and fires an `onChange` callback after each command so the manager can persist the tail. |
-| `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/data/ConversationStorage.kt` | Conversation persistence. `updateShellTranscript(id, lines)` trims to ~10,000 chars total and writes the tail back into the conversation JSON. |
+| `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/data/ConversationStorage.kt` | Persists the roughly 10,000-character console tail and enforces deletion/import generation fences. |
+| `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/sandbox/SessionTranscriptOwner.kt` | Original-generation ownership for persistable chat shells without retagging stale callbacks. |
+| `composeApp/src/commonTest/kotlin/com/maximiliano/maxit/sandbox/SessionTranscriptOwnerTest.kt` | Same-ID import permits fresh saves while rejecting late old output. |
 | `composeApp/src/androidMain/kotlin/com/maximiliano/maxit/sandbox/PersistentSandboxShell.kt` | Long-lived bash, sentinel-based command framing, graduated `SIGINT`/`SIGTERM`/`SIGKILL` cancel, self-healing on shell death. One instance per session id. |
 | `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/SandboxController.kt` | Common surface; `executeCommand{,Streaming}` take a `sessionId`. `SandboxSessions` defines the well-known ids: `DEFAULT`, `SYSTEM`, `TERMINAL`. `SandboxStatus.label` is the install step as a `SandboxStatusLabel` value for the UI to translate, `SandboxStatus.distro` carries the selected distribution to every UI and tool, `installedDistros` says which ones exist on disk, and `migration` says what the other one still holds. `selectDistro()` is the switch, `migrateHome()` the copy. |
 | `composeApp/src/commonMain/kotlin/com/maximiliano/maxit/ui/sandbox/SandboxStatusText.kt` | Turns `SandboxStatus.label` into the sentence the card shows. The only place the status wording lives, so the Android install path reports steps rather than English. |

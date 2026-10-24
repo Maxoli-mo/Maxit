@@ -50,6 +50,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -69,6 +70,7 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
@@ -77,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maximiliano.maxit.BackIcon
 import com.maximiliano.maxit.TerminalLine
+import com.maximiliano.maxit.data.MessageState
 import com.maximiliano.maxit.data.supportsAgenticFlows
 import com.maximiliano.maxit.getBackgroundDispatcher
 import com.maximiliano.maxit.onDragAndDropEventDropped
@@ -90,7 +93,9 @@ import com.maximiliano.maxit.ui.chat.composables.FreeProviderSuggestionsPanel
 import com.maximiliano.maxit.ui.chat.composables.HeartbeatBanner
 import com.maximiliano.maxit.ui.chat.composables.PendingSmsBanners
 import com.maximiliano.maxit.ui.chat.composables.QuestionInput
+import com.maximiliano.maxit.ui.chat.composables.RunActivity
 import com.maximiliano.maxit.ui.chat.composables.ServiceSelector
+import com.maximiliano.maxit.ui.chat.composables.ToolApprovalCard
 import com.maximiliano.maxit.ui.chat.composables.TopBar
 import com.maximiliano.maxit.ui.chat.composables.TrailingIcon
 import com.maximiliano.maxit.ui.chat.composables.UserMessage
@@ -123,6 +128,12 @@ import maxit.composeapp.generated.resources.interactive_title
 import maxit.composeapp.generated.resources.interactive_ui_parsing_failed
 import maxit.composeapp.generated.resources.interactive_welcome_subtitle
 import maxit.composeapp.generated.resources.interactive_welcome_title
+import maxit.composeapp.generated.resources.run_approval_waiting
+import maxit.composeapp.generated.resources.run_background_stopped
+import maxit.composeapp.generated.resources.run_generating
+import maxit.composeapp.generated.resources.run_load_earlier
+import maxit.composeapp.generated.resources.run_previous_attempt
+import maxit.composeapp.generated.resources.run_stopping
 import maxit.composeapp.generated.resources.scroll_to_bottom_content_description
 import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.errors.TextToSpeechSynthesisInterruptedError
@@ -223,6 +234,7 @@ private fun InteractiveModeScreen(
     var questionInputText by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
+    val submitQuestion = rememberComposerSubmit(uiState, { questionInputText }) { questionInputText = it }
 
     Box(
         Modifier
@@ -284,7 +296,7 @@ private fun InteractiveModeScreen(
                         removeFile = uiState.actions.removeFile,
                         ask = {
                             inputExpanded = false
-                            uiState.actions.ask(it)
+                            submitQuestion(it)
                         },
                         supportedFileExtensions = uiState.supportedFileExtensions,
                         textState = questionInputText,
@@ -507,8 +519,26 @@ private fun ChatModeScreen(
     var questionInputText by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(""))
     }
+    val submitQuestion = rememberComposerSubmit(uiState, { questionInputText }) { questionInputText = it }
     val keyboardController = LocalSoftwareKeyboardController.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val speechScope = rememberCoroutineScope()
+
+    LaunchedEffect(uiState.automaticSpeech?.id, textToSpeech) {
+        val answer = uiState.automaticSpeech ?: return@LaunchedEffect
+        val speech = textToSpeech ?: return@LaunchedEffect
+        if (uiState.actions.consumeAutomaticSpeech(answer.id)) {
+            speechScope.launch(getBackgroundDispatcher()) {
+                speech.stop()
+                uiState.actions.setIsSpeaking(true, answer.id)
+                try {
+                    speech.say(answer.content.toSpeakableText())
+                } catch (_: Exception) { } finally {
+                    uiState.actions.setIsSpeaking(false, answer.id)
+                }
+            }
+        }
+    }
 
     LaunchedEffect(uiState.composerPrefill) {
         val prefill = uiState.composerPrefill ?: return@LaunchedEffect
@@ -584,6 +614,7 @@ private fun ChatModeScreen(
                 },
             )
 
+            uiState.backgroundError?.let { Text("${stringResource(Res.string.run_background_stopped)}: ${uiErrorText(it)}", modifier = Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
             PendingSmsBanners(
                 drafts = uiState.smsDrafts,
                 onSend = uiState.actions.sendSmsDraft,
@@ -658,31 +689,7 @@ private fun ChatModeScreen(
                             )
                         } else {
                             val listState = rememberLazyListState()
-                            val componentScope = rememberCoroutineScope()
-
-                            LaunchedEffect(uiState.history.size) {
-                                // Capture history at effect start to prevent race conditions
-                                val history = uiState.history
-                                if (history.isNotEmpty()) {
-                                    listState.requestScrollToItem(history.lastIndex)
-                                    val lastMessage = history.last()
-                                    if (uiState.isSpeechOutputEnabled && lastMessage.role == History.Role.ASSISTANT) {
-                                        componentScope.launch(getBackgroundDispatcher()) {
-                                            textToSpeech?.stop()
-                                            uiState.actions.setIsSpeaking(true, lastMessage.id)
-                                            try {
-                                                textToSpeech?.say(lastMessage.content.toSpeakableText())
-                                            } catch (_: TextToSpeechSynthesisInterruptedError) {
-                                                // Speech was interrupted by user
-                                            } catch (_: Exception) {
-                                                // Handle TTS errors gracefully (service failure, audio issues, etc.)
-                                            } finally {
-                                                uiState.actions.setIsSpeaking(false, lastMessage.id)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            val chatScroll = rememberChatScrollState(listState, uiState.currentConversationId)
 
                             val lastAssistantId = remember(uiState.history) { uiState.history.lastRenderedAssistant()?.id }
                             // Pair every user submission with its originating assistant so the kai-ui
@@ -788,19 +795,19 @@ private fun ChatModeScreen(
                                 byAnswerId to suppressed
                             }
 
-                            val showScrollToBottom by remember {
-                                derivedStateOf {
-                                    val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                                    lastVisibleItem != null && lastVisibleItem.index < listState.layoutInfo.totalItemsCount - 1
-                                }
+                            val showScrollToBottom by remember(chatScroll, listState) {
+                                derivedStateOf { !chatScroll.isFollowingBottom || listState.canScrollForward }
                             }
 
                             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                                 LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier.fillMaxSize().nestedScroll(chatScroll),
                                     state = listState,
                                     horizontalAlignment = CenterHorizontally,
                                 ) {
+                                    if (uiState.earlierMessageCount > 0) {
+                                        item(key = "earlier-messages") { TextButton(onClick = uiState.actions.loadEarlierMessages) { Text(stringResource(Res.string.run_load_earlier, uiState.earlierMessageCount)) } }
+                                    }
                                     items(uiState.history, key = { it.id }, contentType = { it.role }) { history ->
                                         when (history.role) {
                                             History.Role.USER -> {
@@ -815,24 +822,28 @@ private fun ChatModeScreen(
                                             }
 
                                             History.Role.ASSISTANT -> {
-                                                if (history.content.isNotEmpty() && !history.isThinking) {
+                                                if (history.isStatusMessage) {
+                                                    val latest = uiState.history.lastOrNull { it.isStatusMessage && it.role == History.Role.ASSISTANT }?.id
+                                                    RunActivity(history, uiState.history, uiState.actions.retry.takeIf { !uiState.isLoading && history.id == latest && !history.superseded && history.state in listOf(MessageState.PAUSED, MessageState.INTERRUPTED, MessageState.FAILED) })
+                                                } else if (history.content.isNotEmpty() && !history.isThinking) {
+                                                    if (history.superseded) Text(stringResource(Res.string.run_previous_attempt), modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                     val isLastAssistant = history.id == lastAssistantId
                                                     val frozen = frozenByAssistantId[history.id]
                                                     val pairedUserId = userIdByAssistantId[history.id]
                                                     BotMessage(
                                                         message = history.content,
-                                                        textToSpeech = textToSpeech,
+                                                        textToSpeech = textToSpeech.takeIf { history.state == MessageState.COMPLETE },
                                                         isSpeaking = uiState.isSpeaking && uiState.isSpeakingContentId == history.id,
                                                         setIsSpeaking = {
                                                             uiState.actions.setIsSpeaking(it, history.id)
                                                         },
-                                                        onRegenerate = if (isLastAssistant) uiState.actions.regenerate else null,
-                                                        isInteractive = isLastAssistant && !uiState.isLoading && frozen == null,
+                                                        onRegenerate = if (isLastAssistant && !uiState.isLoading) uiState.actions.regenerate else null,
+                                                        isInteractive = isLastAssistant && !uiState.isLoading && !history.superseded && history.state == MessageState.COMPLETE && frozen == null,
                                                         onUiCallback = { event, data ->
                                                             uiState.actions.submitUiCallback(event, data)
                                                         },
                                                         frozen = frozen,
-                                                        onResubmit = if (pairedUserId != null && !uiState.isLoading) {
+                                                        onResubmit = if (pairedUserId != null && !uiState.isLoading && history.state == MessageState.COMPLETE && !history.superseded) {
                                                             { event, data -> uiState.actions.resubmit(pairedUserId, event, data) }
                                                         } else {
                                                             null
@@ -874,6 +885,7 @@ private fun ChatModeScreen(
                                             }
                                         }
                                     }
+                                    items(uiState.toolApprovals, key = { "approval-${it.id}" }) { approval -> ToolApprovalCard(approval, uiState.actions.resolveToolApproval) }
                                     // Skip the generic "thinking" row during a pending kai-ui submission — the
                                     // pressed button's pulse already signals work in flight. Keep it for tool
                                     // activity so tool feedback isn't lost.
@@ -884,7 +896,12 @@ private fun ChatModeScreen(
                                             WaitingResponseRow(
                                                 executingTools = executingToolsState.tools,
                                                 isStatusOnly = executingToolsState.isStatusOnly,
-                                                statusText = fallbackStatusText,
+                                                statusText = when {
+                                                    uiState.isStopping -> stringResource(Res.string.run_stopping)
+                                                    uiState.toolApprovals.isNotEmpty() -> stringResource(Res.string.run_approval_waiting)
+                                                    uiState.history.lastOrNull()?.state == MessageState.GENERATING -> stringResource(Res.string.run_generating)
+                                                    else -> fallbackStatusText
+                                                },
                                             )
                                         }
                                     }
@@ -916,14 +933,7 @@ private fun ChatModeScreen(
                                     SmallFloatingActionButton(
                                         modifier = Modifier
                                             .handCursor(),
-                                        onClick = {
-                                            componentScope.launch {
-                                                val totalItems = listState.layoutInfo.totalItemsCount
-                                                if (totalItems > 0) {
-                                                    listState.animateScrollToItem(totalItems - 1)
-                                                }
-                                            }
-                                        },
+                                        onClick = chatScroll::scrollToBottom,
                                     ) {
                                         Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(Res.string.scroll_to_bottom_content_description))
                                     }
@@ -939,7 +949,7 @@ private fun ChatModeScreen(
                     files = uiState.files,
                     addFile = uiState.actions.addFile,
                     removeFile = uiState.actions.removeFile,
-                    ask = uiState.actions.ask,
+                    ask = submitQuestion,
                     supportedFileExtensions = uiState.supportedFileExtensions,
                     textState = questionInputText,
                     onTextStateChange = { questionInputText = it },

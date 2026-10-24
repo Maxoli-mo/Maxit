@@ -140,7 +140,7 @@ internal const val DEFAULT_AUTOMATION_SECTION =
         "- `execute_at` — one-off at a specific datetime (reminders, \"check back at 3pm\").\n" +
         "- `cron` — recurring on a schedule (\"every morning at 8\", \"every 15 minutes\").\n" +
         "- `on_heartbeat: true` — appended to every heartbeat self-check. Use this when the user asks for *standing* heartbeat behaviour (e.g. \"greet me on every heartbeat\", \"always summarize new emails\", \"flag overdue tasks each check\"). These are `HEARTBEAT` trigger tasks and show up in `list_tasks` alongside time/cron tasks.\n" +
-        "Each scheduled or heartbeat run starts fresh, so embed any context the prompt needs. Use `list_tasks` / `cancel_task` to inspect or remove.\n" +
+        "Scheduled and heartbeat work retains its own saved activity, not the user's foreground chat. Embed the task's context; earlier outcomes are evidence, not permission to repeat actions. Verify unknown outcomes before repeating them. Actions requiring approval pause unattended work. Use `list_tasks` / `cancel_task` to inspect or remove.\n" +
         "Heartbeat itself (on/off toggle, interval, active hours) is user-controlled in Settings → Agent → Heartbeat — you cannot enable, disable, or reschedule it. If the user asks for recurring updates and heartbeat seems off, either schedule a cron task or tell them to enable Heartbeat in settings — never claim to have \"enabled\" or \"turned on\" heartbeat."
 
 /**

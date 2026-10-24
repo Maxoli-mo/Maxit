@@ -3,6 +3,7 @@
 package com.maximiliano.maxit.testutil
 
 import com.maximiliano.maxit.data.Conversation
+import com.maximiliano.maxit.data.ConversationInputAccepted
 import com.maximiliano.maxit.data.DataRepository
 import com.maximiliano.maxit.data.EmailAccount
 import com.maximiliano.maxit.data.EmailSyncState
@@ -223,7 +224,7 @@ class FakeDataRepository : DataRepository {
         files: List<PlatformFile>,
         uiSubmission: com.maximiliano.maxit.data.UiSubmission?,
         activeSkillId: String?,
-    ) {
+    ): History? {
         askCalls.add(question to files)
         lastActiveSkillId = activeSkillId
         askGate?.await()
@@ -232,10 +233,11 @@ class FakeDataRepository : DataRepository {
             chatHistory.update { history ->
                 history + History(role = History.Role.USER, content = question, uiSubmission = uiSubmission)
             }
+            kotlin.coroutines.coroutineContext[ConversationInputAccepted]?.notify?.invoke()
         }
-        chatHistory.update { history ->
-            history + History(role = History.Role.ASSISTANT, content = "Test response")
-        }
+        val answer = History(role = History.Role.ASSISTANT, content = "Test response")
+        chatHistory.update { it + answer }
+        return answer
     }
 
     override fun clearHistory() {
@@ -281,16 +283,13 @@ class FakeDataRepository : DataRepository {
         savedConversations.update { it.filter { c -> c.id != id } }
     }
 
-    override fun regenerate() {
+    override suspend fun regenerate(): History? {
         regenerateCalls++
         chatHistory.update { history ->
-            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER }
-            if (lastUserIndex >= 0) {
-                history.subList(0, lastUserIndex + 1)
-            } else {
-                history
-            }
+            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER && !it.superseded }
+            if (lastUserIndex < 0) history else history.mapIndexed { index, entry -> if (index > lastUserIndex) entry.copy(superseded = true) else entry }
         }
+        return ask(null, emptyList())
     }
 
     override fun startNewChat() {
@@ -298,17 +297,17 @@ class FakeDataRepository : DataRepository {
         chatHistory.value = emptyList()
     }
 
-    override fun popLastExchange() {
+    override suspend fun popLastExchange() {
         chatHistory.update { history ->
-            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER }
-            if (lastUserIndex >= 0) history.subList(0, lastUserIndex) else history
+            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER && !it.superseded }
+            if (lastUserIndex < 0) history else history.mapIndexed { index, entry -> if (index >= lastUserIndex) entry.copy(superseded = true) else entry }
         }
     }
 
-    override fun truncateFrom(messageId: String) {
+    override suspend fun truncateFrom(messageId: String) {
         chatHistory.update { history ->
-            val index = history.indexOfFirst { it.id == messageId }
-            if (index >= 0) history.subList(0, index) else history
+            val cutoff = history.indexOfFirst { it.id == messageId }
+            if (cutoff < 0) history else history.mapIndexed { index, entry -> if (index >= cutoff) entry.copy(superseded = true) else entry }
         }
     }
 
@@ -513,7 +512,6 @@ class FakeDataRepository : DataRepository {
 
     override suspend fun askWithTools(prompt: String, instanceId: String?, conversationIdOverride: String?): String = ""
     override suspend fun askSilently(question: String): String = ""
-    override suspend fun addAssistantMessage(content: String) {}
     override suspend fun getOrCreateHeartbeatConversationId(): String = "fake-heartbeat-conversation"
 
     override val hasUnreadHeartbeat: MutableStateFlow<Boolean> = MutableStateFlow(false)

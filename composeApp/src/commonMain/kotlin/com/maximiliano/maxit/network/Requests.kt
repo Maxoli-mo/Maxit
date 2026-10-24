@@ -6,6 +6,7 @@ package com.maximiliano.maxit.network
 
 import com.maximiliano.maxit.Version
 import com.maximiliano.maxit.currentPlatform
+import com.maximiliano.maxit.data.ConversationWriteException
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.httpClient
 import com.maximiliano.maxit.isDebugBuild
@@ -34,12 +35,15 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.accept
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.content.TextContent
@@ -161,7 +165,8 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         install(Logging) {
             if (isDebugBuild) {
                 logger = DebugKtorLogger()
-                level = LogLevel.BODY
+                // Prompts, tool arguments, and credentials must never enter diagnostic logs.
+                level = LogLevel.NONE
             } else {
                 logger = Logger.EMPTY
                 level = LogLevel.NONE
@@ -204,6 +209,7 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         messages: List<GeminiChatRequestDto.Content>,
         tools: List<Tool> = emptyList(),
         systemInstruction: String? = null,
+        onText: (suspend (String) -> Unit)? = null,
     ): Result<GeminiChatResponseDto> = try {
         val apiKey = credentials.apiKey.ifEmpty { throw GeminiInvalidApiKeyException() }
         val selectedModelId = credentials.modelId
@@ -214,36 +220,38 @@ class Requests(private val codexAuth: CodexAuth? = null) {
             )
         }
 
-        val response: HttpResponse =
-            defaultClient.post("${Service.Gemini.chatUrl}$selectedModelId:generateContent") {
-                header("x-goog-api-key", apiKey)
-                contentType(ContentType.Application.Json)
-                setBody(
-                    GeminiChatRequestDto(
-                        contents = messages,
-                        tools = tools.toRequestTools { it.toGeminiTool() },
-                        systemInstruction = systemContent,
-                    ),
-                )
-            }
-        if (response.status.isSuccess()) {
-            Result.success(response.body())
-        } else {
-            when (response.status.value) {
-                429 -> throw GeminiRateLimitExceededException()
+        val method = if (onText != null) "streamGenerateContent?alt=sse" else "generateContent"
+        defaultClient.preparePost("${Service.Gemini.chatUrl}$selectedModelId:$method") {
+            header("x-goog-api-key", apiKey)
+            contentType(ContentType.Application.Json)
+            setBody(
+                GeminiChatRequestDto(
+                    contents = messages,
+                    tools = tools.toRequestTools { it.toGeminiTool() },
+                    systemInstruction = systemContent,
+                ),
+            )
+        }
+            .execute { response ->
+                if (response.status.isSuccess()) {
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readGeminiStream(response.bodyAsChannel(), onText ?: {}) else readGeminiBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                } else {
+                    when (response.status.value) {
+                        429 -> throw GeminiRateLimitExceededException()
 
-                403 -> throw GeminiInvalidApiKeyException()
+                        403 -> throw GeminiInvalidApiKeyException()
 
-                else -> {
-                    val responseBody = response.bodyAsText()
-                    if (responseBody.contains("API_KEY_INVALID", ignoreCase = true)) {
-                        throw GeminiInvalidApiKeyException()
-                    } else {
-                        throw GeminiGenericException("Chat request failed: ${response.status}")
+                        else -> {
+                            val responseBody = response.bodyAsText()
+                            if (responseBody.contains("API_KEY_INVALID", ignoreCase = true)) {
+                                throw GeminiInvalidApiKeyException()
+                            } else {
+                                throw GeminiGenericException("Chat request failed: ${response.status}")
+                            }
+                        }
                     }
                 }
             }
-        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -261,29 +269,37 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         tools: List<Tool> = emptyList(),
         customHeaders: Map<String, String> = emptyMap(),
         sessionId: String? = null,
+        onText: (suspend (String) -> Unit)? = null,
     ): Result<OpenAICompatibleChatResponseDto> = try {
         val apiKey = getApiKeyOrThrow(service, credentials)
         val model = credentials.modelId.ifEmpty { null }
         val url = resolveUrl(service, credentials, service.chatUrl)
-        val response: HttpResponse =
-            defaultClient.post(url) {
-                contentType(ContentType.Application.Json)
-                apiKey?.let { bearerAuth(it) }
-                applySessionHeader(service, credentials, sessionId)
-                customHeaders.forEach { (k, v) -> header(k, v) }
-                setBody(
-                    OpenAICompatibleChatRequestDto(
-                        messages = messages,
-                        model = model,
-                        tools = tools.toRequestTools { it.toRequestTool() },
-                    ),
-                )
-            }
-        if (response.status.isSuccess()) {
-            Result.success(response.body())
-        } else {
-            handleOpenAICompatibleError(service, credentials, response)
+        defaultClient.preparePost(url) {
+            contentType(ContentType.Application.Json)
+            accept(if (onText != null) ContentType.Text.EventStream else ContentType.Application.Json)
+            apiKey?.let { bearerAuth(it) }
+            applySessionHeader(service, credentials, sessionId)
+            customHeaders.forEach { (k, v) -> header(k, v) }
+            setBody(
+                OpenAICompatibleChatRequestDto(
+                    messages = messages,
+                    model = model,
+                    tools = tools.toRequestTools { it.toRequestTool() },
+                    stream = onText?.let { true },
+                ),
+            )
         }
+            .execute { response ->
+                if (response.status.isSuccess()) {
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readChatCompletionStream(response.bodyAsChannel(), onText ?: {}) else readChatCompletionBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                } else {
+                    handleOpenAICompatibleError(service, credentials, response)
+                }
+            }
+    } catch (e: StreamInterruptedException) {
+        Result.failure(e)
+    } catch (e: ConversationWriteException) {
+        throw e
     } catch (e: OpenAICompatibleApiException) {
         Result.failure(e)
     } catch (e: io.ktor.client.plugins.HttpRequestTimeoutException) {
@@ -305,11 +321,13 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         input: List<JsonObject>,
         tools: List<Tool> = emptyList(),
         sessionId: String? = null,
+        onText: (suspend (String) -> Unit)? = null,
     ): Result<OpenAIResponsesResponseDto> = try {
         val request = OpenAIResponsesRequestDto(
             input = input,
             model = credentials.modelId.ifEmpty { null },
             tools = tools.toRequestTools { it.toResponsesTool() },
+            stream = onText?.let { true },
         )
         if (service == Service.OpenAICodex) {
             Result.success(
@@ -318,6 +336,7 @@ class Requests(private val codexAuth: CodexAuth? = null) {
                     request,
                     sessionId?.takeIf { it.isNotBlank() } ?: processSessionId,
                     credentials.codexSessionGeneration,
+                    onText ?: {},
                 ),
             )
         } else {
@@ -325,17 +344,22 @@ class Requests(private val codexAuth: CodexAuth? = null) {
             val responsesUrl = service.responsesUrl
                 ?: throw OpenAICompatibleGenericException("Responses URL not configured for ${service.displayName}")
             val url = resolveUrl(service, credentials, responsesUrl)
-            val response: HttpResponse = defaultClient.post(url) {
+            defaultClient.preparePost(url) {
                 contentType(ContentType.Application.Json)
                 apiKey?.let { bearerAuth(it) }
                 setBody(request)
-            }
-            if (response.status.isSuccess()) {
-                Result.success(response.body())
-            } else {
-                handleOpenAICompatibleError(service, credentials, response)
+            }.execute { response ->
+                if (response.status.isSuccess()) {
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readCodexResponse(response.bodyAsChannel(), onText ?: {}) else readResponsesBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                } else {
+                    handleOpenAICompatibleError(service, credentials, response)
+                }
             }
         }
+    } catch (e: StreamInterruptedException) {
+        Result.failure(e)
+    } catch (e: ConversationWriteException) {
+        throw e
     } catch (e: OpenAICompatibleApiException) {
         Result.failure(e)
     } catch (e: io.ktor.client.plugins.HttpRequestTimeoutException) {
@@ -466,30 +490,35 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         messages: List<AnthropicChatRequestDto.Message>,
         tools: List<Tool> = emptyList(),
         systemInstruction: String? = null,
+        onText: (suspend (String) -> Unit)? = null,
     ): Result<AnthropicChatResponseDto> = try {
         val apiKey = credentials.apiKey.ifEmpty { throw AnthropicInvalidApiKeyException() }
-        val response: HttpResponse =
-            defaultClient.post(Service.Anthropic.chatUrl) {
-                contentType(ContentType.Application.Json)
-                header("x-api-key", apiKey)
-                header("anthropic-version", "2023-06-01")
-                setBody(
-                    AnthropicChatRequestDto(
-                        model = credentials.modelId,
-                        messages = messages,
-                        max_tokens = 8192,
-                        system = systemInstruction,
-                        tools = tools.toRequestTools { it.toAnthropicTool() },
-                    ),
-                )
-            }
-        val responseBody = response.bodyAsText()
-        if (response.status.isSuccess()) {
-            val dto = anthropicJson.decodeFromString(AnthropicChatResponseDto.serializer(), responseBody)
-            Result.success(dto)
-        } else {
-            throwAnthropicError(response.status.value, responseBody)
+        defaultClient.preparePost(Service.Anthropic.chatUrl) {
+            contentType(ContentType.Application.Json)
+            header("x-api-key", apiKey)
+            header("anthropic-version", "2023-06-01")
+            setBody(
+                AnthropicChatRequestDto(
+                    model = credentials.modelId,
+                    messages = messages,
+                    max_tokens = 8192,
+                    system = systemInstruction,
+                    tools = tools.toRequestTools { it.toAnthropicTool() },
+                    stream = onText?.let { true },
+                ),
+            )
         }
+            .execute { response ->
+                if (response.status.isSuccess()) {
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readAnthropicStream(response.bodyAsChannel(), onText ?: {}) else readAnthropicBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                } else {
+                    throwAnthropicError(response.status.value, response.bodyAsText())
+                }
+            }
+    } catch (e: StreamInterruptedException) {
+        Result.failure(e)
+    } catch (e: ConversationWriteException) {
+        throw e
     } catch (e: AnthropicApiException) {
         Result.failure(e)
     } catch (e: CancellationException) {

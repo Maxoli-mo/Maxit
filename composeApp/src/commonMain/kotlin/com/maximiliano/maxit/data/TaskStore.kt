@@ -102,6 +102,33 @@ class TaskStore(appSettings: AppSettings) {
         return removed
     }
 
+    suspend fun claimTask(id: String): Boolean {
+        var claimed = false
+        tasks.update { current ->
+            current.map { task ->
+                if (task.id == id && task.status == TaskStatus.PENDING) {
+                    claimed = true
+                    task.copy(status = TaskStatus.RUNNING, lastResult = "Execution started. An interrupted occurrence will not be replayed automatically.")
+                } else {
+                    task
+                }
+            }
+        }
+        return claimed
+    }
+
+    suspend fun resumeTask(id: String) {
+        tasks.update { current ->
+            current.map { task ->
+                if (task.id == id && task.status == TaskStatus.PAUSED) task.copy(status = TaskStatus.PENDING, scheduledAtEpochMs = Clock.System.now().toEpochMilliseconds(), consecutiveFailures = 0, lastResult = "Resumed by the user after reviewing prior work. Earlier actions were not undone.") else task
+            }
+        }
+    }
+
+    suspend fun recoverInterruptedTasks() {
+        tasks.update { current -> current.map { if (it.status == TaskStatus.RUNNING) it.copy(status = TaskStatus.PAUSED, lastResult = "Interrupted when the app closed. Review the saved heartbeat activity before starting this task again.") else it } }
+    }
+
     fun getDueTasks(): List<ScheduledTask> {
         val now = Clock.System.now().toEpochMilliseconds()
         return tasks.get().filter {

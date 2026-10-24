@@ -1,0 +1,23 @@
+<resources>
+    <string name="run_generating">Gerando · salvando conforme chega</string>
+    <string name="run_stopping">Interrompendo · salvando o trabalho concluído</string>
+    <string name="run_interrupted">Interrompido · trabalho salvo preservado</string>
+    <string name="run_paused">Execução pausada</string>
+    <string name="run_failed">A tentativa não foi concluída</string>
+    <string name="run_continue">Continuar</string>
+    <string name="run_activity">Atividade das ferramentas</string>
+    <string name="run_previous_attempt">Tentativa anterior · as ações não foram desfeitas</string>
+    <string name="run_load_earlier">Carregar mensagens anteriores (%1$d)</string>
+    <string name="run_approval_title">Aprovar ação: %1$s</string>
+    <string name="run_approval_description">Confira os argumentos exatos. Esta aprovação vale uma única vez, apenas para esta ação.</string>
+    <string name="run_approve_once">Aprovar uma vez</string>
+    <string name="run_decline">Recusar</string>
+    <string name="run_unknown_outcome">Resultado desconhecido · confira antes de repetir</string>
+    <string name="run_arguments">Argumentos</string>
+    <string name="run_result">Resultado registrado</string>
+    <string name="run_task_resume">Retomar tarefa</string>
+    <string name="run_task_prompt">Instruções da tarefa</string>
+    <string name="run_task_resume_warning">Confira primeiro a atividade salva do heartbeat. Retomar pode repetir ações já realizadas; o trabalho anterior não é desfeito. Ações que exigem aprovação serão pausadas novamente sem supervisão.</string>
+    <string name="run_approval_waiting">Aguardando sua aprovação</string>
+    <string name="run_background_stopped">Execução em segundo plano interrompida</string>
+</resources>

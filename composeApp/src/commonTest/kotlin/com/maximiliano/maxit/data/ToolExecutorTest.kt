@@ -83,7 +83,8 @@ class ToolExecutorTest {
         val result = Json.parseToJsonElement(executor.executeTool("fake_tool", "{}")).jsonObject
 
         assertEquals("false", result["success"]?.jsonPrimitive?.content)
-        assertEquals("Tool execution failed: bad \"value\"\nat line 2", result["error"]?.jsonPrimitive?.content)
+        assertEquals("outcome_unknown", result["status"]?.jsonPrimitive?.content)
+        assertEquals("Tool execution failed: bad \"value\"\nat line 2. Verify its outcome before repeating it.", result["error"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -102,11 +103,10 @@ class ToolExecutorTest {
     }
 
     @Test
-    fun `ordinary tools retain the existing result limit`() = runTest {
+    fun `ordinary tool results remain complete for durable storage`() = runTest {
         val fullResult = "r".repeat(128_000)
         val result = executorWith(FakeTool { fullResult }).executeTool("fake_tool", "{}")
-        assertTrue(result.length <= 20_000)
-        assertTrue(result != fullResult)
+        assertEquals(fullResult, result)
     }
 
     @Test

@@ -87,6 +87,7 @@ data class SettingsUiState(
     val memories: ImmutableList<MemoryEntry> = persistentListOf(),
     val isSchedulingEnabled: Boolean = true,
     val scheduledTasks: ImmutableList<ScheduledTask> = persistentListOf(),
+    val taskResumeError: com.maximiliano.maxit.network.UiError? = null,
     val isDaemonEnabled: Boolean = false,
     val showDaemonToggle: Boolean = false,
     val isHeartbeatEnabled: Boolean = true,

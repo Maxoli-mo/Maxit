@@ -23,6 +23,33 @@ CREATE TABLE messageEntity (
     PRIMARY KEY (conversationId, orderIndex)
 );
 
+CREATE TABLE messagePayloadEntity (
+    conversationId TEXT NOT NULL,
+    orderIndex INTEGER NOT NULL,
+    chunkIndex INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    PRIMARY KEY (conversationId, orderIndex, chunkIndex)
+);
+
+selectPayloadChunks:
+SELECT content FROM messagePayloadEntity
+WHERE conversationId = ? AND orderIndex = ? ORDER BY chunkIndex;
+
+insertPayloadChunk:
+INSERT INTO messagePayloadEntity VALUES (?, ?, ?, ?);
+
+deletePayloadChunks:
+DELETE FROM messagePayloadEntity WHERE conversationId = ? AND orderIndex >= ?;
+
+deleteMessagePayload:
+DELETE FROM messagePayloadEntity WHERE conversationId = ? AND orderIndex = ?;
+
+deleteMessagesFrom:
+DELETE FROM messageEntity WHERE conversationId = ? AND orderIndex >= ?;
+
+deleteAllPayloadChunks:
+DELETE FROM messagePayloadEntity;
+
 selectAllConversations:
 SELECT * FROM conversationEntity ORDER BY createdAt, id;
 
@@ -32,9 +59,14 @@ SELECT * FROM conversationEntity ORDER BY createdAt, id;
 -- oversized rows written by older versions so those databases still load.
 -- length(CAST(x AS BLOB)) counts UTF-8 bytes, not characters.
 selectAllMessages:
-SELECT * FROM messageEntity
-WHERE length(CAST(messageJson AS BLOB)) <= :maxBytes
-ORDER BY conversationId, orderIndex;
+SELECT conversationId, orderIndex,
+    CASE WHEN length(CAST(messageJson AS BLOB)) <= :maxBytes THEN messageJson
+    ELSE '{"legacyLength":' || length(messageJson) || '}' END AS messageJson
+FROM messageEntity ORDER BY conversationId, orderIndex;
+
+selectLegacyMessageChunk:
+SELECT substr(messageJson, :start, :count) FROM messageEntity
+WHERE conversationId = :conversationId AND orderIndex = :orderIndex;
 
 upsertConversation:
 INSERT OR REPLACE INTO conversationEntity (id, title, type, createdAt, updatedAt, shellTranscriptJson)
@@ -47,7 +79,7 @@ deleteConversation:
 DELETE FROM conversationEntity WHERE id = ?;
 
 insertMessage:
-INSERT INTO messageEntity (conversationId, orderIndex, messageJson)
+INSERT OR REPLACE INTO messageEntity (conversationId, orderIndex, messageJson)
 VALUES (?, ?, ?);
 
 deleteMessages:

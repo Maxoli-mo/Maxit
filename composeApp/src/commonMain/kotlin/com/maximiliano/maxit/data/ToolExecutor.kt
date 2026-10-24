@@ -5,7 +5,6 @@ package com.maximiliano.maxit.data
 import com.maximiliano.maxit.getAvailableTools
 import com.maximiliano.maxit.getPlatformToolDefinitions
 import com.maximiliano.maxit.network.tools.Tool
-import com.maximiliano.maxit.smartTruncate
 import com.maximiliano.maxit.tools.SkillTools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -27,8 +26,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.compose.resources.getString
-
-private const val MAX_TOOL_RESULT_LENGTH = 20_000
+import kotlin.coroutines.coroutineContext
 
 // A 64K body plus up to 256 paths of 512 characters must fit without losing instructions.
 private const val MAX_SKILL_TOOL_RESULT_LENGTH = 256_000
@@ -52,11 +50,18 @@ class ToolExecutor(
         name: String,
         arguments: String,
         conversationId: String? = null,
+        additionalTools: List<Tool> = emptyList(),
     ): String {
-        val tools = toolsProvider()
+        if (arguments.length > 1_048_576) return toolErrorJson("Tool arguments exceed the per-call safety size")
+        val tools = toolsProvider() + additionalTools
         val tool = tools.find { it.schema.name == name }
             ?: return toolErrorJson("Unknown tool: $name")
 
+        val run = coroutineContext[ConversationRun]
+        if (run != null && (needsToolApproval(tool, arguments) || hasUnknownOutcome(run.history.value, name, arguments))) {
+            val permit = coroutineContext[ToolExecutionPermit]
+            if (permit?.name != name || permit.arguments != arguments) throw RunPausedException("This action requires explicit approval for its exact arguments")
+        }
         val args = try {
             parseJsonToMap(arguments)
         } catch (e: Exception) {
@@ -91,20 +96,28 @@ class ToolExecutor(
                 }
                 resultString
             } else {
-                truncateResult(resultString)
+                resultString
             }
         } catch (e: TimeoutCancellationException) {
-            toolErrorJson("Tool '$name' timed out after ${tool.timeout}")
+            buildJsonObject {
+                put("success", false)
+                put("status", "outcome_unknown")
+                put("error", "Tool '$name' timed out after ${tool.timeout}. It may have completed; verify its state before repeating the action.")
+            }.toString()
         } catch (e: CancellationException) {
             // Cooperative cancellation (user pressed stop) must propagate, not become a
             // fake tool result the loop would keep reasoning about.
             throw e
         } catch (e: Exception) {
-            toolErrorJson("Tool execution failed: ${e.message}")
+            buildJsonObject {
+                put("success", false)
+                put("status", "outcome_unknown")
+                put("error", "Tool execution failed: ${e.message}. Verify its outcome before repeating it.")
+            }.toString()
         }
     }
 
-    private fun truncateResult(result: String): String = result.smartTruncate(MAX_TOOL_RESULT_LENGTH)
+    fun requiresApproval(name: String, arguments: String): Boolean = toolsProvider().find { it.schema.name == name }?.let { needsToolApproval(it, arguments) } ?: false
 
     private fun anyToJsonElement(value: Any?): JsonElement = when (value) {
         null -> JsonNull

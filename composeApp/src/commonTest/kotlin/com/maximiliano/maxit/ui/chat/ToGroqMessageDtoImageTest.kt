@@ -42,7 +42,9 @@ class ToGroqMessageDtoImageTest {
     fun `supportsImages=false flattens to plain JsonPrimitive and drops images`() {
         val dto = userWithImage().toGroqMessageDto(supportsImages = false)
 
-        assertEquals(JsonPrimitive("what's in this picture?"), dto.content)
+        assertTrue(dto.content is JsonPrimitive)
+        assertTrue(dto.content.content.contains("what's in this picture?"))
+        assertTrue(dto.content.content.contains("was not provided"))
     }
 
     @Test

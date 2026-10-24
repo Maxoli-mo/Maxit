@@ -1,10 +1,10 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-24. -->
 
 # Settings Export / Import
 
 **Last reviewed:** 2026-10-24
 
-**Last verified:** 2026-10-24
+**Last verified:** 2026-10-24. Import-validation and persistence checks are local regressions; browser quota and Android shell behavior still require runtime acceptance.
 
 Users can back up and restore their Maxit configuration and data (services, agent instructions, memory, tasks, heartbeat, email, SMS, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
 
@@ -37,8 +37,8 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 - Clicking **Import** in the dialog applies the selected sections. Afterwards the settings screen is rebuilt, service connections are re-checked, enabled MCP servers are reconnected, and conversations are reloaded so imported chats appear without a restart. A status line under the buttons reports success, partial success (with the number of failed sections), or failure.
 - Each settings section is imported independently. If one section contains malformed data, the remaining sections are still imported and the error is counted.
 - Unknown keys are silently ignored, so older exports can be imported into newer app versions.
-- Scheduled tasks and memories with missing or invalid fields are auto-filled with sensible defaults (e.g. generated UUIDs for missing IDs, `PENDING` for invalid task status, `GENERAL` for invalid memory category). This ensures items are preserved even if the JSON was hand-edited or exported from a different version. Conversations that cannot be decoded are skipped individually; the rest are imported.
-- Imported conversations replace all existing conversations (on database-backed platforms they are applied to the local database on the next load). In Replace mode, leaving Conversations unselected clears all conversations.
+- Scheduled tasks and memories with missing or invalid fields are auto-filled with sensible defaults (e.g. generated UUIDs for missing IDs, `PENDING` for invalid task status, `GENERAL` for invalid memory category). A malformed conversation record or duplicate retained conversation IDs reject the whole Conversations section before staging or replacing saved history. Existing conversations remain intact, and the failed section is reported rather than silently discarding records.
+- Valid imported conversations replace all existing conversations on the next reload. In Replace mode, leaving Conversations unselected clears all conversations. Attempts and callbacks from the old storage generation cannot overwrite the imported copy. The next Android shell access creates fresh ownership for new work, even when the imported conversation retains the same ID.
 - OpenAI-compatible base URLs without a version path get `/v1` appended on import.
 - Codex provider instances and model choices can transfer, but ChatGPT access and refresh tokens cannot. Importing Services, or replacing settings, clears existing Codex sessions; sign in again after import. A merge that leaves Services unselected preserves completed sessions. Any applied import cancels unfinished Codex sign-in attempts before rebuilding the screen, including merges of unrelated sections; a new attempt can start immediately.
 
@@ -102,5 +102,9 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 | `composeApp/.../ui/settings/GeneralSettings.kt` | Hosts the Export/Import card in the General tab |
 | `composeApp/.../ui/settings/ExportImportSection.kt` | Export/Import card with FileKit dialogs, `ExportPreviewDialog`, `ImportPreviewDialog` |
 | `composeApp/.../testutil/FakeDataRepository.kt` | Test stubs |
-| `composeApp/.../data/AppSettingsExportImportTest.kt` | Unit tests including v1 snapshot test |
+| `composeApp/.../data/AppSettingsExportImportTest.kt` | Import/export compatibility and duplicate-ID rejection before staging |
+| `composeApp/src/commonMain/.../data/ConversationPersistence.kt` | Defensive duplicate-ID validation and committed-store replacement |
+| `composeApp/src/commonTest/.../data/SettingsConversationStagingTest.kt` | Rejected imports preserve committed browser keys and history |
+| `composeApp/src/desktopTest/.../data/SqlConversationPersistenceTest.kt` | Rejected duplicate replacements preserve database history |
+| `composeApp/src/commonMain/.../sandbox/SessionTranscriptOwner.kt` | Original-generation fencing and fresh ownership after import |
 | `composeApp/src/desktopTest/.../ui/settings/SettingsCodexSignInTest.kt` | Codex sign-in lifecycle, including cancellation when importing settings |

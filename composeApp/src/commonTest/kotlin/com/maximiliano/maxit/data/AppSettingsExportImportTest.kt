@@ -804,7 +804,7 @@ class AppSettingsExportImportTest {
     }
 
     @Test
-    fun `import conversations with malformed entries skips invalid ones`() {
+    fun `malformed conversation imports preserve the previous data instead of silently dropping records`() {
         val json = JsonObject(
             mapOf(
                 "version" to JsonPrimitive(1),
@@ -818,12 +818,24 @@ class AppSettingsExportImportTest {
             ),
         )
         val target = createAppSettings()
-        target.importFromJson(json, toolIds)
+        target.setConversationsJson("previous committed data")
+        assertTrue(target.importFromJson(json, toolIds) > 0)
+        assertEquals("previous committed data", target.getConversationsJson())
+    }
 
-        val imported = SharedJson.decodeFromString<ConversationsData>(target.getConversationsJson()!!)
-        assertEquals(2, imported.conversations.size)
-        assertEquals("conv1", imported.conversations[0].id)
-        assertEquals("conv3", imported.conversations[1].id)
+    @Test
+    fun `duplicate conversation IDs reject import before replacing the pending backup`() {
+        val target = createAppSettings()
+        val original = Conversation(id = "saved", messages = emptyList(), createdAt = 1L, updatedAt = 2L)
+        val previous = SharedJson.encodeToString(ConversationsData(conversations = listOf(original)))
+        target.setConversationsJson(previous)
+        val duplicate = original.copy(id = "duplicate")
+        val backup = target.exportToJson(toolIds, conversations = listOf(duplicate, duplicate.copy(title = "second")))
+
+        for (replace in listOf(false, true)) {
+            assertEquals(1, target.importFromJson(backup, toolIds, sections = setOf(ImportSection.CONVERSATIONS), replace = replace))
+            assertEquals(previous, target.getConversationsJson())
+        }
     }
 
     @Test

@@ -22,6 +22,7 @@ import com.maximiliano.maxit.inference.InferenceMessage
 import com.maximiliano.maxit.inference.LocalInferenceEngine
 import com.maximiliano.maxit.inference.LocalModel
 import com.maximiliano.maxit.inference.LocalTool
+import com.maximiliano.maxit.inference.LocalToolResult
 import com.maximiliano.maxit.inference.ModelImportError
 import com.maximiliano.maxit.inference.ModelImportResult
 import com.maximiliano.maxit.inference.NoModelDownloadedException
@@ -68,6 +69,7 @@ import com.maximiliano.maxit.tools.PermissionController
 import com.maximiliano.maxit.tools.SkillTools
 import com.maximiliano.maxit.ui.chat.History
 import com.maximiliano.maxit.ui.chat.ToolCallInfo
+import com.maximiliano.maxit.ui.chat.splitForMessage
 import com.maximiliano.maxit.ui.chat.toGeminiMessageDto
 import com.maximiliano.maxit.ui.settings.SettingsModel
 import io.github.vinceglb.filekit.PlatformFile
@@ -77,13 +79,22 @@ import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.size
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.offsetAt
@@ -107,14 +118,8 @@ import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-private const val MAX_TOOL_ITERATIONS = 15
-private const val MIN_TOOL_DISPLAY_MS = 2000L
-private const val MAX_REPEATED_TOOL_CALLS = 3
 private const val MAX_API_RETRIES = 2
-private const val MAX_HEARTBEAT_MESSAGES = 50
 private const val ESTIMATED_CHARS_PER_TOKEN = 4
-private const val COMPACTION_THRESHOLD = 0.7 // Compact when history exceeds 70% of context window
-private const val COMPACTION_KEEP_RECENT = 4 // Number of recent user exchanges to keep verbatim
 
 internal fun fitsContextWindow(messages: List<History>, systemPrompt: String?, modelId: String): Boolean {
     val requestChars = messages.sumOf { it.content.length.toLong() } + (systemPrompt?.length ?: 0)
@@ -126,15 +131,30 @@ internal suspend fun LocalInferenceEngine.chatWithToolParserFallback(
     messages: List<InferenceMessage>,
     systemPrompt: String?,
     tools: List<LocalTool>,
+    onText: (suspend (String) -> Unit)? = null,
     systemPromptWithoutTools: suspend () -> String? = { systemPrompt },
-): String = try {
-    chat(messages = messages, systemPrompt = systemPrompt, tools = tools)
-} catch (e: RuntimeException) {
-    if (e is kotlinx.coroutines.CancellationException) throw e
-    // litert-lm's strict ANTLR parser can reject malformed tool calls with INVALID_ARGUMENT.
-    // An empty tool list disables automaticToolCalling and bypasses that parser on retry.
-    println("LiteRT: tool-call parser failed (${e.message?.take(200)}). Falling back to plain chat.")
-    chat(messages = messages, systemPrompt = systemPromptWithoutTools(), tools = emptyList())
+): String {
+    var observed = false
+    val guardedTools = tools.map { tool ->
+        tool.copy(execute = { args ->
+            observed = true
+            tool.execute(args)
+        })
+    }
+    try {
+        return if (onText == null) {
+            chat(messages, systemPrompt, guardedTools)
+        } else {
+            chatStreaming(messages, systemPrompt, guardedTools) { delta ->
+                observed = true
+                onText(delta)
+            }
+        }
+    } catch (e: RuntimeException) {
+        if (e is CancellationException || observed) throw e
+        // A parser-only failure before any output/action can safely retry without tools.
+        return if (onText == null) chat(messages, systemPromptWithoutTools(), emptyList()) else chatStreaming(messages, systemPromptWithoutTools(), emptyList(), onText)
+    }
 }
 
 // Explicit allowlist of tools exposed to the on-device (LiteRT) model. We use a
@@ -171,6 +191,8 @@ private data class LoopChatResult(
     val reasoningContent: String? = null,
     val isThinkingContent: Boolean = false,
     val toolCalls: List<ToolCallInfo>,
+    val providerBlocks: JsonArray? = null,
+    val providerUsage: JsonObject? = null,
 )
 
 /** Final answer from a single assistant turn — text and (optionally) the reasoning trace
@@ -178,18 +200,14 @@ private data class LoopChatResult(
 private data class AssistantTurn(
     val content: String,
     val reasoningContent: String? = null,
+    val messageId: String? = null,
+    val providerBlocks: JsonArray? = null,
+    val providerUsage: JsonObject? = null,
 )
 
-private enum class BailoutReason { LIMIT_REACHED, REPEATING }
-
-private fun bailoutPrompt(reason: BailoutReason): String = when (reason) {
-    BailoutReason.LIMIT_REACHED -> "You have reached the tool call limit. Please respond with the best answer you have so far based on the information gathered."
-    BailoutReason.REPEATING -> "You are repeating the same tool calls. Please respond with the best answer you have so far."
-}
-
 private interface ToolLoopStrategy {
-    suspend fun chat(history: List<History>, systemPrompt: String?): LoopChatResult
-    suspend fun bailout(history: List<History>, systemPrompt: String?, reason: BailoutReason): String
+    val providerKey: String? get() = null
+    suspend fun chat(history: List<History>, systemPrompt: String?, onText: suspend (String) -> Unit): LoopChatResult
 
     /**
      * Context budget used to trim the request copy of the history each tool round. Providers that
@@ -247,7 +265,7 @@ class RemoteDataRepository(
      * metadata predates it). That is *unknown*, not *no*: keep offering the allowlist there
      * so existing setups behave exactly as before.
      */
-    private suspend fun localModelDeclaresTools(modelId: String): Boolean = localInferenceEngine?.modelCapabilities(modelId)?.supportsFunctionCalling != false
+    private suspend fun localModelDeclaresTools(modelId: String): Boolean = localInferenceEngine?.supportsToolExecution == true && localInferenceEngine.modelCapabilities(modelId)?.supportsFunctionCalling != false
 
     // Per-instance model storage: instanceId -> models flow
     private val modelsByInstance: MutableMap<String, MutableStateFlow<List<SettingsModel>>> = mutableMapOf()
@@ -268,6 +286,13 @@ class RemoteDataRepository(
         )
     }
 
+    private val agentMutex = Mutex()
+    private val heartbeatMutex = Mutex()
+    private val approvalController = ToolApprovalController()
+    override val toolApprovals = approvalController.requests
+    override fun resolveToolApproval(id: String, approved: Boolean) = approvalController.resolve(id, approved)
+    private val selectionLock = ConversationLock()
+    private var selectedStorageGeneration = conversationStorage.generation()
     override val chatHistory: MutableStateFlow<List<History>> = MutableStateFlow(emptyList())
 
     private val _currentConversationId = MutableStateFlow<String?>(null)
@@ -568,6 +593,8 @@ class RemoteDataRepository(
         systemPrompt: String?,
         instanceId: String,
         history: MutableStateFlow<List<History>> = chatHistory,
+        onText: (suspend (String) -> Unit)? = null,
+        allowTools: Boolean = true,
         systemPromptWithoutTools: suspend (modelId: String) -> String? = { systemPrompt },
     ): String {
         val engine = localInferenceEngine
@@ -591,40 +618,56 @@ class RemoteDataRepository(
                 toolName = "Initializing ${model.displayName}",
                 isStatusMessage = true,
             )
-            history.update { it + statusEntry }
+            updateRunHistory(history) { it + statusEntry }
             try {
                 engine.initialize(model, contextTokens)
             } finally {
-                history.update { h -> h.filter { it.id != statusEntry.id } }
+                withContext(NonCancellable) { updateRunHistory(history) { h -> h.filter { it.id != statusEntry.id } } }
             }
         } else {
             engine.initialize(model, contextTokens)
         }
 
         // Pass the caller's system prompt through to the engine unchanged.
-        // Native litert-lm `automaticToolCalling` owns the tool loop — our allowlisted
-        // tools are passed once via [localToolDescriptionJson] and the engine drives them.
-        val localTools: List<LocalTool> = if (localModelDeclaresTools(model.id)) {
-            getLocalSafeTools().map { tool ->
+        // The app owns the tool loop; the SDK only generates one native turn at a time.
+        val guard = ToolLoopGuard()
+        val localTools: List<LocalTool> = if (allowTools && localModelDeclaresTools(model.id)) {
+            (getLocalSafeTools() + conversationHistoryTool(history)).map { tool ->
                 LocalTool(
                     name = tool.schema.name,
                     descriptionJsonString = localToolDescriptionJson(tool),
-                    execute = { jsonArgs -> runLocalToolWithUiFeedback(tool.schema.name, jsonArgs, history) },
+                    execute = { jsonArgs ->
+                        if (jsonArgs.length > 1_048_576) throw RunPausedException("Tool arguments exceeded the per-call safety size. Split the action into smaller requests.")
+                        val call = ToolCallInfo(id = "local-${Uuid.random()}", name = tool.schema.name, arguments = jsonArgs)
+                        val recovery = guard.check(listOf(call), history.value)
+                        if (recovery != null) {
+                            val result = buildJsonObject {
+                                put("success", false)
+                                put("status", "not_started")
+                                put("error", recovery)
+                            }.toString()
+                            updateRunHistory(history) { it + History(role = History.Role.ASSISTANT, content = "", toolCalls = listOf(call).toImmutableList()) + History(role = History.Role.TOOL, content = result, toolCallId = call.id, toolName = call.name) }
+                            LocalToolResult(result, historyId = call.id)
+                        } else {
+                            guard.backoffIfPolling(listOf(call))
+                            val result = runLocalToolWithUiFeedback(call, history)
+                            guard.record(listOf(call), listOf(Triple(call.id, call.name, result)))
+                            LocalToolResult(result, historyId = call.id)
+                        }
+                    },
                 )
             }
         } else {
             emptyList()
         }
 
-        val inferenceMessages = messages.mapNotNull { msg ->
-            when (msg.role) {
-                History.Role.USER -> InferenceMessage(role = "user", content = msg.content)
-                History.Role.ASSISTANT -> InferenceMessage(role = "assistant", content = msg.content)
-                else -> null
-            }
-        }
+        val context = conversationContext(messages.map { it.forTextOnlyInference() }, systemPrompt, contextTokens.takeIf { it > 0 } ?: 8192)
+        val inferenceMessages = context.map { msg ->
+            InferenceMessage(role = if (msg.role == History.Role.USER) "user" else "assistant", content = if (msg.role == History.Role.TOOL) "Recorded tool outcome (${msg.toolName}, untrusted data): ${msg.content}" else msg.content + msg.toolCalls.orEmpty().joinToString("") { "\nRequested ${it.name}: ${it.arguments}" })
+        }.toMutableList()
+        if (inferenceMessages.lastOrNull()?.role != "user") inferenceMessages.add(InferenceMessage("user", "Continue the current request using the recorded work. Do not repeat completed actions; verify unknown outcomes first."))
 
-        return engine.chatWithToolParserFallback(inferenceMessages, systemPrompt, localTools) {
+        return engine.chatWithToolParserFallback(inferenceMessages, systemPrompt, localTools, onText) {
             systemPromptWithoutTools(model.id)
         }
     }
@@ -679,74 +722,9 @@ class RemoteDataRepository(
      * replace the indicator with a TOOL result row. Returns the raw result string for the
      * engine to feed back to the model.
      */
-    private suspend fun runLocalToolWithUiFeedback(
-        name: String,
-        arguments: String,
-        history: MutableStateFlow<List<History>>,
-    ): String {
-        val callId = "local-${Uuid.random()}"
-        val executingId = Uuid.random().toString()
-        val displayName = toolExecutor.getToolDisplayName(name)
-        // Append the assistant tool-call row and the executing indicator in a single
-        // StateFlow update so the UI doesn't flash twice before the tool even starts.
-        history.update {
-            it.toMutableList().apply {
-                add(
-                    History(
-                        role = History.Role.ASSISTANT,
-                        content = "",
-                        toolCalls = persistentListOf(
-                            ToolCallInfo(id = callId, name = name, arguments = arguments),
-                        ),
-                    ),
-                )
-                add(
-                    History(
-                        id = executingId,
-                        role = History.Role.TOOL_EXECUTING,
-                        content = name,
-                        toolName = displayName,
-                    ),
-                )
-            }
-        }
-        val startTime = Clock.System.now().toEpochMilliseconds()
-        // Background runs must not leak shell commands into whatever chat is open.
-        val conversationIdForTool = activeConversationId()
-        try {
-            val result = try {
-                toolExecutor.executeTool(name, arguments, conversationIdForTool)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                toolErrorJson(e.message ?: "Tool execution failed")
-            }
-            val elapsed = Clock.System.now().toEpochMilliseconds() - startTime
-            if (elapsed < MIN_TOOL_DISPLAY_MS) {
-                delay(MIN_TOOL_DISPLAY_MS.milliseconds - elapsed.milliseconds)
-            }
-            history.update { h ->
-                buildList(h.size) {
-                    for (entry in h) {
-                        if (entry.id != executingId) add(entry)
-                    }
-                    add(
-                        History(
-                            role = History.Role.TOOL,
-                            content = result,
-                            toolCallId = callId,
-                            toolName = name,
-                        ),
-                    )
-                }
-            }
-            return result
-        } finally {
-            // On cancellation the fused update above never ran — drop the stranded
-            // indicator. On the success path this is a no-op (id already removed).
-            history.update { h ->
-                if (h.none { it.id == executingId }) h else h.filter { it.id != executingId }
-            }
-        }
+    private suspend fun runLocalToolWithUiFeedback(call: ToolCallInfo, history: MutableStateFlow<List<History>>): String {
+        updateRunHistory(history) { it + History(role = History.Role.ASSISTANT, content = "", toolCalls = persistentListOf(call)) }
+        return executeRecordedTool(call.id, call.name, call.arguments, activeConversationId(), history).third
     }
 
     private suspend fun askWithService(
@@ -765,21 +743,22 @@ class RemoteDataRepository(
         if (service.isOnDevice) {
             // No retry: local-inference failures are deterministic, and this path mutates
             // chat history through tool execution, so a replay could re-run tools.
-            return AssistantTurn(
-                askWithLocalEngine(messages, systemPrompt, instanceId, history) { modelId ->
+            val stream = StreamedAssistant(history, CoroutineScope(currentCoroutineContext()))
+            try {
+                val answer = askWithLocalEngine(messages, systemPrompt, instanceId, history, stream::append) { modelId ->
                     buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, modelId, toolsEnabled = false)
-                },
-            )
+                }
+                stream.complete(History(role = History.Role.ASSISTANT, content = answer))
+                return AssistantTurn(answer, messageId = stream.id)
+            } finally {
+                stream.preservePartial()
+            }
         }
 
-        if (!fitsContextWindow(messages, systemPrompt, creds.modelId)) {
-            throw ContextWindowExceededException()
-        }
-
-        val tools = if (supportsTools(creds.modelId)) getAvailableTools() else emptyList()
+        val tools = if (supportsTools(creds.modelId)) getAvailableTools() + conversationHistoryTool(history) else emptyList()
 
         if (tools.isEmpty()) {
-            return plainChat(service, creds, messages, systemPrompt, strictEmptyResponse = true)
+            return plainChat(service, creds, conversationContext(messages, systemPrompt, ModelCatalog.estimateContextWindow(creds.modelId)), systemPrompt, strictEmptyResponse = true, history = history)
         }
 
         return when (service) {
@@ -815,54 +794,66 @@ class RemoteDataRepository(
         systemPrompt: String?,
         retry: Boolean = true,
         strictEmptyResponse: Boolean = false,
+        history: MutableStateFlow<List<History>>? = null,
     ): AssistantTurn {
         suspend fun <T> call(block: suspend () -> T): T = if (retry) retryApiCall(block) else block()
-
-        return when (service) {
-            Service.Gemini -> {
-                val response = call {
-                    requests.geminiChat(
-                        credentials = credentials,
-                        messages = messages.map { it.toGeminiMessageDto() },
-                        systemInstruction = systemPrompt,
-                    ).getOrThrow()
-                }
-                AssistantTurn(response.extractText())
-            }
-
-            Service.Anthropic -> {
-                val response = call {
-                    requests.anthropicChat(
-                        credentials = credentials,
-                        messages = buildAnthropicMessages(messages),
-                        systemInstruction = systemPrompt,
-                    ).getOrThrow()
-                }
-                AssistantTurn(response.extractText())
-            }
-
-            else -> {
-                // No tools on this request — strip any historic tool_calls so Groq's strict
-                // validator doesn't see calls to tools we no longer declare.
-                val openAIMessages = buildOpenAIMessages(service, messages, systemPrompt, credentials.modelId, declaredToolNames = emptySet())
-                if (requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)) {
+        val stream = history?.let { StreamedAssistant(it, CoroutineScope(currentCoroutineContext())) }
+        val compatibleMessages = compatibleToolHistory(messages, emptySet())
+        val onText: (suspend (String) -> Unit)? = stream?.let { it::append }
+        try {
+            val turn = when (service) {
+                Service.Gemini -> {
                     val response = call {
-                        requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages), sessionId = activeConversationId()).getOrThrow()
+                        requests.geminiChat(
+                            credentials = credentials,
+                            messages = compatibleMessages.map { it.toGeminiMessageDto() },
+                            systemInstruction = systemPrompt,
+                            onText = onText,
+                        ).getOrThrow()
                     }
-                    response.throwIfFailed(service)
-                    val content = response.outputText
-                    if (content == null && strictEmptyResponse) throw OpenAICompatibleEmptyResponseException()
-                    return AssistantTurn(content.orEmpty(), response.reasoningSummary)
+                    AssistantTurn(response.extractText(), providerUsage = response.usageMetadata)
                 }
-                val sessionId = activeConversationId()
-                val response = call {
-                    requests.openAICompatibleChat(service, credentials, openAIMessages, sessionId = sessionId).getOrThrow()
+
+                Service.Anthropic -> {
+                    val response = call {
+                        requests.anthropicChat(
+                            credentials = credentials,
+                            messages = buildAnthropicMessages(compatibleMessages),
+                            systemInstruction = systemPrompt,
+                            onText = onText,
+                        ).getOrThrow()
+                    }
+                    AssistantTurn(response.extractText(), providerBlocks = response.rawContent, providerUsage = response.usage)
                 }
-                val message = response.choices.firstOrNull()?.message
-                val content = message?.effectiveContent
-                if (content == null && strictEmptyResponse) throw OpenAICompatibleEmptyResponseException()
-                AssistantTurn(content.orEmpty(), message?.reasoningTraceFor(content))
+
+                else -> {
+                    // No tools on this request — strip any historic tool_calls so Groq's strict
+                    // validator doesn't see calls to tools we no longer declare.
+                    val openAIMessages = buildOpenAIMessages(service, messages, systemPrompt, credentials.modelId, declaredToolNames = emptySet())
+                    if (requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)) {
+                        val response = call {
+                            requests.openAIResponses(service, credentials, toResponsesInput(openAIMessages), sessionId = activeConversationId(), onText = onText).getOrThrow()
+                        }
+                        response.throwIfFailed(service)
+                        val content = response.outputText
+                        if (content == null && strictEmptyResponse) throw OpenAICompatibleEmptyResponseException()
+                        AssistantTurn(content.orEmpty(), response.reasoningSummary, providerBlocks = response.rawOutput, providerUsage = response.usage)
+                    } else {
+                        val sessionId = activeConversationId()
+                        val response = call {
+                            requests.openAICompatibleChat(service, credentials, openAIMessages, sessionId = sessionId, onText = onText).getOrThrow()
+                        }
+                        val message = response.choices.firstOrNull()?.message
+                        val content = message?.effectiveContent
+                        if (content == null && strictEmptyResponse) throw OpenAICompatibleEmptyResponseException()
+                        AssistantTurn(content.orEmpty(), message?.reasoningTraceFor(content), providerBlocks = message?.reasoningDetails, providerUsage = response.usage)
+                    }
+                }
             }
+            stream?.complete(History(role = History.Role.ASSISTANT, content = turn.content, reasoningContent = turn.reasoningContent, providerBlocks = turn.providerBlocks, providerUsage = turn.providerUsage, providerKey = "${service.id}:${credentials.instanceId}:${credentials.modelId}"))
+            return turn.copy(messageId = stream?.id)
+        } finally {
+            stream?.preservePartial()
         }
     }
 
@@ -889,33 +880,68 @@ class RemoteDataRepository(
         return entries.filterIndexed { index, entry -> index == 0 || !entry.service.isOnDevice }
     }
 
-    override suspend fun ask(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?, activeSkillId: String?) {
-        // The active skill (if any) is consumed for this single turn only — stored in a
-        // field rather than a parameter on getActiveSystemPrompt so the existing internal
-        // callers (heartbeat, askWithTools, etc.) don't all need a new parameter. The
-        // skill's bundled files are read on demand with load_skill.
-        val resolvedSkillId = activeSkillId?.takeIf { skillManager.getSkill(it) != null }
-        pendingActiveSkillId = resolvedSkillId
-        try {
-            askInternal(question, files, uiSubmission)
-        } finally {
-            pendingActiveSkillId = null
+    override suspend fun ask(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?, activeSkillId: String?): History? = runForegroundRequest(question, files, uiSubmission, activeSkillId)
+
+    override suspend fun regenerate(): History? = runForegroundRequest(null, emptyList(), null, null, regenerate = true)
+
+    private suspend fun runForegroundRequest(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?, activeSkillId: String?, regenerate: Boolean = false): History? {
+        conversationStorage.loadConversations()
+        val (conversationId, selectedGeneration, regenerateAfter) = selectionLock.locked {
+            val id = _currentConversationId.value ?: Uuid.random().toString().also { setCurrentConversationId(it) }
+            Triple(id, selectedStorageGeneration, if (regenerate) chatHistory.value.lastOrNull { it.role == History.Role.USER && !it.superseded }?.id else null)
         }
+        return agentMutex.withLock {
+            conversationStorage.loadConversations()
+            if (selectedGeneration != conversationStorage.generation()) throw CancellationException("Conversation history was replaced. Reopen the saved conversation before continuing.")
+            val initial = savedConversations.value.find { it.id == conversationId }?.messages?.map { it.toHistory() }
+                ?: selectionLock.locked { if (_currentConversationId.value == conversationId) chatHistory.value else emptyList() }
+            val run = newConversationRun(conversationId, initial, interactive = true)
+            withContext(run + ConversationIdElement(conversationId)) {
+                pendingActiveSkillId = activeSkillId?.takeIf { skillManager.getSkill(it) != null }
+                try {
+                    askInternal(question, files, uiSubmission, run.history, regenerateAfter)
+                    run.finish(MessageState.COMPLETE, "")
+                    run.history.value.lastOrNull { it.runId == run.id && it.role == History.Role.ASSISTANT && !it.isStatusMessage && !it.superseded && !it.isThinking && it.content.isNotEmpty() && it.state == MessageState.COMPLETE }
+                } catch (e: RunPausedException) {
+                    run.finish(MessageState.PAUSED, e.message.orEmpty())
+                    null
+                } catch (e: CancellationException) {
+                    run.finish(MessageState.INTERRUPTED, "Stopped. Received text and completed tool results are saved. Verify unknown action outcomes before repeating them.")
+                    throw e
+                } catch (e: Exception) {
+                    run.finish(MessageState.FAILED, "The run did not finish. Saved text and tool outcomes are preserved; unknown outcomes must be verified before retrying.")
+                    throw e
+                } finally {
+                    pendingActiveSkillId = null
+                }
+            }
+        }
+    }
+
+    private fun newConversationRun(conversationId: String, initial: List<History>, interactive: Boolean = false): ConversationRun {
+        val generation = conversationStorage.generation()
+        val type = if (interactiveModeFlag) Conversation.TYPE_INTERACTIVE else Conversation.TYPE_CHAT
+        return ConversationRun(
+            id = Uuid.random().toString(),
+            conversationId = conversationId,
+            initial = initial,
+            interactive = interactive,
+            persist = { persistHistory(conversationId, it, generation, type) },
+            publish = { entries ->
+                if (!interactive && entries.lastOrNull { it.isStatusMessage }?.state in setOf(MessageState.PAUSED, MessageState.INTERRUPTED, MessageState.FAILED)) _hasUnreadHeartbeat.value = true
+                selectionLock.locked {
+                    if (_currentConversationId.value == conversationId) {
+                        selectedStorageGeneration = generation
+                        chatHistory.value = entries
+                    }
+                }
+            },
+        )
     }
 
     private var pendingActiveSkillId: String? = null
 
-    private suspend fun askInternal(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?) {
-        // Allocate a conversation id immediately for fresh chats. Without this,
-        // the very first tool call lands here with _currentConversationId.value
-        // still null, so per-conversation routing (e.g. the sandbox shell)
-        // falls through to a shared default — which both makes the new chat
-        // invisible in the Terminal session picker and lets unrelated callers
-        // collide on the same shell mutex. Persistence is deferred to the
-        // existing saveCurrentConversation() flow that runs after the response.
-        if (_currentConversationId.value == null) {
-            setCurrentConversationId(Uuid.random().toString())
-        }
+    private suspend fun askInternal(question: String?, files: List<PlatformFile>, uiSubmission: UiSubmission?, history: MutableStateFlow<List<History>>, regenerateAfter: String?) {
         // Process every attached file: classify, compress/encode, and build an Attachment.
         // readBytes() is suspend, so this happens before the StateFlow.update block.
         val attachments = files.map { file ->
@@ -966,25 +992,21 @@ class RemoteDataRepository(
             }
         }.toImmutableList()
 
-        if (question != null) {
-            chatHistory.update {
-                it.toMutableList().apply {
-                    add(
-                        History(
-                            role = History.Role.USER,
-                            content = question,
-                            attachments = attachments,
-                            uiSubmission = uiSubmission,
-                        ),
-                    )
-                }
+        updateRunHistory(history) { entries ->
+            val base = if (regenerateAfter != null) {
+                val anchor = entries.indexOfFirst { it.id == regenerateAfter && !it.superseded }
+                check(anchor >= 0) { "The request to regenerate was replaced. Reopen the saved conversation before continuing." }
+                entries.mapIndexed { index, entry -> if (index > anchor) entry.copy(superseded = true) else entry }
+            } else {
+                entries
+            }
+            base + buildList {
+                if (question != null) add(History(role = History.Role.USER, content = question, attachments = attachments, uiSubmission = uiSubmission))
+                add(History(role = History.Role.ASSISTANT, content = "", isStatusMessage = true, state = MessageState.RUNNING))
             }
         }
 
-        compactHistoryIfNeeded()
-
-        val messages = chatHistory.value
-
+        if (question != null) currentCoroutineContext()[ConversationInputAccepted]?.notify?.invoke()
         val fallbackEntries = getOrderedFallbackEntries().filter { hasValidInstanceApiKey(it.instanceId, it.service) }
         if (fallbackEntries.isEmpty()) {
             if (currentPlatform != Platform.Web && getConfiguredServiceInstances().any { it.serviceId == Service.OpenAICodex.id }) {
@@ -1002,11 +1024,12 @@ class RemoteDataRepository(
                 // Retrying the whole call would re-enter the tool loop against a chat
                 // history already mutated by the failed attempt.
                 val turn = try {
-                    askWithService(entry.service, messages, entry.instanceId)
+                    askWithService(entry.service, history.value, entry.instanceId, history)
                 } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    // On-device services should not silently fall back — surface the error
-                    if (entry.service.isOnDevice) throw e
+                    if (e is CancellationException || e is RunPausedException || e is ConversationWriteException || e is com.maximiliano.maxit.network.StreamInterruptedException) throw e
+                    // Never fail over after receiving partial output or requesting an action.
+                    val runId = currentCoroutineContext()[ConversationRun]?.id
+                    if (entry.service.isOnDevice || history.value.any { it.runId == runId && !it.isStatusMessage && it.role == History.Role.ASSISTANT }) throw e
                     lastException = e
                     _fallbackStatus.value = FallbackStatus(
                         serviceName = entry.service.displayName,
@@ -1018,19 +1041,13 @@ class RemoteDataRepository(
                 if (index > 0) {
                     fallbackServiceName = entry.service.displayName
                 }
-                chatHistory.update {
-                    it.toMutableList().apply {
-                        add(
-                            History(
-                                role = History.Role.ASSISTANT,
-                                content = turn.content,
-                                reasoningContent = turn.reasoningContent,
-                                fallbackServiceName = fallbackServiceName,
-                            ),
-                        )
+                updateRunHistory(history) { entries ->
+                    if (turn.messageId != null) {
+                        entries.map { if (it.id == turn.messageId) it.copy(fallbackServiceName = fallbackServiceName) else it }
+                    } else {
+                        entries + History(role = History.Role.ASSISTANT, content = turn.content, reasoningContent = turn.reasoningContent, fallbackServiceName = fallbackServiceName)
                     }
                 }
-                saveCurrentConversation()
                 return
             }
 
@@ -1059,11 +1076,13 @@ class RemoteDataRepository(
         // assembly, tool-call pairing, context trimming — is shared.
         val useResponsesApi = requiresResponsesApi(service, credentials.modelId, credentials.baseUrl)
         val strategy = object : ToolLoopStrategy {
-            override suspend fun chat(history: List<History>, systemPrompt: String?): LoopChatResult {
-                val msgs = trimMessagesForContext(buildOpenAIMessages(service, history, systemPrompt, credentials.modelId, declaredToolNames), contextWindowTokens)
+            override val providerKey = "${service.id}:${credentials.instanceId}:${credentials.modelId}"
+            override val historyContextWindowTokens = contextWindowTokens
+            override suspend fun chat(history: List<History>, systemPrompt: String?, onText: suspend (String) -> Unit): LoopChatResult {
+                val msgs = trimMessagesForContext(buildOpenAIMessages(service, history, systemPrompt, credentials.modelId, declaredToolNames, providerKey), contextWindowTokens)
                 if (useResponsesApi) {
                     val response = retryApiCall {
-                        requests.openAIResponses(service, credentials, toResponsesInput(msgs), tools, sessionId = activeConversationId()).getOrThrow()
+                        requests.openAIResponses(service, credentials, toResponsesInput(msgs), tools, sessionId = activeConversationId(), onText = onText).getOrThrow()
                     }
                     response.throwIfFailed(service)
                     val text = response.outputText
@@ -1079,11 +1098,13 @@ class RemoteDataRepository(
                         textContent = text.orEmpty(),
                         reasoningContent = response.reasoningSummary,
                         toolCalls = calls,
+                        providerBlocks = response.rawOutput,
+                        providerUsage = response.usage,
                     )
                 }
                 val sessionId = activeConversationId()
                 val response = retryApiCall {
-                    requests.openAICompatibleChat(service, credentials, msgs, tools, sessionId = sessionId).getOrThrow()
+                    requests.openAICompatibleChat(service, credentials, msgs, tools, sessionId = sessionId, onText = onText).getOrThrow()
                 }
                 val message = response.choices.firstOrNull()?.message ?: throw OpenAICompatibleEmptyResponseException()
                 var calls = message.toolCalls.orEmpty().map { tc ->
@@ -1108,13 +1129,9 @@ class RemoteDataRepository(
                     reasoningContent = message.reasoningTraceFor(textContent),
                     isThinkingContent = message.isContentFromReasoning,
                     toolCalls = calls,
+                    providerBlocks = message.reasoningDetails,
+                    providerUsage = response.usage,
                 )
-            }
-
-            override suspend fun bailout(history: List<History>, systemPrompt: String?, reason: BailoutReason): String {
-                // Bailout sends no tools — strip historic tool_calls to satisfy strict validators.
-                val msgs = trimMessagesForContext(buildOpenAIMessages(service, history, systemPrompt, credentials.modelId, declaredToolNames = emptySet()), contextWindowTokens)
-                return makeFinalCallWithoutTools(service, credentials, msgs, reason, useResponsesApi)
             }
         }
         return runToolLoop(strategy, systemPrompt, history)
@@ -1129,14 +1146,16 @@ class RemoteDataRepository(
     ): AssistantTurn {
         val contextWindowTokens = ModelCatalog.estimateContextWindow(credentials.modelId)
         val strategy = object : ToolLoopStrategy {
-            override suspend fun chat(history: List<History>, systemPrompt: String?): LoopChatResult {
-                val geminiMessages = history.map { it.toGeminiMessageDto() }
+            override val providerKey = "gemini:${credentials.instanceId}:${credentials.modelId}"
+            override suspend fun chat(history: List<History>, systemPrompt: String?, onText: suspend (String) -> Unit): LoopChatResult {
+                val geminiMessages = compatibleToolHistory(history, tools.map { it.schema.name }.toSet(), providerKey).map { it.toGeminiMessageDto() }
                 val response = retryApiCall {
                     requests.geminiChat(
                         credentials = credentials,
                         messages = geminiMessages,
                         tools = tools,
                         systemInstruction = systemPrompt,
+                        onText = onText,
                     ).getOrThrow()
                 }
                 val parts = response.candidates.firstOrNull()?.content?.parts.orEmpty()
@@ -1152,10 +1171,8 @@ class RemoteDataRepository(
                     )
                 }
                 val textContent = parts.filterNot { it.isThought }.mapNotNull { it.text }.joinToString("\n")
-                return LoopChatResult(textContent = textContent, toolCalls = toolCallInfos)
+                return LoopChatResult(textContent = textContent, toolCalls = toolCallInfos, providerUsage = response.usageMetadata)
             }
-
-            override suspend fun bailout(history: List<History>, systemPrompt: String?, reason: BailoutReason): String = plainChat(Service.Gemini, credentials, history, "${bailoutPrompt(reason)} $systemPrompt").content
 
             override val historyContextWindowTokens = contextWindowTokens
         }
@@ -1171,14 +1188,16 @@ class RemoteDataRepository(
     ): AssistantTurn {
         val contextWindowTokens = ModelCatalog.estimateContextWindow(credentials.modelId)
         val strategy = object : ToolLoopStrategy {
-            override suspend fun chat(history: List<History>, systemPrompt: String?): LoopChatResult {
-                val msgs = buildAnthropicMessages(history)
+            override val providerKey = "anthropic:${credentials.instanceId}:${credentials.modelId}"
+            override suspend fun chat(history: List<History>, systemPrompt: String?, onText: suspend (String) -> Unit): LoopChatResult {
+                val msgs = buildAnthropicMessages(compatibleToolHistory(history, tools.map { it.schema.name }.toSet(), providerKey))
                 val response = retryApiCall {
                     requests.anthropicChat(
                         credentials = credentials,
                         messages = msgs,
                         tools = tools,
                         systemInstruction = systemPrompt,
+                        onText = onText,
                     ).getOrThrow()
                 }
                 val toolUseBlocks = response.content.filter { it.type == "tool_use" }
@@ -1191,10 +1210,8 @@ class RemoteDataRepository(
                     )
                 }
                 val textContent = response.content.filter { it.type == "text" }.mapNotNull { it.text }.joinToString("\n")
-                return LoopChatResult(textContent = textContent, toolCalls = toolCallInfos)
+                return LoopChatResult(textContent = textContent, toolCalls = toolCallInfos, providerBlocks = response.rawContent ?: JsonArray(response.content.map { Json.encodeToJsonElement(com.maximiliano.maxit.network.dtos.anthropic.AnthropicChatResponseDto.ContentBlock.serializer(), it) }), providerUsage = response.usage)
             }
-
-            override suspend fun bailout(history: List<History>, systemPrompt: String?, reason: BailoutReason): String = plainChat(Service.Anthropic, credentials, history, "${bailoutPrompt(reason)} $systemPrompt").content
 
             override val historyContextWindowTokens = contextWindowTokens
         }
@@ -1206,124 +1223,34 @@ class RemoteDataRepository(
         systemPrompt: String?,
         history: MutableStateFlow<List<History>>,
     ): AssistantTurn {
-        var iteration = 0
-        val recentSignatures = mutableListOf<String>()
+        val guard = ToolLoopGuard()
         while (true) {
-            iteration++
-            val visible = history.value.filter { it.role != History.Role.TOOL_EXECUTING }.let { full ->
-                // Trim a request copy only — the history flow is the visible, persisted conversation.
-                strategy.historyContextWindowTokens
-                    ?.let { trimHistoryForContext(full, systemPrompt?.length ?: 0, it).ifEmpty { full } }
-                    ?: full
+            currentCoroutineContext().ensureActive()
+            val visible = conversationContext(history.value, systemPrompt, strategy.historyContextWindowTokens ?: ModelCatalog.DEFAULT_CONTEXT_WINDOW_TOKENS, getAvailableTools() + conversationHistoryTool(history))
+            val stream = StreamedAssistant(history, CoroutineScope(currentCoroutineContext()))
+            val received = try {
+                strategy.chat(visible, systemPrompt, stream::append)
+            } finally {
+                stream.preservePartial()
             }
-            if (iteration > MAX_TOOL_ITERATIONS) {
-                return AssistantTurn(strategy.bailout(visible, systemPrompt, BailoutReason.LIMIT_REACHED))
+            if (received.toolCalls.size > 256) throw RunPausedException("This response proposed more than 256 parallel actions. Split it into smaller batches; no calls were dispatched.")
+            if (received.toolCalls.any { it.arguments.length > 1_048_576 }) throw RunPausedException("Tool arguments exceeded the per-call safety size. Split the action into smaller requests; no calls were dispatched.")
+            require(received.toolCalls.map { it.id }.distinct().size == received.toolCalls.size) { "Provider returned duplicate tool-call identities; no calls were dispatched" }
+            val usedIds = history.value.flatMap { it.toolCalls.orEmpty() }.map { it.id }.toSet()
+            val result = received.copy(toolCalls = received.toolCalls.map { if (it.id in usedIds) it.copy(id = "call-${Uuid.random()}", providerCallId = it.id) else it })
+            val recovery = guard.check(result.toolCalls, history.value)
+            if (recovery != null) {
+                stream.complete(History(role = History.Role.ASSISTANT, content = result.textContent + "\n[Execution guard: $recovery]"))
+                continue
             }
-            val result = strategy.chat(visible, systemPrompt)
-            if (result.toolCalls.isEmpty()) {
-                // For thinking-only turns, the reasoning text already became the content via
-                // `isContentFromReasoning`, so don't surface it again as a reasoning trace.
-                val reasoning = result.reasoningContent?.takeIf { !result.isThinkingContent }
-                return AssistantTurn(result.textContent, reasoning)
-            }
-
-            val signatures = result.toolCalls.map { "${it.name}:${it.arguments.hashCode()}" }
-            if (isRepeatingToolCalls(recentSignatures, signatures)) {
-                return AssistantTurn(strategy.bailout(visible, systemPrompt, BailoutReason.REPEATING))
-            }
-            recentSignatures.addAll(signatures)
-
-            history.update {
-                it.toMutableList().apply {
-                    add(
-                        History(
-                            role = History.Role.ASSISTANT,
-                            content = result.textContent,
-                            isThinking = result.isThinkingContent,
-                            toolCalls = result.toolCalls.toImmutableList(),
-                            reasoningContent = result.reasoningContent,
-                        ),
-                    )
-                }
-            }
-
-            val toolResults = executeToolCallsInParallel(
-                result.toolCalls.map { Triple(it.id, it.name, it.arguments) },
-                history,
+            stream.complete(
+                History(role = History.Role.ASSISTANT, content = result.textContent, isThinking = result.isThinkingContent, toolCalls = result.toolCalls.takeIf { it.isNotEmpty() }?.toImmutableList(), reasoningContent = result.reasoningContent, providerBlocks = result.providerBlocks, providerKey = strategy.providerKey, providerUsage = result.providerUsage),
             )
-
-            history.update { h ->
-                buildList(h.size + toolResults.size) {
-                    for (entry in h) {
-                        if (entry.role != History.Role.TOOL_EXECUTING) add(entry)
-                    }
-                    for ((callId, name, content) in toolResults) {
-                        add(
-                            History(
-                                role = History.Role.TOOL,
-                                content = content,
-                                toolCallId = callId,
-                                toolName = name,
-                            ),
-                        )
-                    }
-                }
-            }
+            if (result.toolCalls.isEmpty()) return AssistantTurn(result.textContent, result.reasoningContent?.takeIf { !result.isThinkingContent }, stream.id)
+            guard.backoffIfPolling(result.toolCalls)
+            val results = executeToolCallsInParallel(result.toolCalls.map { Triple(it.id, it.name, it.arguments) }, history)
+            guard.record(result.toolCalls, results)
         }
-    }
-
-    /**
-     * Detects if the current batch of tool calls is repeating a recent pattern.
-     */
-    private fun isRepeatingToolCalls(recentSignatures: List<String>, currentSignatures: List<String>): Boolean {
-        if (currentSignatures.isEmpty()) return false
-        // Count how many consecutive times the same signature set appeared at the tail
-        val batchSize = currentSignatures.size
-        var consecutiveCount = 0
-        var i = recentSignatures.size - batchSize
-        while (i >= 0) {
-            val slice = recentSignatures.subList(i, i + batchSize)
-            if (slice == currentSignatures) {
-                consecutiveCount++
-                i -= batchSize
-            } else {
-                break
-            }
-        }
-        // +1 for the current batch that's about to be executed
-        return consecutiveCount + 1 >= MAX_REPEATED_TOOL_CALLS
-    }
-
-    /**
-     * Makes a final OpenAI-compatible API call without tools, asking the model to summarize.
-     */
-    private suspend fun makeFinalCallWithoutTools(
-        service: Service,
-        credentials: ServiceCredentials,
-        messages: List<com.maximiliano.maxit.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.Message>,
-        reason: BailoutReason,
-        useResponsesApi: Boolean = false,
-    ): String {
-        val bailoutMessages = messages.toMutableList().apply {
-            add(
-                com.maximiliano.maxit.network.dtos.openaicompatible.OpenAICompatibleChatRequestDto.Message(
-                    role = "user",
-                    content = JsonPrimitive(bailoutPrompt(reason)),
-                ),
-            )
-        }
-        if (useResponsesApi) {
-            val response = retryApiCall {
-                requests.openAIResponses(service, credentials, toResponsesInput(bailoutMessages), sessionId = activeConversationId()).getOrThrow()
-            }
-            response.throwIfFailed(service)
-            return response.outputText.orEmpty()
-        }
-        val sessionId = activeConversationId()
-        val response = retryApiCall {
-            requests.openAICompatibleChat(service, credentials, bailoutMessages, sessionId = sessionId).getOrThrow()
-        }
-        return response.choices.firstOrNull()?.message?.effectiveContent ?: ""
     }
 
     /**
@@ -1335,50 +1262,61 @@ class RemoteDataRepository(
         toolCalls: List<Triple<String, String, String>>,
         history: MutableStateFlow<List<History>>,
     ): List<Triple<String, String, String>> {
-        // Add all TOOL_EXECUTING indicators first
-        val executingIds = toolCalls.map { Uuid.random().toString() }
-        for ((index, toolCall) in toolCalls.withIndex()) {
-            val (_, name, _) = toolCall
-            val toolDisplayName = toolExecutor.getToolDisplayName(name)
-            history.update {
-                it.toMutableList().apply {
-                    add(
-                        History(
-                            id = executingIds[index],
-                            role = History.Role.TOOL_EXECUTING,
-                            content = name,
-                            toolName = toolDisplayName,
-                        ),
-                    )
+        val conversationIdSnapshot = activeConversationId()
+        val slots = Semaphore(4)
+        return coroutineScope {
+            toolCalls.map { (callId, name, arguments) ->
+                async {
+                    slots.withPermit {
+                        executeRecordedTool(callId, name, arguments, conversationIdSnapshot, history)
+                    }
                 }
+            }.awaitAll()
+        }
+    }
+
+    private suspend fun executeRecordedTool(callId: String, name: String, arguments: String, conversationId: String?, history: MutableStateFlow<List<History>>): Triple<String, String, String> {
+        currentCoroutineContext().ensureActive()
+        val displayName = toolExecutor.getToolDisplayName(name)
+        val uncertain = hasUnknownOutcome(history.value, name, arguments)
+        val requiresApproval = toolExecutor.requiresApproval(name, arguments) || uncertain
+        if (requiresApproval) {
+            val run = currentCoroutineContext()[ConversationRun]
+            if (run?.interactive != true) throw RunPausedException("Approval is required for $name. Unattended execution paused before dispatch; no permission was inferred from the model or tool output.")
+            val approved = !hasDeniedInvocation(history.value, name, arguments, run.id) && approvalController.await(ToolApprovalRequest(callId, run.conversationId, name, arguments, uncertain))
+            if (!approved) {
+                val result = """{"success":false,"status":"denied","error":"The user declined this exact action. Do not retry it without a new explicit request."}"""
+                updateRunHistory(history) { it + History(role = History.Role.TOOL, content = result, toolCallId = callId, toolName = name) }
+                return Triple(callId, name, result)
             }
         }
-
-        // Execute all tools concurrently, ensuring indicators show for at least 2 seconds.
-        // Snapshot the conversation id once so all parallel tool calls in this batch
-        // see a stable value even if the user switches conversations mid-flight.
-        val conversationIdSnapshot = activeConversationId()
-        val startTime = Clock.System.now().toEpochMilliseconds()
+        currentCoroutineContext().ensureActive()
+        markToolDispatched(history, callId)
+        updateRunHistory(history) { it + History(id = "executing-$callId", role = History.Role.TOOL_EXECUTING, content = name, toolName = displayName) }
         try {
-            val results = coroutineScope {
-                toolCalls.map { (callId, name, arguments) ->
-                    async {
-                        val result = toolExecutor.executeTool(name, arguments, conversationIdSnapshot)
-                        Triple(callId, name, result)
-                    }
-                }.awaitAll()
+            val permission = if (requiresApproval) ToolExecutionPermit(name, arguments) else kotlin.coroutines.EmptyCoroutineContext
+            val result = withContext(permission) {
+                toolExecutor.executeTool(name, arguments, conversationId, additionalTools = listOf(conversationHistoryTool(history)))
             }
-            val elapsed = Clock.System.now().toEpochMilliseconds() - startTime
-            if (elapsed < MIN_TOOL_DISPLAY_MS) {
-                delay((MIN_TOOL_DISPLAY_MS - elapsed).milliseconds)
+            // An action that finished just before Stop still needs its receipt committed.
+            withContext(NonCancellable) {
+                updateRunHistory(history) { entries ->
+                    entries.filterNot { it.id == "executing-$callId" } + History(role = History.Role.TOOL, content = result, toolCallId = callId, toolName = name)
+                }
             }
-            return results
+            return Triple(callId, name, result)
+        } catch (e: RunPausedException) {
+            val result = buildJsonObject {
+                put("success", false)
+                put("status", "not_started")
+                put("error", e.message.orEmpty())
+            }.toString()
+            withContext(NonCancellable) {
+                updateRunHistory(history) { it + History(role = History.Role.TOOL, content = result, toolCallId = callId, toolName = name) }
+            }
+            throw e
         } finally {
-            // Remove all TOOL_EXECUTING indicators — also on cancellation, so stopping a
-            // run doesn't strand spinner rows in the chat. Non-suspending, safe in finally.
-            history.update { h ->
-                h.filter { it.id !in executingIds }
-            }
+            withContext(NonCancellable) { updateRunHistory(history) { entries -> entries.filterNot { it.id == "executing-$callId" } } }
         }
     }
 
@@ -1416,7 +1354,7 @@ class RemoteDataRepository(
                 return block()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                if (isNonRetryableException(e)) throw e
+                if (isNonRetryableException(e) || e is com.maximiliano.maxit.network.StreamInterruptedException || e is ConversationWriteException || e is RunPausedException) throw e
                 lastException = e
                 if (attempt < MAX_API_RETRIES) {
                     delay((attempt + 1).seconds)
@@ -1501,115 +1439,8 @@ class RemoteDataRepository(
         return systemMessages + kept
     }
 
-    /**
-     * Trims History entries to fit within the estimated context window by dropping oldest messages
-     * (keeping the most recent). Used by Gemini and Anthropic tool loops where the system prompt
-     * is sent separately (not as a message).
-     */
-    private fun trimHistoryForContext(
-        history: List<History>,
-        systemPromptChars: Int = 0,
-        contextWindowTokens: Int = ModelCatalog.DEFAULT_CONTEXT_WINDOW_TOKENS,
-    ): List<History> {
-        val maxChars = contextWindowTokens * ESTIMATED_CHARS_PER_TOKEN
-        val totalChars = history.sumOf { it.content.length } + systemPromptChars
-        if (totalChars <= maxChars) return history
-
-        val availableChars = maxChars - systemPromptChars
-
-        // Keep messages from the end until we exceed the budget
-        val kept = mutableListOf<History>()
-        var usedChars = 0
-        for (msg in history.reversed()) {
-            val msgChars = msg.content.length
-            if (usedChars + msgChars > availableChars) break
-            kept.add(0, msg)
-            usedChars += msgChars
-        }
-
-        // Dropping from the front can cut a tool round in half; a tool result whose assistant
-        // tool call was trimmed away is an orphan that strict providers reject.
-        return kept.dropWhile { it.role == History.Role.TOOL }
-    }
-
-    /**
-     * Compacts chat history by summarizing older messages via an LLM call when the history
-     * exceeds a percentage of the context window. Keeps recent exchanges verbatim and replaces
-     * older ones with a single summary. If summarization fails, drops the older turns only when the
-     * history no longer fits the context window; cancellation propagates without touching history.
-     */
-    private suspend fun compactHistoryIfNeeded() {
-        // Use primary service's context window for compaction decisions
-        val firstInstance = getConfiguredServiceInstances().firstOrNull() ?: return
-        val service = Service.fromId(firstInstance.serviceId)
-        val modelId = appSettings.getSelectedModelId(service)
-        val contextWindowTokens = ModelCatalog.estimateContextWindow(modelId)
-
-        val history = chatHistory.value.filter { it.role != History.Role.TOOL_EXECUTING }
-        val systemPromptChars = getActiveSystemPrompt()?.length ?: 0
-        val totalChars = history.sumOf { it.content.length } + systemPromptChars
-        val maxChars = contextWindowTokens * ESTIMATED_CHARS_PER_TOKEN
-        if (totalChars <= (maxChars * COMPACTION_THRESHOLD).toInt()) return
-
-        // Split history: older messages to summarize, recent to keep verbatim
-        val userIndices = history.mapIndexedNotNull { index, h ->
-            if (h.role == History.Role.USER) index else null
-        }
-        if (userIndices.size <= COMPACTION_KEEP_RECENT) return
-        val cutoffIndex = userIndices[userIndices.size - COMPACTION_KEEP_RECENT]
-        val olderMessages = history.subList(0, cutoffIndex)
-        val recentMessages = history.subList(cutoffIndex, history.size)
-
-        if (olderMessages.isEmpty()) return
-
-        // Build a transcript of the older messages for summarization
-        val transcript = buildString {
-            for (msg in olderMessages) {
-                if (msg.role == History.Role.USER || msg.role == History.Role.ASSISTANT) {
-                    val role = if (msg.role == History.Role.USER) "User" else "Assistant"
-                    appendLine("$role: ${msg.content}")
-                }
-            }
-        }
-
-        val summaryPrompt = "Summarize this conversation concisely, preserving key facts, decisions, and any information the assistant would need to continue helping. Be brief but complete:\n\n$transcript"
-
-        val summary = try {
-            askSilently(summaryPrompt)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            // Summarization failed (offline, rate limit, …). While the history still fits the
-            // context window, keep every turn — a transient error must not erase the conversation.
-            // Only when it no longer fits at all, drop the older turns so the chat can continue.
-            if (totalChars > maxChars) chatHistory.value = recentMessages
-            return
-        }
-
-        val summaryEntry = History(
-            role = History.Role.ASSISTANT,
-            content = "[Conversation summary: $summary]",
-        )
-
-        chatHistory.value = listOf(summaryEntry) + recentMessages
-    }
-
-    private fun trimToRecentExchanges(history: List<History>, maxExchanges: Int): List<History> {
-        val userIndices = history.mapIndexedNotNull { index, h ->
-            if (h.role == History.Role.USER) index else null
-        }
-        if (userIndices.size <= maxExchanges) return history
-        val cutoffIndex = userIndices[userIndices.size - maxExchanges]
-        return history.subList(cutoffIndex, history.size)
-    }
-
-    private suspend fun saveCurrentConversation() {
-        val history = trimToRecentExchanges(chatHistory.value, 20)
-        if (history.isEmpty()) return
-
+    private fun persistHistory(conversationId: String, history: List<History>, expectedGeneration: Long? = null, conversationType: String? = null) {
         val now = Clock.System.now().toEpochMilliseconds()
-        val conversationId = _currentConversationId.value ?: Uuid.random().toString().also {
-            setCurrentConversationId(it)
-        }
 
         val existingConversation = savedConversations.value.find { it.id == conversationId }
 
@@ -1619,36 +1450,17 @@ class RemoteDataRepository(
             id = conversationId,
             messages = history
                 .filter { it.role != History.Role.TOOL_EXECUTING }
-                .map { h ->
-                    Conversation.Message(
-                        id = h.id,
-                        role = when (h.role) {
-                            History.Role.USER -> "user"
-                            History.Role.ASSISTANT -> "assistant"
-                            History.Role.TOOL -> "tool"
-                            History.Role.TOOL_EXECUTING -> "tool" // Should not happen due to filter
-                        },
-                        content = h.content,
-                        attachments = h.attachments,
-                        uiSubmission = h.uiSubmission,
-                        isThinking = h.isThinking,
-                        reasoningContent = h.reasoningContent,
-                    )
-                },
+                .map { it.toStoredMessage() },
             createdAt = existingConversation?.createdAt ?: now,
             updatedAt = now,
             title = title,
-            type = existingConversation?.type ?: if (interactiveModeFlag) Conversation.TYPE_INTERACTIVE else Conversation.TYPE_CHAT,
+            type = existingConversation?.type ?: conversationType ?: if (interactiveModeFlag) Conversation.TYPE_INTERACTIVE else Conversation.TYPE_CHAT,
         )
 
-        conversationStorage.saveConversation(conversation)
+        conversationStorage.saveConversation(conversation, expectedGeneration)
     }
 
-    override fun clearHistory() {
-        chatHistory.update {
-            emptyList()
-        }
-    }
+    override fun clearHistory() = startNewChat()
 
     override fun isUsingSharedKey(): Boolean = false
 
@@ -1675,85 +1487,73 @@ class RemoteDataRepository(
     }
 
     private fun setCurrentConversationId(id: String?) {
-        _currentConversationId.value = id
         appSettings.setCurrentConversationId(id)
+        selectedStorageGeneration = conversationStorage.generation()
+        _currentConversationId.value = id
     }
 
     // Conversation management
     override fun loadConversations() {
         conversationStorage.loadConversations()
+        selectionLock.locked {
+            _currentConversationId.value?.let { id ->
+                val selected = savedConversations.value.find { it.id == id }
+                if (selected == null) setCurrentConversationId(null)
+                selectedStorageGeneration = conversationStorage.generation()
+                chatHistory.value = selected?.messages?.map { it.toHistory() }.orEmpty()
+            }
+        }
+        val latestStatus = savedConversations.value.firstOrNull { it.type == Conversation.TYPE_HEARTBEAT }?.messages?.lastOrNull { it.isStatusMessage }?.state
+        if (latestStatus in setOf(MessageState.PAUSED, MessageState.INTERRUPTED, MessageState.FAILED)) _hasUnreadHeartbeat.value = true
     }
 
-    override fun loadConversation(id: String) {
-        val conversation = savedConversations.value.find { it.id == id } ?: return
-
-        setCurrentConversationId(id)
-        chatHistory.value = conversation.messages.map { m ->
-            // Prefer the modern `attachments` field. Fall back to the legacy single-file
-            // fields for conversations saved before multi-attachment support.
-            val attachments = when {
-                m.attachments.isNotEmpty() -> m.attachments.toImmutableList()
-
-                m.data != null && m.mimeType != null ->
-                    persistentListOf(Attachment(data = m.data, mimeType = m.mimeType, fileName = m.fileName))
-
-                else -> persistentListOf()
-            }
-            History(
-                id = m.id,
-                role = when (m.role) {
-                    "user" -> History.Role.USER
-                    "tool" -> History.Role.TOOL
-                    else -> History.Role.ASSISTANT
-                },
-                content = m.content,
-                attachments = attachments,
-                uiSubmission = m.uiSubmission,
-                isThinking = m.isThinking,
-                reasoningContent = m.reasoningContent,
-            )
+    override fun loadConversation(id: String) = selectionLock.locked {
+        val conversation = savedConversations.value.find { it.id == id }
+        if (conversation != null) {
+            setCurrentConversationId(id)
+            chatHistory.value = conversation.messages.map { it.toHistory() }
         }
     }
 
     override suspend fun deleteConversation(id: String) {
-        if (_currentConversationId.value == id) {
-            setCurrentConversationId(null)
-            chatHistory.value = emptyList()
-        }
         conversationStorage.deleteConversation(id)
+        selectionLock.locked {
+            if (_currentConversationId.value == id) {
+                setCurrentConversationId(null)
+                chatHistory.value = emptyList()
+            }
+        }
         // Drop the per-conversation shell session so a future conversation reusing
         // this id (very unlikely — random uuids) doesn't inherit stale state, and
         // memory is freed.
         sandboxController.closeSession(id)
     }
 
-    override fun regenerate() {
-        chatHistory.update { history ->
-            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER }
-            if (lastUserIndex >= 0) {
-                history.subList(0, lastUserIndex + 1)
-            } else {
-                history
-            }
-        }
-    }
-
-    override fun startNewChat() {
+    override fun startNewChat() = selectionLock.locked {
         setCurrentConversationId(null)
         chatHistory.value = emptyList()
     }
 
-    override fun popLastExchange() {
-        chatHistory.update { history ->
-            val lastUserIndex = history.indexOfLast { it.role == History.Role.USER }
-            if (lastUserIndex >= 0) history.take(lastUserIndex) else history
-        }
-    }
+    override suspend fun popLastExchange() = supersedeFrom { history -> history.indexOfLast { it.role == History.Role.USER && !it.superseded }.takeIf { it >= 0 } ?: history.size }
 
-    override fun truncateFrom(messageId: String) {
-        chatHistory.update { history ->
-            val index = history.indexOfFirst { it.id == messageId }
-            if (index >= 0) history.take(index) else history
+    override suspend fun truncateFrom(messageId: String) = supersedeFrom { history -> history.indexOfFirst { it.id == messageId }.takeIf { it >= 0 } ?: history.size }
+
+    private suspend fun supersedeFrom(cutoff: (List<History>) -> Int) {
+        val (id, generation, anchor) = selectionLock.locked {
+            val current = chatHistory.value
+            Triple(_currentConversationId.value, selectedStorageGeneration, current.getOrNull(cutoff(current))?.id)
+        }
+        if (id == null || anchor == null) return
+        agentMutex.withLock {
+            conversationStorage.loadConversations()
+            if (generation != conversationStorage.generation()) throw CancellationException("Conversation history was replaced. Reopen the saved conversation before continuing.")
+            val current = savedConversations.value.find { it.id == id }?.messages?.map { it.toHistory() }
+                ?: throw CancellationException("Conversation was deleted before its history could be changed")
+            val index = current.indexOfFirst { it.id == anchor }
+            check(index >= 0) { "The message to replace is no longer available" }
+            val next = current.mapIndexed { i, entry -> if (i >= index) entry.copy(superseded = true) else entry }
+            persistHistory(id, next, generation)
+            selectionLock.locked { if (_currentConversationId.value == id) chatHistory.value = next }
         }
     }
 
@@ -1971,6 +1771,8 @@ class RemoteDataRepository(
 
     override fun getScheduledTasks(): List<ScheduledTask> = taskStore.getAllTasks()
 
+    override suspend fun resumeScheduledTask(id: String) = taskStore.resumeTask(id)
+
     override suspend fun cancelScheduledTask(id: String) {
         taskStore.removeTask(id)
     }
@@ -2174,19 +1976,31 @@ class RemoteDataRepository(
             ?: throw GenericNetworkException("No usable model provider. Sign in with ChatGPT or configure a provider in Settings.")
         val service = Service.fromId(targetInstance.serviceId)
         val messages = listOf(History(role = History.Role.USER, content = prompt))
-        // Use a local history to avoid polluting the current conversation's chatHistory
-        val localHistory = MutableStateFlow(messages)
-        // When a conversation override is set (heartbeat / scheduled tasks), bind any
-        // tool calls in this run to that conversation's sandbox session via the
-        // coroutine context — otherwise tool dispatch would inherit `_currentConversationId`
-        // (the chat the user is viewing), routing the heartbeat's shell commands into
-        // that chat's persistent bash session.
-        return if (conversationIdOverride != null) {
-            withContext(ConversationIdElement(conversationIdOverride)) {
-                askWithService(service, messages, targetInstance.instanceId, localHistory).content
+        return agentMutex.withLock {
+            conversationStorage.loadConversations()
+            val id = conversationIdOverride ?: getOrCreateHeartbeatConversationId()
+            val initial = savedConversations.value.find { it.id == id }?.messages.orEmpty().map { it.toHistory() }
+            val run = newConversationRun(id, initial)
+            withContext(run + ConversationIdElement(id)) {
+                try {
+                    run.update { it + messages + History(role = History.Role.ASSISTANT, content = "", isStatusMessage = true, state = MessageState.RUNNING) }
+                    val turn = askWithService(service, run.history.value, targetInstance.instanceId, run.history)
+                    if (turn.messageId == null) run.update { it + History(role = History.Role.ASSISTANT, content = turn.content, reasoningContent = turn.reasoningContent) }
+                    run.finish(MessageState.COMPLETE, "")
+                    if (savedConversations.value.any { it.id == id && it.type == Conversation.TYPE_HEARTBEAT } && turn.content.isNotBlank() && "HEARTBEAT_OK" !in turn.content) _hasUnreadHeartbeat.value = true
+                    turn.content
+                } catch (e: RunPausedException) {
+                    run.finish(MessageState.PAUSED, e.message.orEmpty())
+                    throw e
+                } catch (e: CancellationException) {
+                    run.finish(MessageState.INTERRUPTED, "Background execution was interrupted. Verify unknown action outcomes; this attempt must not be replayed automatically.")
+                    throw e
+                } catch (e: Exception) {
+                    run.finish(MessageState.FAILED, "Background execution did not finish. Saved actions and partial output are preserved.")
+                    if (run.history.value.any { it.runId == run.id && !it.isStatusMessage && it.role == History.Role.ASSISTANT }) throw RunPausedException("This attempt already recorded assistant output or proposed actions. Review saved activity before starting it again.")
+                    throw e
+                }
             }
-        } else {
-            askWithService(service, messages, targetInstance.instanceId, localHistory).content
         }
     }
 
@@ -2202,7 +2016,7 @@ class RemoteDataRepository(
             // visible chatHistory for a "silent" call. LOCAL variant of the system
             // prompt so small on-device models get the right section set.
             val localPrompt = buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, appSettings.getInstanceModelId(firstInstance.instanceId))
-            return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages)) { modelId ->
+            return askWithLocalEngine(messages, localPrompt, firstInstance.instanceId, MutableStateFlow(messages), allowTools = false) { modelId ->
                 buildActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL, service, modelId, toolsEnabled = false)
             }
         }
@@ -2254,35 +2068,10 @@ class RemoteDataRepository(
         _pendingShareText.value = null
     }
 
-    override suspend fun addAssistantMessage(content: String) {
-        val now = Clock.System.now().toEpochMilliseconds()
-
+    override suspend fun getOrCreateHeartbeatConversationId(): String = heartbeatMutex.withLock {
+        conversationStorage.loadConversations()
         val existing = savedConversations.value.find { it.type == Conversation.TYPE_HEARTBEAT }
-        val heartbeatId = existing?.id ?: getOrCreateHeartbeatConversationId()
-
-        val newMessage = Conversation.Message(
-            id = Uuid.random().toString(),
-            role = "assistant",
-            content = content,
-        )
-
-        val messages = ((existing?.messages ?: emptyList()) + newMessage).takeLast(MAX_HEARTBEAT_MESSAGES)
-
-        val conversation = Conversation(
-            id = heartbeatId,
-            messages = messages,
-            createdAt = existing?.createdAt ?: now,
-            updatedAt = now,
-            type = Conversation.TYPE_HEARTBEAT,
-        )
-
-        _hasUnreadHeartbeat.value = true
-        conversationStorage.saveConversation(conversation)
-    }
-
-    override suspend fun getOrCreateHeartbeatConversationId(): String {
-        val existing = savedConversations.value.find { it.type == Conversation.TYPE_HEARTBEAT }
-        if (existing != null) return existing.id
+        if (existing != null) return@withLock existing.id
         val now = Clock.System.now().toEpochMilliseconds()
         val id = Uuid.random().toString()
         conversationStorage.saveConversation(
@@ -2294,7 +2083,7 @@ class RemoteDataRepository(
                 type = Conversation.TYPE_HEARTBEAT,
             ),
         )
-        return id
+        id
     }
 
     private fun deriveTitle(history: List<History>): String {

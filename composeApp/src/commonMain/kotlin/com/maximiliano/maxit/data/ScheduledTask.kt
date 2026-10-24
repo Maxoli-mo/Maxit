@@ -45,7 +45,7 @@ data class TaskExecutionLogEntry(
 )
 
 @Serializable
-enum class TaskStatus { PENDING, COMPLETED }
+enum class TaskStatus { PENDING, RUNNING, PAUSED, COMPLETED }
 
 /**
  * How a scheduled task is dispatched.

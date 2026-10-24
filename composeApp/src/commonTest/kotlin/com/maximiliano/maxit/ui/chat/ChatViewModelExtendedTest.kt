@@ -214,7 +214,7 @@ class ChatViewModelExtendedTest {
     // ---- regenerate ----
 
     @Test
-    fun `regenerate truncates to last user message and re-asks with null`() = runTest {
+    fun `regenerate preserves the replaced answer and re-asks with null`() = runTest {
         fakeRepository.chatHistory.value = listOf(
             History(role = History.Role.USER, content = "First"),
             History(role = History.Role.ASSISTANT, content = "Old answer"),
@@ -233,6 +233,8 @@ class ChatViewModelExtendedTest {
 
             // Repository.regenerate must have been called
             assertEquals(1, fakeRepository.regenerateCalls)
+            assertTrue(fakeRepository.chatHistory.value.single { it.content == "Old answer" }.superseded)
+            assertFalse(fakeRepository.chatHistory.value.single { it.content == "First" }.superseded)
             // ask was invoked again with a null question (retry semantics)
             assertTrue(fakeRepository.askCalls.any { it.first == null })
             cancelAndIgnoreRemainingEvents()
