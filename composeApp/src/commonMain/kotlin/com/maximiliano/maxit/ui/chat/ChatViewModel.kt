@@ -14,9 +14,12 @@ import com.maximiliano.maxit.getBackgroundDispatcher
 import com.maximiliano.maxit.network.UiError
 import com.maximiliano.maxit.network.shouldShowFreeProviderSuggestions
 import com.maximiliano.maxit.network.toUiError
+import com.maximiliano.maxit.sendLlmNotification
+import com.maximiliano.maxit.shouldSendLlmNotification
 import com.maximiliano.maxit.tools.AppPermission
 import com.maximiliano.maxit.tools.PermissionController
 import com.maximiliano.maxit.tools.isLocalNetworkUrl
+import com.maximiliano.maxit.ui.dynamicui.toSpeakableText
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.extension
 import kotlinx.collections.immutable.persistentListOf
@@ -45,11 +48,22 @@ import org.jetbrains.compose.resources.getString
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.seconds
 
+internal fun responseNotificationPreview(content: String): String {
+    val text = content.toSpeakableText().replace(Regex("\\s+"), " ").trim()
+    if (text.isEmpty()) return "Response ready"
+    if (text.length <= 180) return text
+    val prefix = text.take(180)
+    val cut = prefix.lastIndexOf(' ').takeIf { it >= 140 } ?: prefix.length
+    return prefix.take(cut).trimEnd() + "…"
+}
+
 class ChatViewModel(
     private val dataRepository: DataRepository,
     private val taskScheduler: TaskScheduler,
     private val backgroundDispatcher: CoroutineContext = getBackgroundDispatcher(),
     private val localNetworkPermissionController: PermissionController = PermissionController(AppPermission.LOCAL_NETWORK),
+    private val shouldNotify: () -> Boolean = ::shouldSendLlmNotification,
+    private val notify: (String, String, String?, String?) -> Unit = ::sendLlmNotification,
 ) : ViewModel() {
 
     private val actions = ChatActions(
@@ -137,7 +151,22 @@ class ChatViewModel(
             taskScheduler.executionError.collect { error -> _state.update { it.copy(backgroundError = error) } }
         }
         viewModelScope.launch {
-            dataRepository.toolApprovals.collect { approvals -> _state.update { it.copy(toolApprovals = approvals.toImmutableList()) } }
+            var previousIds = emptySet<String>()
+            dataRepository.toolApprovals.collect { approvals ->
+                val newApprovals = approvals.filter { it.id !in previousIds }
+                previousIds = approvals.mapTo(mutableSetOf()) { it.id }
+                _state.update { it.copy(toolApprovals = approvals.toImmutableList()) }
+                if (newApprovals.isNotEmpty()) {
+                    val enabled = dataRepository.isLlmNotificationsEnabled()
+                    val background = enabled && shouldNotify()
+                    println("[Maxit notification] approval count=${newApprovals.size} enabled=$enabled background=$background")
+                    if (background) {
+                        newApprovals.forEach { approval ->
+                            notify("Maxit needs your approval", "Approve ${approval.name} to continue", approval.conversationId, approval.id)
+                        }
+                    }
+                }
+            }
         }
         taskScheduler.isLoadingCheck = { _state.value.isLoading }
 
@@ -303,6 +332,15 @@ class ChatViewModel(
                     )
                 }
             }
+            val answer = completedAnswer
+            if (cause == null && answer != null && requestGeneration.value == generation) {
+                val enabled = dataRepository.isLlmNotificationsEnabled()
+                val background = enabled && shouldNotify()
+                println("[Maxit notification] completion enabled=$enabled background=$background")
+                if (background) notify("Maxit finished responding", responseNotificationPreview(answer.content), null, null)
+            } else {
+                println("[Maxit notification] completion skipped: cancelled=${cause != null} answer=${answer != null} current=${requestGeneration.value == generation}")
+            }
         }
     }
 
@@ -430,6 +468,13 @@ class ChatViewModel(
 
     private fun regenerate() {
         askInternal(null, null, regenerate = true)
+    }
+
+    suspend fun openNotificationConversation(id: String) {
+        restored.await()
+        // Opening an approval must not cancel the run already shown.
+        if (dataRepository.currentConversationId.value == id) return
+        if (dataRepository.savedConversations.value.any { it.id == id }) loadConversation(id)
     }
 
     private fun loadConversation(id: String) {

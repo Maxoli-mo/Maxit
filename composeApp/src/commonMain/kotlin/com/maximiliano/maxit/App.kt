@@ -37,6 +37,7 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.svg.SvgDecoder
 import com.maximiliano.maxit.data.AppSettings
+import com.maximiliano.maxit.data.DataRepository
 import com.maximiliano.maxit.data.ThemeMode
 import com.maximiliano.maxit.tools.AppPermission
 import com.maximiliano.maxit.tools.PermissionController
@@ -51,6 +52,7 @@ import com.maximiliano.maxit.ui.handCursor
 import com.maximiliano.maxit.ui.rememberSandboxAwareUriHandler
 import com.maximiliano.maxit.ui.settings.SettingsScreen
 import com.maximiliano.maxit.ui.withBlackBackground
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import maxit.composeapp.generated.resources.Res
@@ -126,6 +128,12 @@ private fun AppContent(
     AppPermission.entries.forEach { permission ->
         SetupPermissionHandler(koinInject<PermissionController>(permissionQualifier(permission)))
     }
+    val notificationPermission = koinInject<PermissionController>(permissionQualifier(AppPermission.POST_NOTIFICATIONS))
+    LaunchedEffect(Unit) {
+        if (currentPlatform is Platform.Mobile.Android && appSettings.isLlmNotificationsEnabled() && !notificationPermission.hasPermission()) {
+            notificationPermission.requestPermission()
+        }
+    }
 
     // Keep the voice the engine already defaults to — that is the one the user picked in the
     // system speech settings. Only pick another voice when the default one cannot speak the
@@ -167,6 +175,14 @@ private fun AppContent(
         Theme(colorScheme = effectiveColorScheme) {
             FullScreenImageHost {
                 val chatViewModel: ChatViewModel = koinViewModel()
+                val repository = koinInject<DataRepository>()
+                LaunchedEffect(repository, navController) {
+                    repository.openConversationRequested.filterNotNull().collect { id ->
+                        chatViewModel.openNotificationConversation(id)
+                        navController.navigate(Home) { launchSingleTop = true }
+                        repository.consumeOpenConversationRequest()
+                    }
+                }
                 val showTabBar = currentPlatform !is Platform.Mobile
                 val currentBackStackEntry by navController.currentBackStackEntryAsState()
                 val isHome = currentBackStackEntry?.destination?.route == "home"

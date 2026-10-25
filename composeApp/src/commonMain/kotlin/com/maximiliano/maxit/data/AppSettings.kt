@@ -487,6 +487,12 @@ class AppSettings(internal val settings: Settings) {
         settings.putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled)
     }
 
+    fun isLlmNotificationsEnabled(): Boolean = settings.getBoolean(KEY_LLM_NOTIFICATIONS_ENABLED, true)
+
+    fun setLlmNotificationsEnabled(enabled: Boolean) {
+        settings.putBoolean(KEY_LLM_NOTIFICATIONS_ENABLED, enabled)
+    }
+
     fun getNotificationsPendingJson(): String = settings.getString(KEY_NOTIFICATIONS_PENDING, "")
 
     fun setNotificationsPendingJson(json: String) {
@@ -553,6 +559,7 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_SMS_DRAFTS = "sms_drafts"
 
         const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
+        const val KEY_LLM_NOTIFICATIONS_ENABLED = "llm_notifications_enabled"
         const val KEY_NOTIFICATIONS_PENDING = "notifications_pending"
         const val KEY_NOTIFICATIONS_STORE = "notifications_store"
         const val KEY_NOTIFICATIONS_SYNC_STATE = "notifications_sync_state"

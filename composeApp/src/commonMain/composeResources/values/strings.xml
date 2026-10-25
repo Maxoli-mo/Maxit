@@ -179,6 +179,12 @@
     <string name="execution_log_status_fail">FAIL</string>
     <string name="settings_daemon_mode">Daemon Mode</string>
     <string name="settings_daemon_mode_description">Keep Maxit running in the background so scheduled tasks execute even when the app is not in the foreground.</string>
+    <string name="settings_llm_notifications">Response notifications</string>
+    <string name="settings_llm_notifications_description">Notify me when the AI finishes responding or needs approval to continue.</string>
+    <string name="settings_llm_notifications_permission">System notification permission is off. Allow notifications for Maxit to receive these alerts.</string>
+    <string name="settings_llm_notifications_settings">Open app settings</string>
+    <string name="notification_response_channel_name">Responses and approvals</string>
+    <string name="notification_response_channel_description">AI responses and approval requests</string>
     <string name="settings_heartbeat">Heartbeat</string>
     <string name="settings_heartbeat_description">Periodic self-checks that let the AI review memories and tasks without user input. Runs every %1$d minutes during active hours.</string>
     <string name="settings_heartbeat_interval">Interval</string>

@@ -2,13 +2,15 @@
 
 # Notifications
 
-**Last verified:** 2026-10-02
+**Last verified:** 2026-10-24. All 1,313 desktop tests passed across 119 suites (zero failures, errors, or skips), including preservation of pending approval when opening the current conversation; formatting checks also passed. A synthetic alert through the production desktop sender previously produced a visible, normal-priority GNOME banner, confirmed through accessibility after recovery of the desktop's stuck notification handler. Android foreground suppression and notification-tap behavior still need on-device confirmation.
 
 > Reading notifications is **Android-only** and requires the user's notification-access permission. Maxit ships only the FOSS Android variant.
 
 Maxit on the FOSS Android build can **read** notifications posted by other apps and surface them to the AI, mirroring the SMS feature: per-app opt-in, capped pending queue, heartbeat summary, plus on-demand `check_notifications` / `read_notification` / `search_notifications` tools.
 
-There is no "send" counterpart in v1. Acting on a notification (replying via `RemoteInput`, dismissing) is out of scope for the first cut and would follow the SMS-send draft pattern when added.
+The app also provides a separate, enabled-by-default **Response notifications** setting. It uses the native notification surface to tell the user when the AI finishes a response or pauses for tool approval. On desktop, the app tracks its window focus and posts only while Maxit is unfocused. On Android, response and approval alerts are suppressed while any Maxit activity is in the foreground, using the same app-lifecycle signal as heartbeat alerts. A running background service does not count as foreground use. Suppressed alerts are not replayed when the user leaves the app. iOS retains its platform behavior. Completed-answer alerts include a short plain-text preview (or a generic label if there is no readable text). On Android 13+, Maxit requests the OS notification permission at startup if alerts are enabled, and again when the toggle is turned on. When denied, Settings shows an app-settings link; no alert is posted without permission. This setting is independent of notification reading and is available wherever Maxit has a native notification implementation.
+
+Acting on a notification (replying via `RemoteInput`, dismissing) is out of scope for the first cut and would follow the SMS-send draft pattern when added.
 
 ## Availability
 
@@ -106,7 +108,7 @@ Same lifecycle as the SMS pending queue: the snapshot is taken before the heartb
 
 ## Notifications
 
-No notifications-specific push notification. New notifications surface via the existing heartbeat notification path: if the heartbeat produces a non-`HEARTBEAT_OK` response while Maxit is backgrounded, the standard heartbeat notification fires and deep-links into the heartbeat conversation.
+The existing heartbeat notification path reports non-trivial heartbeat responses and deep-links into the heartbeat conversation. Separately, the **Response notifications** setting reports completed foreground-chat responses and each pending tool approval through the native OS notification surface. On Android, response/approval alerts have their own high-importance channel for heads-up banners, separate from existing AI tool and heartbeat notifications. The OS may still suppress banners under Do Not Disturb or channel settings. Linux alerts identify themselves as Maxit and use normal urgency; they do not request critical priority or override Do Not Disturb. Diagnostics report completion/approval eligibility, the setting and foreground gate, and the Linux notification process exit code and returned OS notification ID. Titles, response previews, tool arguments, and conversation IDs are not logged. The process is bounded to ten seconds and never blocks the chat UI. OS acceptance and delivery to the notification list are not proof that a banner appeared. Simultaneous approvals remain separate notifications; tapping one opens the conversation containing the approval (approval decisions are never made from the notification). If that conversation is already selected, opening the alert preserves the running request and pending approval instead of reloading the conversation. Other saved conversations still open normally; missing targets leave the current conversation unchanged. If the process was killed, pending approval cannot be restored as a live request. Web remains a no-op.
 
 ## Settings UI
 
@@ -142,6 +144,20 @@ There is **no poll interval slider** — the listener is push-driven.
 | `composeApp/src/commonMain/.../data/PendingQueue.kt` | Shared capped (100) FIFO pending queue used by email, SMS, and notifications |
 | `composeApp/src/commonMain/.../data/HeartbeatManager.kt` | Caps the heartbeat snapshot at the 20 newest and skips it when the toggle is off |
 | `composeApp/src/commonMain/.../tools/CommonTools.kt` | Registers the non-toggleable notification tool display definitions |
+| `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Sends short answer previews and per-approval alerts, gated by setting and desktop focus |
+| `composeApp/src/commonMain/.../ui/settings/GeneralSettings.kt` | Response notifications toggle and permission warning |
+| `composeApp/src/commonMain/.../ui/settings/SettingsViewModel.kt` | Persists toggle and requests notification permission |
+| `composeApp/src/commonMain/.../App.kt` | Requests Android permission at startup and routes approval notification taps to chat |
+| `composeApp/src/androidMain/.../HeartbeatNotifier.android.kt` | Checks OS permission, posts distinct Android alerts and attaches conversation targets |
+| `composeApp/src/commonMain/.../data/AppSettings.kt` | Persists the enabled-by-default response-alert setting |
+| `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Delivers tapped conversation targets to the UI |
+| `composeApp/src/commonTest/.../ui/chat/ChatNotificationTest.kt` | Toggle, completion, multi-approval, and notification-navigation regression checks |
+| `androidApp/src/main/.../MainActivity.kt` | Accepts notification conversation deep links |
+| `composeApp/src/desktopMain/.../main.kt` | Tracks window focus for desktop response alerts |
+| `composeApp/src/desktopTest/.../DesktopNotificationFocusTest.kt` | Checks the focus gate and normal-urgency Linux notification arguments |
+| `composeApp/src/desktopMain/.../Platform.jvm.kt` | Sends desktop notifications with the Maxit name and plain-text previews |
+| `composeApp/src/androidHostTest/.../AndroidNotificationForegroundTest.kt` | Checks Android alerts against the existing process-foreground signal |
+| `androidApp/src/main/.../KaiApplication.kt` | Tracks Android app foreground state shared by heartbeat and response alerts |
 
 ## Future scope (not v1)
 

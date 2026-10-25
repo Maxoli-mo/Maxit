@@ -94,6 +94,8 @@ class SettingsViewModel(
         isSchedulingEnabled = dataRepository.isSchedulingEnabled(),
         scheduledTasks = dataRepository.getScheduledTasks().toImmutableList(),
         isDaemonEnabled = dataRepository.isDaemonEnabled(),
+        isLlmNotificationsEnabled = dataRepository.isLlmNotificationsEnabled(),
+        llmNotificationPermissionGranted = notificationPermissionController.hasPermission(),
         showDaemonToggle = currentPlatform is Platform.Mobile.Android,
         isHeartbeatEnabled = dataRepository.getHeartbeatConfig().enabled,
         heartbeatIntervalMinutes = dataRepository.getHeartbeatConfig().intervalMinutes,
@@ -170,6 +172,8 @@ class SettingsViewModel(
         onCancelTask = ::onCancelTask,
         onResumeTask = ::onResumeTask,
         onToggleDaemon = ::onToggleDaemon,
+        onToggleLlmNotifications = ::onToggleLlmNotifications,
+        onOpenLlmNotificationSettings = ::onOpenLlmNotificationSettings,
         onToggleHeartbeat = ::onToggleHeartbeat,
         onChangeHeartbeatInterval = ::onChangeHeartbeatInterval,
         onChangeHeartbeatActiveHours = ::onChangeHeartbeatActiveHours,
@@ -291,6 +295,7 @@ class SettingsViewModel(
     }
 
     fun onScreenVisible() {
+        _state.update { it.copy(llmNotificationPermissionGranted = notificationPermissionController.hasPermission()) }
         if (!hasCheckedInitialConnection) {
             hasCheckedInitialConnection = true
             checkAllConnections()
@@ -557,6 +562,19 @@ class SettingsViewModel(
             executeDeletion(PendingDeletion.Task(id))
         }
     }
+
+    private fun onToggleLlmNotifications(enabled: Boolean) {
+        dataRepository.setLlmNotificationsEnabled(enabled)
+        _state.update { it.copy(isLlmNotificationsEnabled = enabled) }
+        if (enabled) {
+            viewModelScope.launch {
+                val granted = notificationPermissionController.requestPermission()
+                _state.update { it.copy(llmNotificationPermissionGranted = granted) }
+            }
+        }
+    }
+
+    private fun onOpenLlmNotificationSettings() = notificationPermissionController.openAppSettings()
 
     private fun onToggleDaemon(enabled: Boolean) {
         dataRepository.setDaemonEnabled(enabled)

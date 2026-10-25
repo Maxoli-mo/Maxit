@@ -199,6 +199,8 @@ interface DataRepository {
     // Per-app filtering is delegated to the system Notification Access "Apps" picker.
     fun isNotificationsEnabled(): Boolean
     fun setNotificationsEnabled(enabled: Boolean)
+    fun isLlmNotificationsEnabled(): Boolean = false
+    fun setLlmNotificationsEnabled(enabled: Boolean) {}
     fun isNotificationListenerAccessGranted(): Boolean
     fun openNotificationListenerSettings()
     fun getPendingNotificationCount(): Int
@@ -244,6 +246,9 @@ interface DataRepository {
      */
     val openHeartbeatRequested: StateFlow<Boolean>
     fun requestOpenHeartbeat()
+    val openConversationRequested: StateFlow<String?> get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+    fun requestOpenConversation(id: String) {}
+    fun consumeOpenConversationRequest() {}
     fun consumeOpenHeartbeatRequest()
 
     /**

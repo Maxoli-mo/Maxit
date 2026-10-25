@@ -6,6 +6,7 @@
 package com.maximiliano.maxit
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,8 @@ import nl.marc_apps.tts.TextToSpeechInstance
 import nl.marc_apps.tts.experimental.ExperimentalDesktopTarget
 import nl.marc_apps.tts.rememberTextToSpeechOrNull
 import org.jetbrains.compose.resources.painterResource
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
@@ -36,6 +39,19 @@ fun main() {
             title = "Maxit",
             icon = painterResource(Res.drawable.logo),
         ) {
+            DisposableEffect(window) {
+                desktopWindowFocused = window.isFocused
+                val listener = object : WindowAdapter() {
+                    override fun windowGainedFocus(event: WindowEvent) {
+                        desktopWindowFocused = true
+                    }
+                    override fun windowLostFocus(event: WindowEvent) {
+                        desktopWindowFocused = false
+                    }
+                }
+                window.addWindowFocusListener(listener)
+                onDispose { window.removeWindowFocusListener(listener) }
+            }
             // Defer TTS initialization until after the first frame
             var ttsReady by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) { ttsReady = true }

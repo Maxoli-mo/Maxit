@@ -92,8 +92,8 @@ class TaskScheduler(
     /**
      * Whether the app is currently in the foreground (the user can see the in-app banner).
      * On Android this mirrors `ProcessLifecycleOwner` — set true on the first Activity
-     * start, false when all activities stop. Other platforms leave it at the default
-     * false since their actuals for [sendHeartbeatNotification] are no-ops anyway.
+     * start, false when all activities stop. Android response alerts share this signal.
+     * Other platforms leave it false; desktop response alerts track window focus separately.
      *
      * When a heartbeat produces a non-OK report and this is `false`, the scheduler
      * escalates to a push notification instead of relying on the (invisible) banner.

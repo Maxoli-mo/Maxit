@@ -180,8 +180,18 @@ actual suspend fun saveFileToDevice(bytes: ByteArray, baseName: String, extensio
  *   - Linux: `notify-send` (libnotify) is the freedesktop standard and ships in most distros.
  *   - Windows: AWT [java.awt.SystemTray] briefly registers a tray icon to display a balloon
  *     toast, then removes it so we don't leave a persistent tray entry.
- * All paths swallow failures — if the OS hook is missing the in-app heartbeat banner still fires.
+ * Delivery failures never interrupt chat; the in-app transcript remains available.
  */
+@Volatile internal var desktopWindowFocused = true
+
+actual fun shouldSendLlmNotification(): Boolean {
+    val focused = desktopWindowFocused
+    println("[Maxit notification] desktop focused=$focused")
+    return !focused
+}
+
+actual fun sendLlmNotification(title: String, body: String, conversationId: String?, requestId: String?) = sendHeartbeatNotification(title, body)
+
 actual fun sendHeartbeatNotification(title: String, body: String) {
     try {
         when (currentPlatform as Platform.Desktop) {
@@ -212,16 +222,32 @@ actual fun sendHeartbeatNotification(title: String, body: String) {
             }
 
             Platform.Desktop.Linux -> {
-                val command = mutableListOf("notify-send")
-                DesktopNotificationIcon.file?.let { command.addAll(listOf("--icon", it.absolutePath)) }
-                // `--` terminator prevents a title or body starting with `-` from being parsed as a flag.
-                command.addAll(listOf("--", title, body))
-                ProcessBuilder(command).start()
+                val process = ProcessBuilder(linuxNotificationCommand(title, body, DesktopNotificationIcon.file?.absolutePath))
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                process.onExit().orTimeout(10, java.util.concurrent.TimeUnit.SECONDS).whenComplete { finished, error ->
+                    if (error != null) {
+                        process.destroyForcibly()
+                        System.err.println("[Maxit notification] notify-send did not finish (${error.javaClass.simpleName})")
+                    } else {
+                        val notificationId = finished.inputStream.bufferedReader().use { it.readLine() }?.toUIntOrNull()
+                        println("[Maxit notification] notify-send exit=${finished.exitValue()} notificationId=${notificationId ?: "none"}")
+                    }
+                }
             }
         }
-    } catch (_: Exception) {
-        // notify-send missing, AWT headless, sandboxed osascript, etc. — fall back silently.
+    } catch (e: Exception) {
+        // Do not log titles or bodies: response previews can contain private information.
+        System.err.println("Maxit could not post an OS notification (${e.javaClass.simpleName}).")
     }
+}
+
+internal fun linuxNotificationCommand(title: String, body: String, icon: String?): List<String> = buildList {
+    addAll(listOf("notify-send", "--app-name=Maxit", "--urgency=normal", "--print-id"))
+    if (icon != null) addAll(listOf("--icon", icon))
+    // Freedesktop notification bodies support markup; previews must remain plain text.
+    val escapedBody = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    addAll(listOf("--", title, escapedBody))
 }
 
 private object DesktopNotificationIcon {

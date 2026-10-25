@@ -171,6 +171,11 @@ actual suspend fun saveFileToDevice(bytes: ByteArray, baseName: String, extensio
     file?.write(bytes)
 }
 
+actual fun shouldSendLlmNotification(): Boolean = true
+
+@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+actual fun sendLlmNotification(title: String, body: String, conversationId: String?, requestId: String?) = sendHeartbeatNotification(title, body)
+
 @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 actual fun sendHeartbeatNotification(title: String, body: String) {
     // The authorization completion runs asynchronously on a system queue, so it's outside the

@@ -120,6 +120,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleDeepLinkIntent(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_OPEN_CONVERSATION)?.let { id ->
+            val dataRepository: DataRepository = get()
+            dataRepository.requestOpenConversation(id)
+            intent.removeExtra(EXTRA_OPEN_CONVERSATION)
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_HEARTBEAT, false) == true) {
             val dataRepository: DataRepository = get()
             dataRepository.requestOpenHeartbeat()

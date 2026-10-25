@@ -16,6 +16,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,10 @@ import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.ic_arrow_drop_down
 import maxit.composeapp.generated.resources.settings_daemon_mode
 import maxit.composeapp.generated.resources.settings_daemon_mode_description
+import maxit.composeapp.generated.resources.settings_llm_notifications
+import maxit.composeapp.generated.resources.settings_llm_notifications_description
+import maxit.composeapp.generated.resources.settings_llm_notifications_permission
+import maxit.composeapp.generated.resources.settings_llm_notifications_settings
 import maxit.composeapp.generated.resources.settings_theme
 import maxit.composeapp.generated.resources.settings_theme_dark
 import maxit.composeapp.generated.resources.settings_theme_description
@@ -54,6 +59,14 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
                         onToggleDaemon = actions.onToggleDaemon,
                     )
                 }
+            }
+            SettingsCard {
+                LlmNotificationsToggle(
+                    enabled = uiState.isLlmNotificationsEnabled,
+                    onToggle = actions.onToggleLlmNotifications,
+                    permissionGranted = uiState.llmNotificationPermissionGranted,
+                    onOpenSettings = actions.onOpenLlmNotificationSettings,
+                )
             }
             // Dynamic UI is parked for a future skill; see docs/skills/interactive-ui/SKILL.md.
             SettingsCard {
@@ -81,6 +94,27 @@ internal fun GeneralContent(uiState: SettingsUiState, actions: SettingsActions) 
             }
         },
     )
+}
+
+@Composable
+private fun LlmNotificationsToggle(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    permissionGranted: Boolean,
+    onOpenSettings: () -> Unit,
+) {
+    Column {
+        ToggleableHeadline(
+            title = stringResource(Res.string.settings_llm_notifications),
+            description = stringResource(Res.string.settings_llm_notifications_description),
+            checked = enabled,
+            onCheckedChange = onToggle,
+        )
+        if (enabled && !permissionGranted) {
+            Text(stringResource(Res.string.settings_llm_notifications_permission))
+            TextButton(onClick = onOpenSettings) { Text(stringResource(Res.string.settings_llm_notifications_settings)) }
+        }
+    }
 }
 
 @Composable

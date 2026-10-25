@@ -90,3 +90,9 @@ expect suspend fun saveFileToDevice(bytes: ByteArray, baseName: String, extensio
  * without deep-linking back to the conversation. No-op on web.
  */
 expect fun sendHeartbeatNotification(title: String, body: String)
+
+/** Whether an LLM notification should be shown for the current platform state. */
+expect fun shouldSendLlmNotification(): Boolean
+
+/** Shows an OS notification for a chat event. */
+expect fun sendLlmNotification(title: String, body: String, conversationId: String? = null, requestId: String? = null)

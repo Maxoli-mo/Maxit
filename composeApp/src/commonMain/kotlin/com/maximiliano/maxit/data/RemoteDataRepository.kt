@@ -1925,6 +1925,12 @@ class RemoteDataRepository(
         appSettings.setNotificationsEnabled(enabled)
     }
 
+    override fun isLlmNotificationsEnabled(): Boolean = appSettings.isLlmNotificationsEnabled()
+
+    override fun setLlmNotificationsEnabled(enabled: Boolean) {
+        appSettings.setLlmNotificationsEnabled(enabled)
+    }
+
     override fun isNotificationListenerAccessGranted(): Boolean = notificationListenerController.isAccessGranted()
 
     override fun openNotificationListenerSettings() {
@@ -2044,6 +2050,17 @@ class RemoteDataRepository(
 
     override fun consumeOpenHeartbeatRequest() {
         _openHeartbeatRequested.value = false
+    }
+
+    private val _openConversationRequested = MutableStateFlow<String?>(null)
+    override val openConversationRequested: StateFlow<String?> = _openConversationRequested
+
+    override fun requestOpenConversation(id: String) {
+        _openConversationRequested.value = id
+    }
+
+    override fun consumeOpenConversationRequest() {
+        _openConversationRequested.value = null
     }
 
     private val _openAssistRequested = MutableStateFlow(false)
