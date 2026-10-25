@@ -380,6 +380,14 @@ class FakeDataRepository : DataRepository {
     }
 
     // Soul (system prompt)
+    private var userProfile = com.maximiliano.maxit.data.UserProfile()
+
+    override fun getUserProfile() = userProfile
+
+    override fun setUserProfile(profile: com.maximiliano.maxit.data.UserProfile) {
+        userProfile = profile
+    }
+
     private var soulText = ""
 
     override fun getSoulText(): String = soulText

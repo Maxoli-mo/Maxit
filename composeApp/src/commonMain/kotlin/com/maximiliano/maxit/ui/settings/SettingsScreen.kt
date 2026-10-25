@@ -88,6 +88,7 @@ import maxit.composeapp.generated.resources.Res
 import maxit.composeapp.generated.resources.settings_ai_mistakes_warning
 import maxit.composeapp.generated.resources.settings_licenses
 import maxit.composeapp.generated.resources.settings_licenses_close
+import maxit.composeapp.generated.resources.settings_profile
 import maxit.composeapp.generated.resources.settings_tab_agent
 import maxit.composeapp.generated.resources.settings_tab_general
 import maxit.composeapp.generated.resources.settings_tab_sandbox
@@ -268,6 +269,10 @@ fun SettingsScreenContent(
                                 GeneralContent(uiState = filteredUiState, actions = actions)
                             }
 
+                            SettingsTab.Profile -> {
+                                ProfileContent(uiState = filteredUiState, actions = actions)
+                            }
+
                             SettingsTab.Agent -> {
                                 AgentContent(uiState = filteredUiState, actions = actions)
                             }
@@ -409,6 +414,7 @@ private fun SettingsTabSelector(
                     Text(
                         text = when (tab) {
                             SettingsTab.General -> stringResource(Res.string.settings_tab_general)
+                            SettingsTab.Profile -> stringResource(Res.string.settings_profile)
                             SettingsTab.Agent -> stringResource(Res.string.settings_tab_agent)
                             SettingsTab.Services -> stringResource(Res.string.settings_tab_services)
                             SettingsTab.Tools -> stringResource(Res.string.settings_tab_tools)

@@ -5,6 +5,7 @@ import com.maximiliano.maxit.network.dtos.anthropic.AnthropicChatResponseDto
 import com.maximiliano.maxit.network.dtos.gemini.GeminiChatResponseDto
 import com.maximiliano.maxit.network.dtos.openaicompatible.OpenAICompatibleChatResponseDto
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.peek
 import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.CancellationException
@@ -31,6 +32,7 @@ private const val MAX_RESPONSE_CHARS = 8_388_608
 /** One bounded SSE event at a time; handles CRLF, comments, multiline data, and final EOF. */
 internal suspend fun readSse(channel: ByteReadChannel, isDone: () -> Boolean = { false }, event: suspend (String?, String) -> Unit) {
     var type: String? = null
+    var firstLine = true
     val data = StringBuilder()
     suspend fun flush() {
         if (data.isNotEmpty()) event(type, data.toString().removeSuffix("\n"))
@@ -38,7 +40,9 @@ internal suspend fun readSse(channel: ByteReadChannel, isDone: () -> Boolean = {
         type = null
     }
     while (true) {
-        val line = channel.readUTF8Line(MAX_EVENT_CHARS) ?: break
+        val rawLine = channel.readUTF8Line(MAX_EVENT_CHARS) ?: break
+        val line = if (firstLine) rawLine.removePrefix("\uFEFF") else rawLine
+        firstLine = false
         when {
             line.isEmpty() -> {
                 flush()
@@ -69,6 +73,18 @@ private class TextBuffer(private val onText: suspend (String) -> Unit) {
     }
 }
 
+/** Some live endpoints omit Content-Type even for SSE; sniff without consuming the decoder's input. */
+internal suspend fun hasSsePrefix(channel: ByteReadChannel): Boolean {
+    val markers = listOf("event:", "data:", ":", "id:", "retry:")
+    for (size in 3..64) {
+        val prefix = channel.peek(size)?.toByteArray()?.decodeToString()?.trimStart('\uFEFF', ' ', '\r', '\n', '\t') ?: return false
+        if (prefix.isEmpty()) continue
+        if (markers.any { prefix.startsWith(it) }) return true
+        if (markers.none { it.startsWith(prefix) }) return false
+    }
+    return false
+}
+
 internal suspend fun readModelBody(channel: ByteReadChannel): String {
     val bytes = channel.readRemaining(MAX_RESPONSE_CHARS.toLong() + 1).readByteArray()
     if (bytes.size > MAX_RESPONSE_CHARS) throw StreamInterruptedException("The provider response exceeded the per-response safety size.")
@@ -80,7 +96,20 @@ internal suspend fun readChatCompletionBody(raw: String, onText: suspend (String
     response.choices.firstOrNull()?.message?.effectiveContent?.let { onText(it) }
     val finish = response.choices.firstOrNull()?.finishReason
     if (finish != null && finish !in setOf("stop", "tool_calls", "function_call")) throw StreamInterruptedException("The provider did not complete the response. Received text was preserved.")
+    validateChatCompletionTools(response.choices.firstOrNull()?.message?.toolCalls.orEmpty())
     return response
+}
+
+private fun validateChatCompletionTools(calls: List<OpenAICompatibleChatResponseDto.ToolCall>) {
+    if (calls.size > 256) throw StreamInterruptedException("The provider proposed more than 256 parallel actions; no calls were dispatched.")
+    if (calls.map { it.id }.distinct().size != calls.size) throw StreamInterruptedException("The provider returned duplicate tool-call identities; no calls were dispatched.")
+    for (call in calls) {
+        if (call.id.isBlank() || call.type != "function" || call.function.name.isBlank()) throw StreamInterruptedException("The provider returned an incomplete or unsupported tool identity; no calls were dispatched.")
+        val arguments = call.function.arguments
+        if (arguments.length > 1_048_576 || runCatching { streamJson.parseToJsonElement(arguments) as? JsonObject }.getOrNull() == null) {
+            throw StreamInterruptedException("The provider returned invalid or oversized tool arguments; no calls were dispatched.")
+        }
+    }
 }
 
 internal suspend fun readAnthropicBody(raw: String, onText: suspend (String) -> Unit): AnthropicChatResponseDto {
@@ -102,13 +131,14 @@ internal suspend fun readResponsesBody(raw: String, onText: suspend (String) -> 
     val response = streamJson.decodeFromString<com.maximiliano.maxit.network.dtos.openairesponses.OpenAIResponsesResponseDto>(raw).copy(rawOutput = streamJson.parseToJsonElement(raw).jsonObject["output"] as? JsonArray)
     response.outputText?.let { onText(it) }
     if (response.error != null || (response.status != null && response.status != "completed")) throw StreamInterruptedException("The provider did not complete the response. Received text was preserved.")
+    validateResponsesTools(response)
     return response
 }
 
 internal suspend fun readChatCompletionStream(channel: ByteReadChannel, onText: suspend (String) -> Unit): OpenAICompatibleChatResponseDto {
     val text = TextBuffer(onText)
     val reasoning = StringBuilder()
-    data class Call(var id: String = "", val name: StringBuilder = StringBuilder(), val args: StringBuilder = StringBuilder())
+    data class Call(var id: String = "", var type: String = "function", val name: StringBuilder = StringBuilder(), val args: StringBuilder = StringBuilder())
     val calls = mutableMapOf<Int, Call>()
     val details = linkedMapOf<String, JsonObject>()
     var detailChars = 0
@@ -153,6 +183,7 @@ internal suspend fun readChatCompletionStream(channel: ByteReadChannel, onText: 
                             val call = calls.getOrPut(index) { Call() }
                             if (calls.size > 256) throw StreamInterruptedException("The provider proposed an oversized parallel batch. Split the actions into smaller batches.")
                             tc.text("id")?.takeIf { it.isNotBlank() }?.let { call.id = it }
+                            tc.text("type")?.let { call.type = it }
                             tc.obj("function")?.let { function ->
                                 call.name.append(function.text("name").orEmpty())
                                 call.args.append(function.text("arguments").orEmpty())
@@ -167,10 +198,9 @@ internal suspend fun readChatCompletionStream(channel: ByteReadChannel, onText: 
             throw StreamInterruptedException(if (finish == "length") "The response reached the model's output limit. The partial answer was preserved." else "The stream ended without a complete answer. The partial answer was preserved.")
         }
         val toolCalls = calls.entries.sortedBy { it.key }.map { (_, call) ->
-            require(call.id.isNotBlank() && call.name.isNotBlank()) { "Incomplete streamed tool identity" }
-            require(streamJson.parseToJsonElement(call.args.toString()) is JsonObject) { "Incomplete streamed tool arguments" }
-            OpenAICompatibleChatResponseDto.ToolCall(call.id, function = OpenAICompatibleChatResponseDto.FunctionCall(call.name.toString(), call.args.toString()))
+            OpenAICompatibleChatResponseDto.ToolCall(call.id, type = call.type, function = OpenAICompatibleChatResponseDto.FunctionCall(call.name.toString(), call.args.toString()))
         }
+        validateChatCompletionTools(toolCalls)
         return OpenAICompatibleChatResponseDto(listOf(OpenAICompatibleChatResponseDto.Choice(OpenAICompatibleChatResponseDto.Choice.Message(role = "assistant", content = text.text.toString(), reasoningContent = reasoning.toString().takeIf { it.isNotEmpty() }, reasoningDetails = details.values.toList().takeIf { it.isNotEmpty() }?.let(::JsonArray), toolCalls = toolCalls.takeIf { it.isNotEmpty() }), finishReason = finish)), usage = usage)
     } catch (e: CancellationException) {
         throw e

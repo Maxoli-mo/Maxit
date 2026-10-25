@@ -50,6 +50,7 @@ nav:
     - On-Device Inference: features/on-device-inference.md
     - Reasoning: features/reasoning.md
     - System Prompts: features/system-prompts.md
+    - Profile: features/profile.md
     - Skills: features/skills.md
     - Linux Sandbox: features/sandbox.md
     - Maxit Build: features/maxit-build.md

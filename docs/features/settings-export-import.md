@@ -1,14 +1,14 @@
-<!-- Modified for Maxit, 2026-10-24. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # Settings Export / Import
 
-**Last reviewed:** 2026-10-24
+**Last reviewed:** 2026-10-25
 
-**Last verified:** 2026-10-24. Import-validation and persistence checks are local regressions; browser quota and Android shell behavior still require runtime acceptance.
+**Last verified:** 2026-10-25. Import-validation and persistence checks are local regressions; browser quota and Android shell behavior still require runtime acceptance.
 
-Users can back up and restore their Maxit configuration and data (services, agent instructions, memory, tasks, heartbeat, email, SMS, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
+Users can back up and restore their Maxit configuration and data (services, profile, custom instructions, memory, tasks, heartbeat, email, SMS, tools, MCP servers, conversations) via a human-readable JSON file. Some device-local preferences are deliberately left out — see **Excluded**. The feature is available under **Settings > General** at the bottom of the page.
 
-The **Agent instructions** setting retains the legacy `soul_text` JSON key, `ImportSection.SOUL`, and `getSoulText()` / `setSoulText()` APIs. The label and default changed; storage was not migrated. Saved nonempty overrides are loaded verbatim. An empty value selects the [bundled Markdown default](system-prompts.md#editable-agent-instructions), which is not copied into exports.
+**Custom instructions** retain the legacy `soul_text` JSON key. Saved text is preserved and supplements the [built-in behavior](system-prompts.md#built-in-behavior-and-custom-instructions); an empty value adds no personal instructions. Built-in instructions are never copied into exports. **Profile** is an independent selectable section containing Full name and the preferred conversational name. Full name is not sent to the model through prompt assembly, but is included in a selected Profile backup; treat the JSON file as personal data.
 
 ## Behavior
 
@@ -16,7 +16,8 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 - Tapping **Export** opens an **Export Preview Dialog** that lists each settings section currently holding real user data, with item counts where applicable (e.g. "Services (2)", "Memory (5)"). All sections are checked by default; the user can untick any section to leave it out of the file.
 - A section is only listed when it actually has data. Pure feature-toggle flags (e.g. SMS turned off, an empty MCP server list) do not appear in the dialog. Specifically:
   - SERVICES — only if at least one service is configured
-  - SOUL — only if saved agent instructions are nonblank
+  - SOUL — only if saved custom instructions are nonblank
+  - PROFILE — only if at least one profile name is nonblank
   - MEMORY / SCHEDULING / CONVERSATIONS — only if at least one entry exists
   - HEARTBEAT — only if a custom prompt, config, or log entries exist
   - EMAIL — only if at least one account is configured
@@ -36,6 +37,7 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
   - **Merge**: Only apply selected sections; all other settings stay unchanged.
 - Clicking **Import** in the dialog applies the selected sections. Afterwards the settings screen is rebuilt, service connections are re-checked, enabled MCP servers are reconnected, and conversations are reloaded so imported chats appear without a restart. A status line under the buttons reports success, partial success (with the number of failed sections), or failure.
 - Each settings section is imported independently. If one section contains malformed data, the remaining sections are still imported and the error is counted.
+- Profile names must be single-line text of at most 200 characters each, without control characters. The whole profile is validated before saving; invalid data preserves both existing names. Merge imports of custom instructions do not change Profile, and vice versa. Replace resets an unselected Profile to empty, following the same rule as other sections.
 - Unknown keys are silently ignored, so older exports can be imported into newer app versions.
 - Scheduled tasks and memories with missing or invalid fields are auto-filled with sensible defaults (e.g. generated UUIDs for missing IDs, `PENDING` for invalid task status, `GENERAL` for invalid memory category). A malformed conversation record or duplicate retained conversation IDs reject the whole Conversations section before staging or replacing saved history. Existing conversations remain intact, and the failed section is reported rather than silently discarding records.
 - Valid imported conversations replace all existing conversations on the next reload. In Replace mode, leaving Conversations unselected clears all conversations. Attempts and callbacks from the old storage generation cannot overwrite the imported copy. The next Android shell access creates fresh ownership for new work, even when the imported conversation retains the same ID.
@@ -47,7 +49,8 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 | Section | Display Name | JSON keys detected |
 |---------|-------------|-------------------|
 | SERVICES | Services | `configured_services`, `current_service_id`, `free_fallback_enabled`, `instance_settings` |
-| SOUL | Agent instructions | `soul_text` |
+| SOUL | Custom instructions | `soul_text` |
+| PROFILE | Profile | `user_profile` |
 | MEMORY | Memory | `memory_enabled`, `agent_memories` |
 | SCHEDULING | Scheduling | `scheduling_enabled`, `scheduled_tasks` |
 | HEARTBEAT | Heartbeat | `heartbeat_config`, `heartbeat_prompt`, `heartbeat_log` |
@@ -62,7 +65,8 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 | Category | Keys |
 |----------|------|
 | Services | `configured_services`, `current_service_id`, `free_fallback_enabled`, per-instance `api_key` / `model_id` / `base_url` / optional `use_custom_model` / `custom_model_id` |
-| Agent instructions | `soul_text` (legacy key) |
+| Custom instructions | `soul_text` (legacy key) |
+| Profile | `user_profile` containing `fullName` and `preferredName` |
 | Memory | `memory_enabled`, `agent_memories` |
 | Scheduling | `scheduling_enabled`, `scheduled_tasks` |
 | Heartbeat | `heartbeat_config`, `heartbeat_prompt`, `heartbeat_log` |
@@ -93,6 +97,8 @@ The **Agent instructions** setting retains the legacy `soul_text` JSON key, `Imp
 
 | File | Role |
 |------|------|
+| `composeApp/src/commonMain/.../data/UserProfile.kt` | Validated profile record; full and preferred names |
+| `composeApp/src/commonTest/.../data/UserProfileTest.kt` | Independent sections, persistence, invalid import preservation, and replace/merge |
 | `composeApp/.../data/AppSettings.kt` | `ImportSection` enum, `detectImportSections()` / `detectExportableSections()` |
 | `composeApp/.../data/AppSettingsImportExport.kt` | `exportToJson()` / `importFromJson()` core logic (selective `Set<ImportSection>`), `sanitizeScheduledTasks()` / `sanitizeMemories()` helpers |
 | `composeApp/.../data/DataRepository.kt` | Interface methods (`exportSettingsToJson(sections)`, `getExportPreview()`, `importSettingsFromJson(...)`) |

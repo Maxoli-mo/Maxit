@@ -68,6 +68,13 @@ fun AppSettings.exportToJson(
         if (soul.isNotBlank()) map["soul_text"] = JsonPrimitive(soul)
     }
 
+    if (ImportSection.PROFILE in sections) {
+        val profile = getUserProfile()
+        if (profile.fullName.isNotBlank() || profile.preferredName.isNotBlank()) {
+            map["user_profile"] = SharedJson.encodeToJsonElement(UserProfile.serializer(), profile)
+        }
+    }
+
     if (ImportSection.MEMORY in sections) {
         map["memory_enabled"] = JsonPrimitive(isMemoryEnabled())
         val memoriesJson = getMemoriesJson()
@@ -217,6 +224,24 @@ fun AppSettings.importFromJson(
         }
     } else if (replace) {
         setSoulText("")
+    }
+
+    if (ImportSection.PROFILE in sections) {
+        try {
+            val profile = json["user_profile"]?.let { element ->
+                val fields = element.jsonObject
+                for (field in listOf("fullName", "preferredName")) {
+                    val value = fields[field] ?: continue
+                    require(value is JsonPrimitive && value.isString) { "Profile names must be text" }
+                }
+                SharedJson.decodeFromJsonElement(UserProfile.serializer(), element)
+            } ?: UserProfile()
+            setUserProfile(profile)
+        } catch (_: Exception) {
+            errors++
+        }
+    } else if (replace) {
+        setUserProfile(UserProfile())
     }
 
     if (ImportSection.MEMORY in sections) {

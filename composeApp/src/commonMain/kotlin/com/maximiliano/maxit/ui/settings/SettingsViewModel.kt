@@ -12,6 +12,7 @@ import com.maximiliano.maxit.data.ImportSection
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.TaskScheduler
 import com.maximiliano.maxit.data.ThemeMode
+import com.maximiliano.maxit.data.UserProfile
 import com.maximiliano.maxit.data.supportsAgenticFlows
 import com.maximiliano.maxit.getBackgroundDispatcher
 import com.maximiliano.maxit.inference.LocalModel
@@ -87,6 +88,7 @@ class SettingsViewModel(
         availableServicesToAdd = computeAvailableServices().toImmutableList(),
         tools = dataRepository.getToolDefinitions().toImmutableList(),
         soulText = dataRepository.getSoulText(),
+        userProfile = dataRepository.getUserProfile(),
         isDynamicUiEnabled = dataRepository.isDynamicUiEnabled(),
         themeMode = dataRepository.getThemeMode(),
         isMemoryEnabled = dataRepository.isMemoryEnabled(),
@@ -163,6 +165,7 @@ class SettingsViewModel(
         onChangeCustomModelId = ::onChangeCustomModelId,
         onToggleTool = ::onToggleTool,
         onSaveSoul = ::onSaveSoul,
+        onSaveProfile = ::onSaveProfile,
         onToggleDynamicUi = ::onToggleDynamicUi,
         onChangeThemeMode = ::onChangeThemeMode,
         onToggleMemory = ::onToggleMemory,
@@ -502,6 +505,12 @@ class SettingsViewModel(
     private fun onSaveSoul(text: String) {
         dataRepository.setSoulText(text)
         _state.update { it.copy(soulText = text) }
+    }
+
+    private fun onSaveProfile(profile: UserProfile) {
+        val saved = profile.copy(fullName = profile.fullName.trim(), preferredName = profile.preferredName.trim())
+        dataRepository.setUserProfile(saved)
+        _state.update { it.copy(userProfile = saved) }
     }
 
     private fun onToggleDynamicUi(enabled: Boolean) {

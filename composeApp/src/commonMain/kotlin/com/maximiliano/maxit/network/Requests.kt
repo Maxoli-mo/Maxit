@@ -234,7 +234,8 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         }
             .execute { response ->
                 if (response.status.isSuccess()) {
-                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readGeminiStream(response.bodyAsChannel(), onText ?: {}) else readGeminiBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                    val channel = response.bodyAsChannel()
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true || hasSsePrefix(channel)) readGeminiStream(channel, onText ?: {}) else readGeminiBody(readModelBody(channel), onText ?: {}))
                 } else {
                     when (response.status.value) {
                         429 -> throw GeminiRateLimitExceededException()
@@ -291,7 +292,8 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         }
             .execute { response ->
                 if (response.status.isSuccess()) {
-                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readChatCompletionStream(response.bodyAsChannel(), onText ?: {}) else readChatCompletionBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                    val channel = response.bodyAsChannel()
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true || hasSsePrefix(channel)) readChatCompletionStream(channel, onText ?: {}) else readChatCompletionBody(readModelBody(channel), onText ?: {}))
                 } else {
                     handleOpenAICompatibleError(service, credentials, response)
                 }
@@ -350,7 +352,8 @@ class Requests(private val codexAuth: CodexAuth? = null) {
                 setBody(request)
             }.execute { response ->
                 if (response.status.isSuccess()) {
-                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readCodexResponse(response.bodyAsChannel(), onText ?: {}) else readResponsesBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                    val channel = response.bodyAsChannel()
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true || hasSsePrefix(channel)) readCodexResponse(channel, onText ?: {}) else readResponsesBody(readModelBody(channel), onText ?: {}))
                 } else {
                     handleOpenAICompatibleError(service, credentials, response)
                 }
@@ -510,7 +513,8 @@ class Requests(private val codexAuth: CodexAuth? = null) {
         }
             .execute { response ->
                 if (response.status.isSuccess()) {
-                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true) readAnthropicStream(response.bodyAsChannel(), onText ?: {}) else readAnthropicBody(readModelBody(response.bodyAsChannel()), onText ?: {}))
+                    val channel = response.bodyAsChannel()
+                    Result.success(if (response.contentType()?.match(ContentType.Text.EventStream) == true || hasSsePrefix(channel)) readAnthropicStream(channel, onText ?: {}) else readAnthropicBody(readModelBody(channel), onText ?: {}))
                 } else {
                     throwAnthropicError(response.status.value, response.bodyAsText())
                 }

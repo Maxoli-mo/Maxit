@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-24. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # On-Device Inference (LiteRT)
 
-**Last verified:** 2026-10-24. Native streaming/cancellation changes require real-device acceptance; iOS source has not been compiled or exercised in this Linux environment.
+**Last verified:** 2026-10-25. Prompt composition is covered by local tests; Native streaming/cancellation changes require real-device acceptance; iOS source has not been compiled or exercised in this Linux environment.
 
 Maxit can run AI models directly on the user's device using Google's LiteRT LM SDK. Once a model is downloaded, inference requires no API key or network connection. The maintained targets for local inference are **Android** and **Linux desktop**. The iOS, macOS, and Windows implementations described below are retained source only.
 
@@ -53,7 +53,7 @@ Remote skill creation additionally accepts nested bundled-file objects, but `Ski
 
 **Qwen3 0.6B caveat:** at 0.6 B params it rarely emits valid function-call syntax — it tends to hallucinate answers (e.g. a fictional time) instead of invoking `get_local_time`. Treat Qwen3 as a chat-only model in practice; use Gemma 4 E2B/E4B for tools when the device can run them, or configure a remote provider. Whether the capability gate above withholds tools from Qwen3 automatically depends on what its bundle declares; the caveat stands either way.
 
-The `CHAT_LOCAL` system prompt includes Maxit identity, agent instructions, honesty and authorization rules, Tool Use when tools are available, basic memory guidance and budgeted memory categories when memory is enabled, the installed-skills names/descriptions catalog, the active skill when explicitly selected, and runtime Context. It shares the [bundled agent instructions](../../composeApp/src/commonMain/composeResources/files/prompts/agent-instructions.md) and `loadAgentInstructions` loader with remote chat; nonempty saved overrides take precedence. Memory-category sections share 2,000 characters, including headings and formatting. Structured Learning, Automation, Email Accounts, Scheduled Tasks, and Heartbeat Additions are omitted.
+The on-device system prompt includes Maxit identity, always-included [built-in behavior](../../composeApp/src/commonMain/composeResources/files/prompts/agent-instructions.md), actual execution environment, preferred conversational name when set, additive custom instructions, honesty and authorization rules, tool guidance when tools are available, basic memory guidance and budgeted memory categories when memory is enabled, the installed-skills catalog, the active skill when explicitly selected, and runtime context. Saved custom instructions never replace the built-in behavior. The profile Full name is not sent to the model. A tool-free retry retains preferences but explicitly describes the absence of shell access. Memory-category sections share 2,000 characters, including headings and formatting. Structured Learning, Automation, Email Accounts, Scheduled Tasks, and Heartbeat Additions are omitted.
 
 Dynamic/Interactive UI generation is **parked for all models**. Its instructions remain archived outside runtime resources and are not loaded by the skills rework; entry points are hidden, and existing interactive conversations reopen as normal chat. The renderer and stored messages remain.
 

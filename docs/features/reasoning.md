@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # Reasoning Content Handling
 
-**Last verified:** 2026-10-24
+**Last verified:** 2026-10-25
 
 Reasoning-capable models (DeepSeek R1, GLM thinking, Qwen thinking, Kimi thinking, Magistral, gpt-oss, etc.) return their chain-of-thought separately from the final answer. Maxit handles reasoning along two axes: **wire-side** (whether to echo the trace back to the provider on the next request) and **display-side** (whether to show it to the user in the chat UI). When a turn also contains `tool_calls`, some providers require the chain-of-thought to be echoed back to preserve reasoning continuity across the tool round-trip — and others strictly reject the same field. This page documents what each provider does, what Maxit sends, and where we trade fidelity for simplicity.
 
@@ -45,7 +45,7 @@ Services currently set to `REASONING_CONTENT`: DeepSeek, OpenRouter, Requesty, L
 
 All other services use the default `NONE` (the field is stripped on send). This is the safe default — any service we don't yet have evidence about will not regress.
 
-Received reasoning traces remain in the saved message regardless of the wire-side decision, so display and provider replay are independent. Chat-completions reasoning details, raw Anthropic blocks (including signed/redacted thinking), Gemini thought signatures, and raw Responses output are retained without rewriting their opaque fields. Usage metadata is retained when supplied. Capture applies going forward; previously discarded metadata cannot be recovered.
+Received reasoning traces remain in the saved message regardless of the wire-side decision, so display and provider replay are independent. Reasoning is never inspected for executable legacy wrapped calls, even when it supplies the displayed content of a thinking-only reply. Chat-completions reasoning details, raw Anthropic blocks (including signed/redacted thinking), Gemini thought signatures, and raw Responses output are retained without rewriting their opaque fields. Usage metadata is retained when supplied. Capture applies going forward; previously discarded metadata cannot be recovered.
 
 Opaque continuation is scoped to the originating provider instance/model and complete tool exchanges. Reused native call identities have separate durable aliases so saved receipts remain unique without rewriting provider-native blocks. Switching targets or disabling tools preserves semantic action evidence as explicitly untrusted historical text, while incompatible opaque blocks are not replayed. This avoids sending one provider's signature format to another.
 
@@ -56,6 +56,8 @@ Fragmented gateway `reasoning_details` are assembled and can be replayed for Ope
 OpenAI's GPT-5.6 family (Sol, Terra, Luna) and every newer family are the one case where reasoning and tools cannot coexist on chat completions at all: the endpoint returns `400 Function tools with reasoning_effort are not supported for gpt-5.6-terra in /v1/chat/completions.` The documented chat-completions escape hatch is `reasoning_effort: "none"`, which turns the reasoning off. Maxit instead routes those models to the Responses API, where the combination is supported -- see [multi-service.md](multi-service.md#openai-responses-api).
 
 On that path reasoning is a separate output item rather than a message field, so the chat-completions matrix does not apply. Maxit requests encrypted reasoning content, preserves the raw completed output, and replays compatible items together with their complete function-call/result exchange. Native call IDs must match before raw replay is used. Request projection keeps these exchanges together; incompatible or incomplete history becomes semantic historical evidence instead of a broken native continuation. Eligible reasoning summaries still feed the usual Thinking disclosure. Server-side response storage remains disabled.
+
+A successful terminal event can contain an empty output list even after completed items streamed earlier. In that case, Maxit reconstructs the output from fully completed items in index order, preserving opaque reasoning beside text and native calls. A nonempty terminal output list remains authoritative. Recovery requires completed items at every index starting from zero, including items observed only through text or argument fragments. Missing indexes, unindexed output fragments, unfinished or conflicting items, or missing received answer text fail without dispatch or overwriting the saved text checkpoint. Reconstruction has per-response item and size bounds. This retention path has deterministic regression coverage; it does not certify reasoning continuity on every live route.
 
 Reasoning summaries are only returned to accounts eligible for them, so for most users these turns display no thinking trace -- the same as OpenAI on chat completions today.
 
@@ -84,6 +86,8 @@ No new upstream reasoning flags or per-model mode negotiation were introduced fo
 | `composeApp/src/commonMain/.../data/Service.kt` | Per-service reasoning mode assignment |
 | `composeApp/src/commonMain/.../ui/chat/ChatUiState.kt` | Provider-message mapping and gated reasoning fields |
 | `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Fragmented reasoning, signature, usage, and raw-block capture |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Completed Responses item reconstruction, opaque retention and native-call validation |
+| `composeApp/src/commonTest/.../network/CodexResponsesTest.kt` | Gap-free empty-terminal recovery, delta-only items, opaque content, and incomplete-item rejection |
 | `composeApp/src/commonMain/.../data/ConversationContext.kt` | Complete-exchange and provider compatibility projection |
 | `composeApp/src/commonMain/.../data/providers/OpenAIResponsesInput.kt` | Compatible raw continuation and native call/result mapping |
 | `composeApp/src/commonTest/.../data/ConversationContinuationTest.kt` | Encrypted continuation, wire aliases, and opaque-field regressions |

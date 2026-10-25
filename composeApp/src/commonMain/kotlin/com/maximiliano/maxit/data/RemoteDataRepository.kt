@@ -54,6 +54,7 @@ import com.maximiliano.maxit.network.UnsupportedFileTypeException
 import com.maximiliano.maxit.network.dtos.anthropic.extractText
 import com.maximiliano.maxit.network.dtos.gemini.extractText
 import com.maximiliano.maxit.network.dtos.openaicompatible.extractInlineToolCalls
+import com.maximiliano.maxit.network.dtos.openaicompatible.hasBareToolCallEnvelope
 import com.maximiliano.maxit.network.dtos.openairesponses.OpenAIResponsesResponseDto
 import com.maximiliano.maxit.network.toUiError
 import com.maximiliano.maxit.network.tools.Tool
@@ -120,6 +121,11 @@ import kotlin.uuid.Uuid
 
 private const val MAX_API_RETRIES = 2
 private const val ESTIMATED_CHARS_PER_TOKEN = 4
+private const val TOOL_PROTOCOL_CORRECTION =
+    "The previous assistant message was text, not a tool invocation; no calls from that text ran. " +
+        "Continue the user's request using the native tool interface if needed, not tool-call JSON in the answer. " +
+        "If the user requested an example, quote or fence it instead; do not execute examples. " +
+        "Do not repeat completed actions. Existing authorization and approval requirements still apply."
 
 internal fun fitsContextWindow(messages: List<History>, systemPrompt: String?, modelId: String): Boolean {
     val requestChars = messages.sumOf { it.content.length.toLong() } + (systemPrompt?.length ?: 0)
@@ -193,6 +199,7 @@ private data class LoopChatResult(
     val toolCalls: List<ToolCallInfo>,
     val providerBlocks: JsonArray? = null,
     val providerUsage: JsonObject? = null,
+    val needsToolProtocolRepair: Boolean = false,
 )
 
 /** Final answer from a single assistant turn — text and (optionally) the reasoning trace
@@ -1111,8 +1118,9 @@ class RemoteDataRepository(
                     ToolCallInfo(id = tc.id, name = tc.function.name, arguments = tc.function.arguments)
                 }
                 var textContent = message.effectiveContent ?: ""
-                if (calls.isEmpty() && textContent.contains("<tool_call>")) {
-                    val extracted = extractInlineToolCalls(textContent, tools)
+                val needsToolProtocolRepair = calls.isEmpty() && hasBareToolCallEnvelope(message.content.orEmpty(), declaredToolNames)
+                if (!needsToolProtocolRepair && calls.isEmpty()) {
+                    val extracted = extractInlineToolCalls(message.content.orEmpty(), tools)
                     if (extracted.calls.isNotEmpty()) {
                         textContent = extracted.cleanedText
                         calls = extracted.calls.map {
@@ -1131,6 +1139,7 @@ class RemoteDataRepository(
                     toolCalls = calls,
                     providerBlocks = message.reasoningDetails,
                     providerUsage = response.usage,
+                    needsToolProtocolRepair = needsToolProtocolRepair,
                 )
             }
         }
@@ -1224,12 +1233,14 @@ class RemoteDataRepository(
         history: MutableStateFlow<List<History>>,
     ): AssistantTurn {
         val guard = ToolLoopGuard()
+        var protocolRepairAttempted = false
+        var requestSystemPrompt = systemPrompt
         while (true) {
             currentCoroutineContext().ensureActive()
-            val visible = conversationContext(history.value, systemPrompt, strategy.historyContextWindowTokens ?: ModelCatalog.DEFAULT_CONTEXT_WINDOW_TOKENS, getAvailableTools() + conversationHistoryTool(history))
+            val visible = conversationContext(history.value, requestSystemPrompt, strategy.historyContextWindowTokens ?: ModelCatalog.DEFAULT_CONTEXT_WINDOW_TOKENS, getAvailableTools() + conversationHistoryTool(history))
             val stream = StreamedAssistant(history, CoroutineScope(currentCoroutineContext()))
             val received = try {
-                strategy.chat(visible, systemPrompt, stream::append)
+                strategy.chat(visible, requestSystemPrompt, stream::append)
             } finally {
                 stream.preservePartial()
             }
@@ -1246,6 +1257,13 @@ class RemoteDataRepository(
             stream.complete(
                 History(role = History.Role.ASSISTANT, content = result.textContent, isThinking = result.isThinkingContent, toolCalls = result.toolCalls.takeIf { it.isNotEmpty() }?.toImmutableList(), reasoningContent = result.reasoningContent, providerBlocks = result.providerBlocks, providerKey = strategy.providerKey, providerUsage = result.providerUsage),
             )
+            if (result.needsToolProtocolRepair) {
+                if (protocolRepairAttempted) throw RunPausedException("The model returned tool-call JSON as text again. Those text blocks were not executed. Review saved activity before continuing.")
+                protocolRepairAttempted = true
+                // Continue from saved evidence, never replay the request or dispatch the printed JSON.
+                requestSystemPrompt = listOfNotNull(systemPrompt, TOOL_PROTOCOL_CORRECTION).joinToString("\n\n")
+                continue
+            }
             if (result.toolCalls.isEmpty()) return AssistantTurn(result.textContent, result.reasoningContent?.takeIf { !result.isThinkingContent }, stream.id)
             guard.backoffIfPolling(result.toolCalls)
             val results = executeToolCallsInParallel(result.toolCalls.map { Triple(it.id, it.name, it.arguments) }, history)
@@ -1638,6 +1656,10 @@ class RemoteDataRepository(
         appSettings.setSoulText(text)
     }
 
+    override fun getUserProfile(): UserProfile = appSettings.getUserProfile()
+
+    override fun setUserProfile(profile: UserProfile) = appSettings.setUserProfile(profile)
+
     override suspend fun getActiveSystemPrompt(variant: SystemPromptVariant): String? = buildActiveSystemPrompt(variant, currentService(), currentModelId())
 
     private suspend fun buildActiveSystemPrompt(
@@ -1646,7 +1668,7 @@ class RemoteDataRepository(
         modelId: String,
         toolsEnabled: Boolean = true,
     ): String? {
-        val soul = loadAgentInstructions(appSettings.getSoulText())
+        val agentInstructions = loadAgentInstructions()
         val memoryEnabled = appSettings.isMemoryEnabled()
         val schedulingEnabled = appSettings.isSchedulingEnabled()
 
@@ -1708,7 +1730,14 @@ class RemoteDataRepository(
 
         return buildChatSystemPrompt(
             variant = variant,
-            soul = soul,
+            agentInstructions = agentInstructions,
+            customInstructions = appSettings.getSoulText(),
+            preferredName = appSettings.getUserProfile().preferredName,
+            environment = buildChatEnvironment(
+                platform = currentPlatform,
+                shellAvailable = availableTools.any { it.schema.name == "execute_shell_command" },
+                distro = sandboxController.status.value.distro,
+            ),
             hasTools = availableTools.isNotEmpty(),
             memoryEnabled = memoryEnabled,
             schedulingEnabled = schedulingEnabled,

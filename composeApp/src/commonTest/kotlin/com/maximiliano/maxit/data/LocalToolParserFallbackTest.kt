@@ -42,7 +42,8 @@ class LocalToolParserFallbackTest {
 
     private fun prompt(toolsEnabled: Boolean, activeSkill: SkillManifest? = null) = buildChatSystemPrompt(
         variant = SystemPromptVariant.CHAT_LOCAL,
-        soul = "Caller agent instructions.",
+        agentInstructions = "Built-in behavior.",
+        customInstructions = "Caller agent instructions.",
         hasTools = toolsEnabled,
         memoryEnabled = false,
         schedulingEnabled = false,

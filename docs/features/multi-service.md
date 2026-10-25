@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-20. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # Multi-Service
 
-**Last verified:** 2026-10-24
+**Last verified:** 2026-10-25
 
 Maxit supports user-configured LLM providers and local models. Each provider uses one of three API formats: **OpenAI-compatible** (most services), **Gemini native**, or **Anthropic native** -- plus **LiteRT on-device** for local inference. A handful of OpenAI models additionally require OpenAI's **Responses API**; Maxit switches to it per model, transparently. Users can configure multiple service instances, reorder them, and Maxit automatically falls back through the configured chain on failure.
 
@@ -46,7 +46,7 @@ The `free` service ID is retained only as a history/settings compatibility senti
 
 ## Streaming and Provider Changes
 
-Chat Completions, Responses/Codex, Anthropic, and Gemini use bounded incremental response parsing. An endpoint returning ordinary JSON is handled as a complete-response fallback, not fake streaming. Tool arguments are assembled and terminally validated before dispatch. Cancellation stops the owning request; it cannot guarantee that provider billing or external actions were rolled back.
+Chat Completions, Responses/Codex, Anthropic, and Gemini use bounded incremental response parsing. When a remote endpoint omits or mislabels its streaming content type, a bounded, non-consuming prefix check recognizes event streams; ordinary JSON remains a complete-response fallback, not fake streaming. All four stream formats remove one initial byte-order mark before decoding, without stripping marks inside later event data. Tool arguments are assembled and terminally validated before dispatch. Cancellation stops the owning request; it cannot guarantee that provider billing or external actions were rolled back.
 
 Raw continuation blocks, exposed reasoning, signatures, and usage survive storage when supplied. Native replay is scoped to the same provider instance/model and complete exchanges. Switching providers or disabling tools quotes incompatible prior activity as untrusted historical evidence while retaining its original saved records. No additional provider, proxy, or fallback service is introduced by this reliability feature. See [chat.md](chat.md) and [reasoning.md](reasoning.md).
 
@@ -67,7 +67,7 @@ Everything ahead of the wire call is shared with the chat-completions path: syst
 Stateless continuation:
 
 - **Responses are not stored server-side** (`store: false`); Maxit sends the projected conversation rather than chaining stored response IDs. Provider retention policies still apply.
-- **Compatible reasoning/output items are retained and replayed.** Encrypted reasoning is requested, opaque output stays intact, and native call IDs must match the complete tool exchange before raw replay. Context reduction keeps paired exchanges together; incompatible metadata becomes semantic historical evidence rather than a broken native continuation. Eligible exposed summaries still appear in the Thinking disclosure.
+- **Compatible reasoning/output items are retained and replayed.** If a completed event has an empty output list, fully completed streamed items supply the answer and native calls in their original index order, retaining opaque reasoning. Empty-terminal recovery requires completed items at every index from zero, including items first seen through text or argument fragments. Missing indexes, unindexed output fragments, unfinished/conflicting items, or missing received answer text fail without dispatch or overwriting saved text; a complete final output list remains authoritative and is not appended twice. Encrypted reasoning is requested, opaque output stays intact, and native call IDs must match the complete tool exchange before raw replay. Context reduction keeps paired exchanges together; incompatible metadata becomes semantic historical evidence rather than a broken native continuation. Eligible exposed summaries still appear in the Thinking disclosure.
 - Images and supported PDFs become native input-image/input-file items. Unsupported attachment formats are explicitly noted as unavailable rather than silently treated as inspected.
 
 Matching on the version rather than a fixed list means a new OpenAI family is routed correctly on release, with no app update.
@@ -204,12 +204,13 @@ Users manage services through the settings screen:
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Fallback chain, request orchestration |
 | `composeApp/src/commonMain/.../network/Requests.kt` | HTTP clients for all API formats |
 | `composeApp/src/commonMain/.../network/CodexAuth.kt` | Codex device authorization, native session persistence, refresh and disconnect |
-| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Authenticated Codex event streams, safe errors and account model discovery |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Shared Responses event reconstruction and call validation; authenticated Codex transport and account model discovery |
 | `composeApp/src/commonMain/.../data/BackgroundServiceSelection.kt` | Credential-aware automatic background and silent target selection |
 | `composeApp/src/desktopTest/.../data/SignedOutCodexWorkTest.kt` | Signed-out requests, scheduler, heartbeat queues, retained-history regressions |
 | `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Shared SSE/JSON response decoding and terminal validation |
 | `composeApp/src/commonMain/.../data/ConversationContext.kt` | Non-destructive context and provider compatibility |
-| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Framing, fragmented calls, truncation, signatures and interruption tests |
+| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Framing, stream detection, fragmented calls, truncation, signatures and interruption tests |
+| `composeApp/src/commonTest/.../network/CodexResponsesTest.kt` | Empty-terminal reconstruction, native call validation, interruption and sign-in boundaries |
 | `composeApp/src/commonMain/.../data/ModelCapabilities.kt` | Per-model gates: tool support, image support, Responses API routing |
 | `composeApp/src/commonMain/.../data/providers/OpenAIResponsesInput.kt` | Translates chat-completions messages into Responses API input items |
 | `composeApp/src/commonMain/.../network/dtos/openairesponses/` | OpenAI Responses API DTOs |

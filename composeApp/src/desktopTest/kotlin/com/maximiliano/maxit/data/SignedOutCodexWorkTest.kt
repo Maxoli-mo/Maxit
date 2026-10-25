@@ -83,6 +83,18 @@ class SignedOutCodexWorkTest {
     }
 
     @Test
+    fun `real prompt assembly includes preferred address but never the profile full name`() = runTest {
+        val fixture = Fixture(this)
+        fixture.settings.setUserProfile(UserProfile("Taylor Private Surname", "Sam"))
+        val prompt = fixture.repository.getActiveSystemPrompt(SystemPromptVariant.CHAT_LOCAL).orEmpty()
+        assertTrue("Preferred name: \"Sam\"" in prompt)
+        assertFalse("Taylor Private Surname" in prompt)
+        assertTrue("Test instructions" in prompt)
+        assertTrue(loadAgentInstructions() in prompt)
+        assertTrue("No shell access is available in this request" in prompt)
+    }
+
+    @Test
     fun `signed out background and silent requests fail instead of returning empty success`() = runTest {
         val f = Fixture(this)
         assertFailsWith<GenericNetworkException> { f.repository.askWithTools("Run this task") }

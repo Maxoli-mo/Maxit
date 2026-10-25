@@ -4,6 +4,7 @@ package com.maximiliano.maxit.network.dtos.openaicompatible
 
 import com.maximiliano.maxit.network.tools.Tool
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -22,6 +23,28 @@ internal data class InlineToolCallExtraction(
     val calls: List<ParsedInlineToolCall>,
 )
 
+/** A suspicious whole-message envelope is a reason to ask for correction, never to execute text. */
+internal fun hasBareToolCallEnvelope(content: String, declaredToolNames: Set<String>): Boolean {
+    if (declaredToolNames.isEmpty() || !content.trimStart().startsWith("{")) return false
+    val obj = runCatching { Json.parseToJsonElement(content) as? JsonObject }.getOrNull() ?: return false
+    if (obj.keys != setOf("tool_calls")) return false
+    val calls = obj["tool_calls"] as? JsonArray ?: return false
+    return calls.isNotEmpty() && calls.all { element ->
+        val call = element as? JsonObject ?: return@all false
+        val function = if ("function" in call) {
+            if (call.keys.any { it !in setOf("id", "type", "function") }) return@all false
+            call["function"] as? JsonObject ?: return@all false
+        } else {
+            if (call.keys.any { it !in setOf("id", "type", "name", "arguments") }) return@all false
+            call
+        }
+        val name = function["name"] as? JsonPrimitive
+        val args = function["arguments"]
+        name?.isString == true && name.content in declaredToolNames &&
+            (args is JsonObject || (args is JsonPrimitive && args.isString))
+    }
+}
+
 private const val OPEN_TAG = "<tool_call>"
 private const val CLOSE_TAG = "</tool_call>"
 
@@ -37,8 +60,8 @@ private val lenientJson = Json {
  * Some OpenAI-compatible models (Qwen, Hermes-style fine-tunes, and a number of
  * self-hosted endpoints) occasionally emit tool calls as inline `<tool_call>` XML
  * inside the assistant content instead of populating the structured `tool_calls`
- * field. Detect those blocks, convert each one into a synthetic tool call, and
- * return the surrounding natural-language text with the blocks removed.
+ * field. Accept only whole messages of complete wrappers for declared tools;
+ * mixed prose, quoted examples, and incomplete batches remain unchanged.
  *
  * Two block flavors are accepted:
  *  - Hermes / OpenHands XML: `<function=NAME><parameter=KEY>VALUE</parameter>…</function>`
@@ -51,40 +74,32 @@ internal fun extractInlineToolCalls(
     content: String,
     tools: List<Tool>,
 ): InlineToolCallExtraction {
-    if (!content.contains(OPEN_TAG)) return InlineToolCallExtraction(content, emptyList())
-
+    val unchanged = InlineToolCallExtraction(content, emptyList())
     val calls = mutableListOf<ParsedInlineToolCall>()
-    val cleaned = StringBuilder()
     var pos = 0
     while (pos < content.length) {
-        val openIdx = content.indexOf(OPEN_TAG, pos)
-        if (openIdx < 0) {
-            cleaned.append(content, pos, content.length)
-            break
+        if (content[pos].isWhitespace()) {
+            pos++
+            continue
         }
-        cleaned.append(content, pos, openIdx)
-        val closeIdx = content.indexOf(CLOSE_TAG, openIdx + OPEN_TAG.length)
-        val blockEnd = if (closeIdx >= 0) closeIdx + CLOSE_TAG.length else content.length
-        val innerEnd = if (closeIdx >= 0) closeIdx else content.length
-        val inner = content.substring(openIdx + OPEN_TAG.length, innerEnd).trim()
-
-        val parsed = parseToolCallBlock(inner, tools)
-        if (parsed != null) {
-            calls.add(parsed)
-        } else {
-            // Couldn't make sense of this block — keep it visible rather than silently dropping it.
-            cleaned.append(content, openIdx, blockEnd)
-        }
-        pos = blockEnd
+        if (!content.startsWith(OPEN_TAG, pos)) return unchanged
+        val closeIdx = content.indexOf(CLOSE_TAG, pos + OPEN_TAG.length)
+        if (closeIdx < 0) return unchanged
+        val inner = content.substring(pos + OPEN_TAG.length, closeIdx).trim()
+        if (inner.contains(OPEN_TAG)) return unchanged
+        val parsed = parseToolCallBlock(inner, tools) ?: return unchanged
+        if (tools.none { it.schema.name == parsed.name }) return unchanged
+        calls.add(parsed)
+        pos = closeIdx + CLOSE_TAG.length
     }
-    return InlineToolCallExtraction(cleaned.toString().trim(), calls)
+    return if (calls.isEmpty()) unchanged else InlineToolCallExtraction("", calls)
 }
 
 private fun parseToolCallBlock(inner: String, tools: List<Tool>): ParsedInlineToolCall? {
     if (inner.isEmpty()) return null
     return when {
         inner.startsWith("{") -> parseJsonFlavor(inner)
-        inner.contains("<function=") -> parseXmlFlavor(inner, tools)
+        inner.startsWith("<function=") -> parseXmlFlavor(inner, tools)
         else -> null
     }
 }
@@ -105,7 +120,7 @@ private fun parseJsonFlavor(inner: String): ParsedInlineToolCall? = try {
 }
 
 private fun parseXmlFlavor(inner: String, tools: List<Tool>): ParsedInlineToolCall? {
-    val funcMatch = functionTagRegex.find(inner) ?: return null
+    val funcMatch = functionTagRegex.matchEntire(inner) ?: return null
     val name = funcMatch.groupValues[1]
     val body = funcMatch.groupValues[2]
     val schema = tools.firstOrNull { it.schema.name == name }?.schema

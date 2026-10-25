@@ -23,7 +23,7 @@ Each memory belongs to one of four categories:
 
 ### Reinforcement
 
-A mechanism for tracking how often a memory proves useful. A new memory starts with one hit; each reinforcement increments the hit count and updates the timestamp. Hit counts do not modify [agent instructions](system-prompts.md#editable-agent-instructions).
+A mechanism for tracking how often a memory proves useful. A new memory starts with one hit; each reinforcement increments the hit count and updates the timestamp. Hit counts do not modify [agent instructions](system-prompts.md#built-in-behavior-and-custom-instructions).
 
 ## Storage
 

@@ -473,6 +473,29 @@ class SettingsViewModelTest {
     // --- Soul / dynamic UI / memory toggles ---
 
     @Test
+    fun `profile and custom instructions save independently`() = runTest {
+        val profile = com.maximiliano.maxit.data.UserProfile("Taylor Example", "Sam")
+        fakeRepository.setUserProfile(profile)
+        fakeRepository.setSoulText("Keep answers brief.")
+        val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
+        viewModel.state.test {
+            assertEquals(profile, awaitItem().userProfile)
+            viewModel.actions.onSaveSoul("Use examples.")
+            val instructionsSaved = awaitItem()
+            assertEquals(profile, instructionsSaved.userProfile)
+            assertEquals(profile, fakeRepository.getUserProfile())
+            viewModel.actions.onSaveProfile(profile.copy(preferredName = "  River  "))
+            val profileSaved = awaitItem()
+            assertEquals("River", profileSaved.userProfile.preferredName)
+            assertEquals("Use examples.", profileSaved.soulText)
+            assertEquals("Use examples.", fakeRepository.getSoulText())
+            viewModel.actions.onSaveProfile(com.maximiliano.maxit.data.UserProfile())
+            assertEquals(com.maximiliano.maxit.data.UserProfile(), awaitItem().userProfile)
+            assertEquals("Use examples.", fakeRepository.getSoulText())
+        }
+    }
+
+    @Test
     fun `onSaveSoul persists soul text`() = runTest {
         val viewModel = SettingsViewModel(fakeRepository, fakeDaemonController, fakeNotificationPermissionController, noOpScheduler, testDispatcher)
 

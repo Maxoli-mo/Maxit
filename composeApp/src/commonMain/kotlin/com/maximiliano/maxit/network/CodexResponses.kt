@@ -185,6 +185,10 @@ private fun codexModels(catalog: JsonArray): OpenAICompatibleModelResponseDto = 
 /** Deltas are delivered immediately; only a terminal completed event permits tool dispatch. */
 internal suspend fun readCodexResponse(channel: ByteReadChannel, onText: suspend (String) -> Unit = {}): OpenAIResponsesResponseDto {
     var completed: OpenAIResponsesResponseDto? = null
+    val items = mutableMapOf<Int, JsonObject>()
+    val pending = mutableSetOf<Int>()
+    var unindexedOutput = false
+    var itemChars = 0
     var receivedText = false
     var textChars = 0
     try {
@@ -192,7 +196,25 @@ internal suspend fun readCodexResponse(channel: ByteReadChannel, onText: suspend
             if (completed == null) {
                 if (data != "[DONE]") {
                     val payload = parseCodexObject(data)
-                    if ((payload.text("type") ?: event) == "response.output_text.delta") {
+                    val type = payload.text("type") ?: event.orEmpty()
+                    if ("output_index" in payload || type in setOf("response.output_item.added", "response.output_item.done")) {
+                        val index = (payload["output_index"] as? JsonPrimitive)?.longOrNull?.takeIf { it in 0..511 }?.toInt()
+                            ?: throw StreamInterruptedException("The provider returned an invalid output index. No calls were dispatched.")
+                        if (type != "response.output_item.done") {
+                            pending.add(index)
+                        } else {
+                            val item = payload["item"] as? JsonObject ?: throw StreamInterruptedException("The provider returned an invalid completed output item.")
+                            val previous = items[index]
+                            if (previous != null && previous != item) throw StreamInterruptedException("The provider returned conflicting completed output items.")
+                            if (previous == null) itemChars += item.toString().length
+                            if (itemChars > 8_388_608) throw StreamInterruptedException("The provider output exceeded the per-response safety size.")
+                            items[index] = item
+                            pending.remove(index)
+                        }
+                    } else if (type.startsWith("response.output_") || type.startsWith("response.function_call_arguments.") || type.startsWith("response.content_part.") || "item_id" in payload) {
+                        unindexedOutput = true
+                    }
+                    if (type == "response.output_text.delta") {
                         val delta = payload.text("delta").orEmpty()
                         textChars += delta.length
                         if (textChars > 8_388_608) throw StreamInterruptedException("The response exceeded the per-response safety size.")
@@ -200,10 +222,26 @@ internal suspend fun readCodexResponse(channel: ByteReadChannel, onText: suspend
                         onText(delta)
                     }
                 }
-                completed = decodeCodexEvent(event, data)
+                val terminal = decodeCodexEvent(event, data)
+                if (terminal != null) {
+                    completed = if (terminal.output.isEmpty() && (items.isNotEmpty() || pending.isNotEmpty() || receivedText || unindexedOutput)) {
+                        if (unindexedOutput || pending.isNotEmpty() || items.isEmpty() || items.keys != (0 until items.size).toSet()) throw StreamInterruptedException("The provider completed without all output items. Received text was preserved; no calls were dispatched.")
+                        // Some streams omit the terminal output list; only done items are reusable.
+                        val raw = JsonArray(items.entries.sortedBy { it.key }.map { it.value })
+                        val output = try {
+                            raw.map { codexJson.decodeFromJsonElement(OpenAIResponsesResponseDto.OutputItem.serializer(), it) }
+                        } catch (_: IllegalArgumentException) {
+                            throw StreamInterruptedException("The provider returned invalid completed output items. No calls were dispatched.")
+                        }
+                        if (textChars > 0 && output.none { item -> item.type == "message" && item.content.orEmpty().any { !it.text.isNullOrEmpty() } }) throw StreamInterruptedException("The provider completed without the received answer text. Received text was preserved; no calls were dispatched.")
+                        terminal.copy(output = output, rawOutput = raw)
+                    } else {
+                        terminal
+                    }
+                }
             }
         }
-        return completed ?: throw StreamInterruptedException("The response disconnected before completion. Received text was preserved.")
+        return (completed ?: throw StreamInterruptedException("The response disconnected before completion. Received text was preserved.")).also(::validateResponsesTools)
     } catch (e: CancellationException) {
         throw e
     } catch (e: com.maximiliano.maxit.data.ConversationWriteException) {
@@ -214,8 +252,19 @@ internal suspend fun readCodexResponse(channel: ByteReadChannel, onText: suspend
     }
 }
 
+internal fun validateResponsesTools(response: OpenAIResponsesResponseDto) {
+    val calls = response.output.filter { it.type == "function_call" }
+    if (calls.size > 256 || calls.map { it.callId }.distinct().size != calls.size) throw StreamInterruptedException("The provider returned oversized or duplicate tool calls; no calls were dispatched.")
+    for (call in calls) {
+        val args = call.arguments
+        if (call.callId.isNullOrBlank() || call.name.isNullOrBlank() || args == null || args.length > 1_048_576 || runCatching { codexJson.parseToJsonElement(args) as? JsonObject }.getOrNull() == null) {
+            throw StreamInterruptedException("The provider returned an incomplete tool call or invalid arguments; no calls were dispatched.")
+        }
+    }
+}
+
 private fun decodeCodexEvent(event: String?, data: String): OpenAIResponsesResponseDto? {
-    if (data == "[DONE]") throw OpenAICompatibleGenericException("Codex disconnected before completing the response. Try again.")
+    if (data == "[DONE]") throw StreamInterruptedException("The response ended before completion. Received text was preserved; no calls from this response were dispatched.")
     val payload = parseCodexObject(data)
     when (payload.text("type") ?: event) {
         "response.completed" -> {

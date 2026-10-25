@@ -7,6 +7,7 @@ import com.maximiliano.maxit.network.tools.Tool
 import com.maximiliano.maxit.network.tools.ToolSchema
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class InlineToolCallParserTest {
@@ -29,7 +30,6 @@ class InlineToolCallParserTest {
     @Test
     fun `parses hermes style xml block and coerces integer timeout`() {
         val raw = """
-            下载链接中的空格需要 URL 编码。让我用正确格式重新下载:
             <tool_call>
             <function=execute_shell_command>
             <parameter=command>
@@ -50,13 +50,12 @@ class InlineToolCallParserTest {
         // timeout coerced to a JSON number; command stays a string
         assertTrue(call.arguments.contains("\"timeout\":180"), "expected unquoted integer, got: ${call.arguments}")
         assertTrue(call.arguments.contains("\"command\":\"ssh hk-server \\\"echo hi\\\"\""), "command not preserved: ${call.arguments}")
-        // surrounding prose preserved, xml stripped
-        assertEquals("下载链接中的空格需要 URL 编码。让我用正确格式重新下载:", extracted.cleanedText)
+        assertEquals("", extracted.cleanedText)
     }
 
     @Test
     fun `parses json flavor with arguments field`() {
-        val raw = """before<tool_call>{"name":"execute_shell_command","arguments":{"command":"ls","timeout":5}}</tool_call>after"""
+        val raw = """<tool_call>{"name":"execute_shell_command","arguments":{"command":"ls","timeout":5}}</tool_call>"""
 
         val extracted = extractInlineToolCalls(raw, listOf(execShell))
 
@@ -65,7 +64,7 @@ class InlineToolCallParserTest {
         assertEquals("execute_shell_command", call.name)
         assertTrue(call.arguments.contains("\"command\":\"ls\""))
         assertTrue(call.arguments.contains("\"timeout\":5"))
-        assertEquals("beforeafter", extracted.cleanedText)
+        assertEquals("", extracted.cleanedText)
     }
 
     @Test
@@ -87,7 +86,7 @@ class InlineToolCallParserTest {
             <parameter=command>echo one</parameter>
             </function>
             </tool_call>
-            mid
+
             <tool_call>
             <function=execute_shell_command>
             <parameter=command>echo two</parameter>
@@ -98,16 +97,75 @@ class InlineToolCallParserTest {
         val extracted = extractInlineToolCalls(raw, listOf(execShell))
 
         assertEquals(2, extracted.calls.size)
-        assertEquals("mid", extracted.cleanedText)
+        assertEquals("", extracted.cleanedText)
     }
 
     @Test
-    fun `unknown tool falls back to string parameters`() {
+    fun `declared tool without a parameter type keeps string parameters`() {
         val raw = """<tool_call><function=mystery_tool><parameter=count>42</parameter></function></tool_call>"""
-        val extracted = extractInlineToolCalls(raw, tools = emptyList())
+        val extracted = extractInlineToolCalls(raw, listOf(stubTool("mystery_tool", emptyMap())))
         assertEquals(1, extracted.calls.size)
-        // without a schema we can't know the type, so it stays a string
         assertTrue(extracted.calls[0].arguments.contains("\"count\":\"42\""))
+    }
+
+    @Test
+    fun `wrapped examples mixed text and incomplete or unknown batches remain unchanged`() {
+        val xml = "<function=execute_shell_command><parameter=command>echo example</parameter></function>"
+        val call = "<tool_call>$xml</tool_call>"
+        for (text in listOf(
+            "```xml\n$call\n```",
+            "~~~xml\n$call\n~~~",
+            "`$call`",
+            "\"$call\"",
+            "> $call",
+            "Example: $call",
+            "$call trailing prose",
+            "{\"example\":\"$call\"}",
+            "<tool_call>```xml\n$xml\n```</tool_call>",
+            "<tool_call>\"$xml\"</tool_call>",
+            "<tool_call>$call</tool_call>",
+            "$call\n<tool_call>$xml",
+            "$call\n<tool_call>not a call</tool_call>",
+            "$call\n<tool_call><function=unknown></function></tool_call>",
+        )) {
+            val extracted = extractInlineToolCalls(text, listOf(execShell))
+            assertTrue(extracted.calls.isEmpty(), text)
+            assertEquals(text, extracted.cleanedText)
+        }
+        assertTrue(extractInlineToolCalls(call, emptyList()).calls.isEmpty())
+    }
+
+    @Test
+    fun `bare tool envelope requests repair but is never extracted for execution`() {
+        val raw = """{"tool_calls":[{"name":"load_skill","arguments":{"id":"example-skill"}}]}"""
+        assertTrue(hasBareToolCallEnvelope(raw, setOf("load_skill")))
+        assertTrue(extractInlineToolCalls(raw, listOf(execShell)).calls.isEmpty())
+        assertEquals(raw, extractInlineToolCalls(raw, listOf(execShell)).cleanedText)
+        assertTrue(hasBareToolCallEnvelope("\n $raw \n", setOf("load_skill")))
+        assertTrue(hasBareToolCallEnvelope("""{"tool_calls":[{"id":"c","type":"function","function":{"name":"load_skill","arguments":"{}"}}]}""", setOf("load_skill")))
+    }
+
+    @Test
+    fun `examples ordinary JSON unknown tools and malformed envelopes stay text`() {
+        val raw = """{"tool_calls":[{"name":"load_skill","arguments":{}}]}"""
+        for (text in listOf(
+            "```json\n$raw\n```",
+            "~~~json\n$raw\n~~~",
+            "Example: $raw",
+            "> $raw",
+            "\"${raw.replace("\"", "\\\"")}\"",
+            """{"example":true,"tool_calls":[{"name":"load_skill","arguments":{}}]}""",
+            """{"tool_calls":[]}""",
+            """{"tool_calls":[{"name":"unknown","arguments":{}}]}""",
+            """{"tool_calls":[{"name":"load_skill","arguments":{},"description":"example"}]}""",
+            """{"tool_calls":[{"name":"load_skill","arguments":null}]}""",
+            """{"tool_calls":[{"name":"load_skill","arguments":[]}]}""",
+            raw.dropLast(1),
+        )) {
+            assertFalse(hasBareToolCallEnvelope(text, setOf("load_skill")), text)
+            assertTrue(extractInlineToolCalls(text, listOf(execShell)).calls.isEmpty(), text)
+        }
+        assertFalse(hasBareToolCallEnvelope(raw, emptySet()))
     }
 
     private fun stubTool(name: String, parameters: Map<String, String>): Tool = object : Tool {

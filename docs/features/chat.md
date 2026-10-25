@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-24. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # Chat & Conversations
 
-**Last verified:** 2026-10-24. Post-review checks and remaining runtime limits are recorded in the [verification plan](../plans/conversation-reliability.md).
+**Last verified:** 2026-10-25. See the [verification plan](../plans/conversation-reliability.md) for remaining runtime and platform acceptance checks.
 
 Conversations survive Stop, failed requests, navigation, and app restarts without deliberately discarding saved work. Switching providers changes the request format, not the saved conversation. See the [implementation and verification plan](../plans/conversation-reliability.md) for acceptance results and outstanding platform checks.
 
@@ -30,9 +30,12 @@ The transcript preserves tool names, exact arguments, linked results, partial ou
 - While input and attachments are being prepared, the draft and queued files are retained until their own accepted user record is committed, including synchronous completion. Opening the sandbox or collapsing the composer does not lose that acknowledgement. Only unchanged submitted text and submitted files clear; later edits remain. Rejected input remains available to send again. Continue does not consume files queued for an unsent message.
 - A restored pending draft can still receive its own live request's acknowledgement. After request ownership is recreated, reset counters are not treated as proof that an unacknowledged draft was sent.
 - Remote Chat Completions, Responses/Codex, Anthropic, and Gemini consume real incremental response streams. Transport chunks do not become new paragraph boundaries on completion, and refusal text remains visible when normal content is absent or null. A normal JSON response is an honest complete-response fallback, not simulated typing.
+- Missing or incorrect streaming content-type headers do not force an event stream through the JSON decoder. One initial byte-order mark is removed before decoding the first event. Responses streams with an empty final output list require a gap-free sequence of completed items starting from zero, including items seen only through text or argument fragments. Missing completion, unindexed output fragments, or missing received answer text fail instead of authorizing partial calls or overwriting saved text.
 - A stable assistant message receives the first text checkpoint immediately, then pending deltas are checkpointed on a roughly 100 ms timer. Completion and interruption flush the remaining received tail. Storage/decoder backpressure can delay presentation.
 - Only committed batches are guaranteed after abrupt process death. Bytes still in network/native buffers or an uncommitted checkpoint can be lost.
 - Incomplete streamed tool arguments never execute. Missing completion, malformed events, truncation, and stream disconnects surface as failures, preserving committed text rather than silently replaying the request.
+- A complete bare tool-call JSON envelope from remote Chat Completions receives at most one correction continuation per attempt, using saved work rather than replaying generation. Printed JSON is never dispatched; repeated envelopes pause visibly. Quoted examples remain text. An unquoted, whole-envelope example can trigger correction because its intent is ambiguous. See [Tools](tools.md#tool-call-protocol-recovery) for the detection scope and limits.
+- Legacy wrapped calls are accepted only as standalone, complete answer content for declared tools. Reasoning and quoted, fenced, nested, incomplete, or prose-mixed examples stay text. Native calls retain precedence; ordinary approval and receipt rules still apply.
 - Potentially harmful actions require one-shot approval of their exact arguments. Read-only operations normally do not require that gate, but a previously uncertain outcome still requires approval and an additional warning. Enabling a tool during execution does not manufacture permission. Tool output cannot supply authorization.
 - Tool activity shows running work and expandable saved arguments/results. See [tools.md](tools.md) for execution safeguards.
 
@@ -127,7 +130,7 @@ Binary attachments unsupported by a selected target are explicitly described as 
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Foreground/background dispatch, history, attempts, approvals |
 | `composeApp/src/commonMain/.../data/ToolApproval.kt` | Exact-action approval and uncertain-outcome matching |
 | `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Bounded SSE/JSON response decoding |
-| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Authenticated Responses streaming |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Responses streaming, completed-item reconstruction and native-call validation |
 | `composeApp/src/commonMain/.../data/FileClassification.kt` | Attachment categories and size validation |
 | `composeApp/src/commonMain/.../ui/chat/ChatViewModel.kt` | Request lifecycle, restore, navigation, file acceptance |
 | `composeApp/src/commonMain/.../ui/chat/ChatScreen.kt` | Transcript paging, scroll integration, completion gates |
@@ -143,8 +146,9 @@ Binary attachments unsupported by a selected target are explicitly described as 
 | `androidApp/src/main/AndroidManifest.xml` | Plain-text share registration |
 | `androidApp/src/main/kotlin/.../MainActivity.kt` | Share/notification entry points |
 | `composeApp/src/commonTest/.../data/ConversationReliabilityTest.kt` | Durability, storage failure, stream timer, task recovery regressions |
-| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Loopback execution, approval races, serialized regeneration, and native partial-output pause |
+| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Loopback execution, reasoning/example isolation, legacy/native precedence, stream headers, approval races, and interruption |
 | `composeApp/src/commonTest/.../data/SettingsConversationStagingTest.kt` | Duplicate IDs, failed staging/quota recovery, and long-history checkpoints |
 | `composeApp/src/commonTest/.../data/TextOnlyConversationContextTest.kt` | Target-specific attachment budgeting without changing saved files |
-| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Incremental/final text agreement, refusal text, and continuation boundaries |
+| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | Initial BOM decoding, saved-text preservation, refusals, and continuation boundaries |
+| `composeApp/src/commonTest/.../network/CodexResponsesTest.kt` | Gap-free reconstruction, delta-only items, terminal authority, and native-call validation |
 | `composeApp/src/desktopTest/.../data/ConversationDatabaseRecoveryTest.kt` | Migration, rollback, and fresh-store recovery boundaries |

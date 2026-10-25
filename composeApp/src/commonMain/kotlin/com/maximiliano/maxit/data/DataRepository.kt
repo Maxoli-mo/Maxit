@@ -104,9 +104,11 @@ interface DataRepository {
     suspend fun importSkill(file: PlatformFile): Result<SkillManifest>
     suspend fun installGitHubSkill(owner: String, repo: String, ref: String, path: String): Result<SkillManifest>
 
-    // Soul (system prompt)
+    // Custom instructions retain the legacy API/storage key.
     fun getSoulText(): String
     fun setSoulText(text: String)
+    fun getUserProfile(): UserProfile
+    fun setUserProfile(profile: UserProfile)
     suspend fun getActiveSystemPrompt(variant: SystemPromptVariant = SystemPromptVariant.CHAT_REMOTE): String?
 
     // Memory management

@@ -14,13 +14,29 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ChatStreamingTest {
+    @Test
+    fun `SSE detection preserves input and does not reinterpret JSON as events`() = runTest {
+        for (prefix in listOf("event: message\n", "data: {}\n", ": heartbeat\n", "\uFEFF\r\ndata: {}\n")) {
+            val channel = ByteReadChannel(prefix)
+            assertTrue(hasSsePrefix(channel))
+            assertEquals(prefix, readModelBody(channel))
+        }
+        for (body in listOf("", "{}", " {\"text\":\"event: not a stream\"}")) {
+            val channel = ByteReadChannel(body)
+            assertFalse(hasSsePrefix(channel))
+            assertEquals(body, readModelBody(channel))
+        }
+    }
+
     private fun events(vararg data: String) = ByteReadChannel(data.joinToString("\n\n", postfix = "\n\n") { "data: $it" })
 
     @Test
@@ -28,6 +44,46 @@ class ChatStreamingTest {
         val received = mutableListOf<Pair<String?, String>>()
         readSse(ByteReadChannel(": keepalive\r\nevent: chunk\r\ndata: first\r\ndata: second\r\n\r\n")) { type, data -> received.add(type to data) }
         assertEquals(listOf<Pair<String?, String>>("chunk" to "first\nsecond"), received)
+    }
+
+    @Test
+    fun `starting BOM is decoded for all stream formats without losing the first event`() = runTest {
+        val chat = "\uFEFFdata: {\"choices\":[{\"delta\":{\"content\":\"Hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+        val channel = ByteReadChannel(chat)
+        assertTrue(hasSsePrefix(channel))
+        assertEquals("Hello", readChatCompletionStream(channel) {}.choices.single().message!!.content)
+        val responses = ByteReadChannel("\uFEFFdata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello\"}]}]}}\n\n")
+        assertEquals("Hello", readCodexResponse(responses).outputText)
+        val gemini = ByteReadChannel("\uFEFFdata: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}]},\"finishReason\":\"STOP\"}]}\n\n")
+        assertEquals("Hello", readGeminiStream(gemini) {}.extractText())
+        val anthropic = ByteReadChannel("\uFEFFdata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"Hello\"}}\n\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n")
+        assertEquals("Hello", readAnthropicStream(anthropic) {}.content.single().text)
+        val received = mutableListOf<String>()
+        readSse(ByteReadChannel("data: first\n\ndata: \uFEFFliteral\n\n")) { _, data -> received.add(data) }
+        assertEquals(listOf("first", "\uFEFFliteral"), received)
+    }
+
+    @Test
+    fun `failed Responses reconstruction preserves the saved text checkpoint`() = runTest {
+        val history = MutableStateFlow<List<History>>(emptyList())
+        val assistant = StreamedAssistant(history, this)
+        val channel = events(
+            """{"type":"response.output_text.delta","output_index":1,"delta":"Saved prefix"}""",
+            """{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call","name":"get_local_time","arguments":"{}"}}""",
+            """{"type":"response.completed","response":{"status":"completed","output":[]}}""",
+        )
+        try {
+            assertFailsWith<StreamInterruptedException> {
+                val response = readCodexResponse(channel, assistant::append)
+                assistant.complete(History(role = History.Role.ASSISTANT, content = response.outputText.orEmpty()))
+            }
+        } finally {
+            assistant.preservePartial()
+        }
+        val settings = AppSettings(MapSettings())
+        val conversation = Conversation("partial-responses", history.value.map { it.toStoredMessage() }, 0, 0)
+        SettingsConversationPersistence(settings).save(conversation, listOf(conversation))
+        assertEquals("Saved prefix", SettingsConversationPersistence(settings).loadAll().single().messages.single().content)
     }
 
     @Test
@@ -107,6 +163,70 @@ class ChatStreamingTest {
             readChatCompletionStream(events("""{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call","function":{"name":"fetch_url","arguments":"{"}}]},"finish_reason":"tool_calls"}]}""", "[DONE]")) {}
         }
         assertFailsWith<StreamInterruptedException> { readChatCompletionStream(events("{invalid")) {} }
+    }
+
+    @Test
+    fun `JSON and SSE reject invalid native calls before dispatch without losing received text`() = runTest {
+        fun call(args: String = "{}", id: String = "call", type: String = "function", name: String = "fetch_url", index: Int = 0) = """{"index":$index,"id":${JsonPrimitive(id)},"type":${JsonPrimitive(type)},"function":{"name":${JsonPrimitive(name)},"arguments":${JsonPrimitive(args)}}}"""
+        val invalidCalls = listOf(
+            call(args = "{"),
+            call(args = "[]"),
+            call(args = "null"),
+            call(args = "\"example\""),
+            call(id = ""),
+            call(name = ""),
+            call(type = "custom"),
+            "${call()},${call(index = 1)}",
+        )
+        for (calls in invalidCalls) {
+            for (streaming in listOf(true, false)) {
+                val received = StringBuilder()
+                val raw = """{"choices":[{"${if (streaming) "delta" else "message"}":{"content":"Saved text","tool_calls":[$calls]},"finish_reason":"tool_calls"}]}"""
+                assertFailsWith<StreamInterruptedException>("streaming=$streaming calls=$calls") {
+                    if (streaming) readChatCompletionStream(events(raw, "[DONE]")) { received.append(it) } else readChatCompletionBody(raw) { received.append(it) }
+                }
+                assertEquals("Saved text", received.toString())
+            }
+        }
+    }
+
+    @Test
+    fun `oversized batches and arguments fail in JSON and SSE while preserving text`() = runTest {
+        val batch = (0..256).joinToString(",") { """{"index":$it,"id":"call-$it","function":{"name":"fetch_url","arguments":"{}"}}""" }
+        val oversized = JsonPrimitive("""{"value":"${"x".repeat(1_048_576)}"}""")
+        val arguments = """{"index":0,"id":"call","function":{"name":"fetch_url","arguments":$oversized}}"""
+        for (calls in listOf(batch, arguments)) {
+            for (streaming in listOf(true, false)) {
+                val received = StringBuilder()
+                assertFailsWith<StreamInterruptedException> {
+                    if (streaming) {
+                        readChatCompletionStream(
+                            events(
+                                """{"choices":[{"delta":{"content":"Saved prefix"}}]}""",
+                                """{"choices":[{"delta":{"tool_calls":[$calls]},"finish_reason":"tool_calls"}]}""",
+                                "[DONE]",
+                            ),
+                        ) { received.append(it) }
+                    } else {
+                        readChatCompletionBody("""{"choices":[{"message":{"content":"Saved prefix","tool_calls":[$calls]},"finish_reason":"tool_calls"}]}""") { received.append(it) }
+                    }
+                }
+                assertEquals("Saved prefix", received.toString())
+            }
+        }
+    }
+
+    @Test
+    fun `bare tool JSON is content in both transports and never becomes a native call`() = runTest {
+        val text = """{"tool_calls":[{"name":"load_skill","arguments":{"id":"beautiful-markdown"}}]}"""
+        for (streaming in listOf(true, false)) {
+            val raw = """{"choices":[{"${if (streaming) "delta" else "message"}":{"content":${JsonPrimitive(text)}},"finish_reason":"stop"}]}"""
+            val received = StringBuilder()
+            val response = if (streaming) readChatCompletionStream(events(raw, "[DONE]")) { received.append(it) } else readChatCompletionBody(raw) { received.append(it) }
+            assertEquals(text, received.toString())
+            assertEquals(text, response.choices.single().message!!.content)
+            assertTrue(response.choices.single().message!!.toolCalls.isNullOrEmpty())
+        }
     }
 
     @Test

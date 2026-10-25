@@ -1,8 +1,8 @@
-<!-- Modified for Maxit, 2026-10-24. -->
+<!-- Modified for Maxit, 2026-10-25. -->
 
 # Tools
 
-**Last verified:** 2026-10-24. Conversation reliability changes are covered by the [verification plan](../plans/conversation-reliability.md); previous test totals are not certification of this revision. Live-model and real-device execution remain separate acceptance checks.
+**Last verified:** 2026-10-25. See the [verification plan](../plans/conversation-reliability.md) for remaining provider and real-device acceptance checks.
 
 Maxit's tools feature allows the AI to execute external functions during conversations — web search, notifications, calendar events, shell commands, memory operations, and more. Tools are defined with a schema, executed with safety guards, and managed through per-tool toggles in settings.
 
@@ -27,6 +27,24 @@ Every tool a platform can execute must have a definition, including tools no per
 The component that looks up a tool by name, parses JSON arguments into a typed map, runs the tool with its declared timeout, validates execution permission, and returns complete results or explicit errors. Acts as the bridge between raw AI tool-call JSON and the typed tool implementations.
 
 An argument explicitly sent as JSON `null` is treated as not provided, so the tool falls back to its default instead of receiving the text "null". Failures (unknown tool, unparseable arguments, timeout, exception) come back to the AI as a JSON object with `success: false` and an `error` message, built as proper JSON so messages containing quotes or newlines stay valid.
+
+## Tool-call protocol recovery
+
+For remote OpenAI-compatible Chat Completions, native structured calls take precedence over answer text. Both streamed and complete JSON responses reject blank call identities, unsupported call types, duplicate identities, non-object or malformed arguments, oversized arguments, and batches above 256 calls before dispatch. Received answer text is retained on failure; invalid responses do not trigger automatic generation replay.
+
+A complete answer consisting only of a `tool_calls` JSON envelope for declared tools, without native calls, gets **one correction continuation per attempt**. The original reply remains saved as text; the continuation receives the transcript, prior outcomes, and a short instruction to use the actual tool interface or quote a requested example. The printed JSON is **never converted into executable calls**. A real subsequent call still follows the ordinary execution guard, exact approval, dispatch, and receipt rules. If the model repeats the bare envelope later in the same attempt, execution pauses with an explanation rather than looping or reporting success.
+
+Quoted/fenced examples, surrounding prose, ordinary JSON containing other data, unknown tool names, and incomplete envelopes do not trigger this narrow recovery. Reasoning-only content is not inspected for recovery. A raw, unquoted example consisting exactly of a supported call envelope is inherently ambiguous: it may receive the one correction request, but the text itself never runs. This is not a general JSON-to-action parser or a guarantee that every provider/model will follow the correction.
+
+Legacy wrapped-call compatibility accepts only actual answer content consisting entirely of complete wrappers for declared tools. Native calls still take precedence. Reasoning, mixed prose, quoted/fenced examples, nested wrappers, unknown tools, and incomplete batches stay unchanged as text; no valid-looking fragment is extracted from an otherwise invalid batch. This intentionally stops accepting legacy calls mixed with prose. Standalone unquoted wrappers remain a legacy call format and still pass through ordinary execution guards and approvals.
+
+Regression tests cover SSE and complete JSON responses, standalone legacy wrappers, example isolation, exact approvals, repeated faults, interrupted streams, gap-free output recovery, and saved-text preservation. Provider and real-device execution require separate acceptance testing.
+
+## Responses stream completion
+
+The Responses transport retains fully completed streamed output items when a successful terminal event omits its output list. Text, native calls, and opaque continuation data keep their original order. A supplied final output list wins instead of duplicating earlier copies. Empty-terminal reconstruction requires completed items at every index starting from zero, including items observed only through text or argument fragments. Unindexed output fragments or missing received answer text stop recovery and preserve the saved checkpoint. Calls still require terminal success, complete item evidence, unique nonblank identities, names, object arguments within 1,048,576 characters, and batches of at most 256 calls. Missing completion, unfinished items, conflicting item copies, or invalid arguments fail without dispatch or automatic replay. Buffered reconstruction is limited to 512 output indexes and 8,388,608 characters; these are per-response bounds, not a total-run ceiling.
+
+An event stream is also recognized when the response header is missing or incorrectly says JSON. The bounded prefix check does not consume text, execute content, or turn ordinary JSON answers into tool calls. All four stream formats accept one initial byte-order mark without losing the first event; later marks inside event data are retained.
 
 ## Available Tools
 
@@ -304,6 +322,12 @@ Dynamic/Interactive UI generation and entry points are parked; previous interact
 | `composeApp/src/commonMain/.../network/tools/Tool.kt` | Tool interface, ToolSchema, ParameterSchema |
 | `composeApp/src/commonMain/.../network/tools/ToolInfo.kt` | Display metadata for settings |
 | `composeApp/src/commonMain/.../data/ToolExecutor.kt` | Execution, exact permission checks, JSON parsing, timeouts, complete results |
+| `composeApp/src/commonMain/.../network/ChatStreaming.kt` | Bounded stream detection, SSE/JSON native-call validation and non-replaying interruption handling |
+| `composeApp/src/commonMain/.../network/CodexResponses.kt` | Completed Responses item reconstruction and native-call validation |
+| `composeApp/src/commonTest/.../network/CodexResponsesTest.kt` | Gap-free empty-terminal recovery, delta-only items, opaque retention, and native-call validation |
+| `composeApp/src/commonMain/.../network/dtos/openaicompatible/InlineToolCallParser.kt` | Bare-envelope correction detection; standalone complete legacy wrappers only |
+| `composeApp/src/commonTest/.../network/ChatStreamingTest.kt` | SSE/JSON validation parity, initial BOM decoding, and saved-text preservation |
+| `composeApp/src/commonTest/.../network/dtos/openaicompatible/InlineToolCallParserTest.kt` | Bare envelopes, examples, unknown tools, and malformed text |
 | `composeApp/src/commonMain/.../data/ConversationRun.kt` | Commit ordering and stable run ownership |
 | `composeApp/src/commonMain/.../data/ToolApproval.kt` | Exact approvals, same-attempt denial, uncertain-outcome checks |
 | `composeApp/src/commonMain/.../data/ToolLoopGuard.kt` | Bounded repetition/cycle/failure detection and polling backoff |
@@ -311,7 +335,7 @@ Dynamic/Interactive UI generation and entry points are parked; previous interact
 | `composeApp/src/commonMain/.../ui/chat/composables/RunActivity.kt` | Approval prompts and saved action inspection |
 | `composeApp/src/commonTest/.../data/ConversationContextAndLoopTest.kt` | Long useful runs, request-scoped loop seeding, polling, context compatibility |
 | `composeApp/src/commonTest/.../data/ToolApprovalRaceTest.kt` | Final lookup rejects missing or mismatched exact authorization |
-| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Foreground/unattended approval races and real durable execution |
+| `composeApp/src/desktopTest/.../data/ConversationExecutionTest.kt` | Durable loopback execution, mislabelled stream headers, approval races, bounded protocol correction, example/no-replay safeguards |
 | `composeApp/src/commonMain/.../inference/NativeToolProjection.kt` | Bounded native receipts without truncating saved outcomes |
 | `composeApp/src/commonTest/.../data/ConversationContinuationTest.kt` | Wire identity, reasoning, denial, retrieval and recovery regressions |
 | `composeApp/src/commonMain/.../data/RemoteDataRepository.kt` | Tool loop (OpenAI-compatible, Responses API, Gemini, Anthropic), parallel execution, context trimming, on-device allowlist |

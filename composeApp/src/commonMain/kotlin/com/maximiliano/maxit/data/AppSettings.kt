@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 enum class ImportSection {
     SERVICES,
     SOUL,
+    PROFILE,
     MEMORY,
     SCHEDULING,
     HEARTBEAT,
@@ -47,6 +48,9 @@ fun detectExportableSections(json: JsonObject): Map<ImportSection, String?> {
 
     if (json["soul_text"] != null) {
         sections[ImportSection.SOUL] = null
+    }
+    if (json["user_profile"] != null) {
+        sections[ImportSection.PROFILE] = null
     }
 
     val memories = json["agent_memories"]?.jsonArray
@@ -110,6 +114,9 @@ fun detectImportSections(json: JsonObject): Map<ImportSection, String?> {
     }
     if (json["soul_text"] != null) {
         sections[ImportSection.SOUL] = null
+    }
+    if (json["user_profile"] != null) {
+        sections[ImportSection.PROFILE] = null
     }
     if (json["memory_enabled"] != null || json["agent_memories"] != null) {
         val count = json["agent_memories"]?.jsonArray?.size
@@ -240,11 +247,27 @@ class AppSettings(internal val settings: Settings) {
         settings.putBoolean(KEY_FREE_SERVICE_PRIMARY, primary)
     }
 
-    // Soul (system prompt)
+    // Custom instructions retain the legacy storage key.
     fun getSoulText(): String = settings.getString(KEY_SOUL, "")
 
     fun setSoulText(text: String) {
         settings.putString(KEY_SOUL, text)
+    }
+
+    fun getUserProfile(): UserProfile {
+        val raw = settings.getString(KEY_USER_PROFILE, "")
+        if (raw.isBlank()) return UserProfile()
+        return try {
+            SharedJson.decodeFromString(UserProfile.serializer(), raw)
+        } catch (_: Exception) {
+            // Parser errors may echo names; preserve the data without logging the exception.
+            backupCorruptJson(KEY_USER_PROFILE, raw)
+            UserProfile()
+        }
+    }
+
+    fun setUserProfile(profile: UserProfile) {
+        settings.putString(KEY_USER_PROFILE, SharedJson.encodeToString(UserProfile.serializer(), profile))
     }
 
     // Memory
@@ -530,6 +553,7 @@ class AppSettings(internal val settings: Settings) {
         const val KEY_MIGRATION_COMPLETE = "migration_complete_v1"
         const val KEY_TOOL_PREFIX = "tool_enabled_"
         const val KEY_SOUL = "soul_text"
+        const val KEY_USER_PROFILE = "user_profile"
         const val KEY_MEMORY_ENABLED = "memory_enabled"
         const val KEY_MEMORY_INSTRUCTIONS = "memory_instructions"
         const val KEY_AGENT_MEMORIES = "agent_memories"

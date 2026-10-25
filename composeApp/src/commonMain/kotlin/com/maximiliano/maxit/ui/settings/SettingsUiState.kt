@@ -12,6 +12,7 @@ import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.ServiceEntry
 import com.maximiliano.maxit.data.SmsSyncState
 import com.maximiliano.maxit.data.ThemeMode
+import com.maximiliano.maxit.data.UserProfile
 import com.maximiliano.maxit.inference.DownloadError
 import com.maximiliano.maxit.inference.LocalModel
 import com.maximiliano.maxit.inference.ModelImportError
@@ -67,6 +68,7 @@ enum class ConnectionStatus {
 
 enum class SettingsTab {
     General,
+    Profile,
     Agent,
     Services,
     Tools,
@@ -81,6 +83,7 @@ data class SettingsUiState(
     val availableServicesToAdd: ImmutableList<Service> = persistentListOf(),
     val tools: ImmutableList<ToolInfo> = persistentListOf(),
     val soulText: String = "",
+    val userProfile: UserProfile = UserProfile(),
     val isDynamicUiEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
     val isMemoryEnabled: Boolean = true,

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 import com.maximiliano.maxit.data.ImportSection
 import com.maximiliano.maxit.data.Service
 import com.maximiliano.maxit.data.ThemeMode
+import com.maximiliano.maxit.data.UserProfile
 import com.maximiliano.maxit.inference.LocalModel
 import com.maximiliano.maxit.mcp.PopularMcpServer
 import io.github.vinceglb.filekit.PlatformFile
@@ -24,6 +25,7 @@ data class SettingsActions(
     val onChangeCustomModelId: (String, String) -> Unit,
     val onToggleTool: (String, Boolean) -> Unit,
     val onSaveSoul: (String) -> Unit,
+    val onSaveProfile: (UserProfile) -> Unit,
     val onToggleDynamicUi: (Boolean) -> Unit,
     val onChangeThemeMode: (ThemeMode) -> Unit,
     val onToggleMemory: (Boolean) -> Unit,
@@ -94,6 +96,7 @@ data class SettingsActions(
             onChangeCustomModelId = { _, _ -> },
             onToggleTool = { _, _ -> },
             onSaveSoul = {},
+            onSaveProfile = {},
             onToggleDynamicUi = {},
             onChangeThemeMode = {},
             onToggleMemory = {},

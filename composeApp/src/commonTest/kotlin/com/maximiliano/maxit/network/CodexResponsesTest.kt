@@ -1,6 +1,7 @@
 package com.maximiliano.maxit.network
 
 import com.maximiliano.maxit.network.dtos.openairesponses.OpenAIResponsesRequestDto
+import com.maximiliano.maxit.network.dtos.openairesponses.OpenAIResponsesResponseDto
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineBase
 import io.ktor.client.engine.HttpClientEngineConfig
@@ -122,6 +123,134 @@ class CodexResponsesTest {
     }
 
     @Test
+    fun `empty terminal output retains completed text calls and opaque reasoning in index order`() = runTest {
+        val reasoning = """{"type":"reasoning","id":"reason","summary":[],"encrypted_content":"opaque"}"""
+        val message = """{"type":"message","id":"message","role":"assistant","content":[{"type":"output_text","text":"ready"}]}"""
+        val call = """{"type":"function_call","id":"item-call","call_id":"call-1","name":"get_local_time","arguments":"{}"}"""
+        val frames = listOf(
+            """{"type":"response.output_item.added","output_index":1,"item":{"type":"message"}}""",
+            """{"type":"response.output_text.delta","output_index":1,"delta":"ready"}""",
+            """{"type":"response.output_item.done","output_index":2,"item":$call}""",
+            """{"type":"response.output_item.done","output_index":0,"item":$reasoning}""",
+            """{"type":"response.output_item.done","output_index":1,"item":$message}""",
+            """{"type":"response.completed","response":{"status":"completed","output":[],"usage":{"output_tokens":5}}}""",
+        )
+        val received = StringBuilder()
+        val response = readCodexResponse(ByteReadChannel(frames.joinToString("\n\n", postfix = "\n\n") { "data: $it" })) { received.append(it) }
+        assertEquals("ready", received.toString())
+        assertEquals(received.toString(), response.outputText)
+        assertEquals(listOf("reasoning", "message", "function_call"), response.output.map { it.type })
+        assertEquals("call-1", response.functionCalls.single().callId)
+        assertEquals("{}", response.functionCalls.single().arguments)
+        assertEquals(JsonPrimitive("opaque"), response.rawOutput!!.first().jsonObject["encrypted_content"])
+        assertEquals(JsonPrimitive(5), response.usage!!["output_tokens"])
+    }
+
+    @Test
+    fun `terminal output wins over streamed copies without duplicating calls`() = runTest {
+        val call = """{"type":"function_call","call_id":"call-1","name":"search","arguments":"{}"}"""
+        val body = "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":$call}\n\ndata: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":1,\"delta\":\"{\"}\n\ndata: $completed\n\n"
+        val response = readCodexResponse(ByteReadChannel(body))
+        assertEquals("Hello", response.outputText)
+        assertEquals(1, response.functionCalls.size)
+    }
+
+    @Test
+    fun `done items without completion or unfinished items at an empty completion never dispatch`() = runTest {
+        val item = """{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","call_id":"call","name":"search","arguments":"{}"}}"""
+        val unfinished = """{"type":"response.output_item.added","output_index":1,"item":{"type":"function_call"}}"""
+        val terminal = """{"type":"response.completed","response":{"status":"completed","output":[]}}"""
+        for (tail in listOf(item, "$item\n\ndata: $unfinished\n\ndata: $terminal", terminal)) {
+            val received = StringBuilder()
+            assertFailsWith<StreamInterruptedException> {
+                readCodexResponse(ByteReadChannel("data: {\"type\":\"response.output_text.delta\",\"delta\":\"Saved prefix\"}\n\ndata: $tail\n\n")) { received.append(it) }
+            }
+            assertEquals("Saved prefix", received.toString())
+        }
+    }
+
+    @Test
+    fun `empty terminal recovery rejects gaps and unfinished text or argument fragments`() = runTest {
+        val call = """{"type":"function_call","call_id":"call","name":"search","arguments":"{}"}"""
+        val first = """{"type":"response.output_item.done","output_index":0,"item":$call}"""
+        val text = """{"type":"response.output_text.delta","output_index":1,"delta":"Saved text"}"""
+        val arguments = """{"type":"response.function_call_arguments.delta","output_index":1,"delta":"{"}"""
+        val message = """{"type":"response.output_item.done","output_index":0,"item":{"type":"message","content":[{"type":"output_text","text":"ready"}]}}"""
+        val terminal = """{"type":"response.completed","response":{"status":"completed","output":[]}}"""
+        for (frames in listOf(
+            listOf(first.replace("\"output_index\":0", "\"output_index\":1")),
+            listOf(message, first.replace("\"output_index\":0", "\"output_index\":2")),
+            listOf(first, text),
+            listOf(first, arguments),
+            listOf(first, text.replace("\"output_index\":1,", "")),
+            listOf(first, arguments.replace("\"output_index\":1,", "")),
+            listOf(text.replace("\"output_index\":1", "\"output_index\":0"), first),
+        )) {
+            val received = StringBuilder()
+            assertFailsWith<StreamInterruptedException>(frames.toString()) {
+                readCodexResponse(ByteReadChannel((frames + terminal).joinToString("\n\n", postfix = "\n\n") { "data: $it" })) { received.append(it) }
+            }
+            assertEquals(if (frames.any { "Saved text" in it }) "Saved text" else "", received.toString())
+        }
+    }
+
+    @Test
+    fun `completed fragments without added events still recover complete contiguous output`() = runTest {
+        for (text in listOf("ready", " ")) {
+            val frames = listOf(
+                """{"type":"response.output_text.delta","output_index":0,"delta":${JsonPrimitive(text)}}""",
+                """{"type":"response.output_item.done","output_index":0,"item":{"type":"message","content":[{"type":"output_text","text":${JsonPrimitive(text)}}]}}""",
+                """{"type":"response.function_call_arguments.delta","output_index":1,"delta":"{}"}""",
+                """{"type":"response.output_item.done","output_index":1,"item":{"type":"function_call","call_id":"call","name":"search","arguments":"{}"}}""",
+                """{"type":"response.completed","response":{"status":"completed","output":[]}}""",
+            )
+            val response = readCodexResponse(ByteReadChannel(frames.joinToString("\n\n", postfix = "\n\n") { "data: $it" }))
+            assertEquals(text.takeIf { it.isNotBlank() }, response.outputText)
+            assertEquals("call", response.functionCalls.single().callId)
+        }
+    }
+
+    @Test
+    fun `invalid completed function calls are rejected in both JSON and SSE`() = runTest {
+        val calls = listOf(
+            """{"type":"function_call","call_id":"call","name":"search"}""",
+            """{"type":"function_call","call_id":"","name":"search","arguments":"{}"}""",
+            """{"type":"function_call","call_id":"call","name":"","arguments":"{}"}""",
+            """{"type":"function_call","call_id":"call","name":"search","arguments":"{"}""",
+            """{"type":"function_call","call_id":"call","name":"search","arguments":"[]"}""",
+        )
+        for (call in calls) {
+            assertFailsWith<StreamInterruptedException> {
+                readResponsesBody("""{"status":"completed","output":[$call]}""")
+            }
+            assertFailsWith<StreamInterruptedException> {
+                readCodexResponse(ByteReadChannel("data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":$call}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"output\":[]}}\n\n"))
+            }
+        }
+    }
+
+    @Test
+    fun `completed Responses calls retain batch identity and argument bounds`() {
+        val call = OpenAIResponsesResponseDto.OutputItem(type = "function_call", callId = "call", name = "search", arguments = "{}")
+        for (calls in listOf(listOf(call, call), List(257) { call.copy(callId = "call-$it") }, listOf(call.copy(arguments = "{\"text\":\"${"x".repeat(1_048_576)}\"}")))) {
+            assertFailsWith<StreamInterruptedException> { validateResponsesTools(OpenAIResponsesResponseDto(output = calls)) }
+        }
+        validateResponsesTools(OpenAIResponsesResponseDto(output = listOf(call)))
+    }
+
+    @Test
+    fun `conflicting completed items and invalid output indexes fail without dispatch`() = runTest {
+        val message = """{"type":"message","content":[{"type":"output_text","text":"one"}]}"""
+        for (index in listOf("-1", "512", "999999999999", "\"bad\"")) {
+            assertFailsWith<StreamInterruptedException> {
+                readCodexResponse(ByteReadChannel("data: {\"type\":\"response.output_item.done\",\"output_index\":$index,\"item\":$message}\n\n"))
+            }
+        }
+        val body = "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":$message}\n\ndata: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":${message.replace("one", "two")}}\n\n"
+        assertFailsWith<StreamInterruptedException> { readCodexResponse(ByteReadChannel(body)) }
+    }
+
+    @Test
     fun `SSE terminal failures and premature EOF are safe errors`() = runTest {
         val frames = listOf(
             """{"type":"response.failed","response":{"error":{"message":"SECRET prompt"}}}""",
@@ -130,7 +259,6 @@ class CodexResponsesTest {
             """{"type":"response.completed","response":{"status":"incomplete"}}""",
             """{"type":"response.completed","response":{"error":{"message":"SECRET"}}}""",
             """{"type":"response.completed","response":{"output":"SECRET invalid"}}""",
-            "[DONE]",
             "SECRET invalid JSON",
         )
         for (frame in frames) {
@@ -140,7 +268,7 @@ class CodexResponsesTest {
             assertFalse(error.message.orEmpty().contains("SECRET"))
             assertNull(error.cause)
         }
-        for (body in listOf("", "data: {\"type\":\"response.created\"}\n\n")) {
+        for (body in listOf("", "data: {\"type\":\"response.created\"}\n\n", "data: [DONE]\n\n", "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"call_id\":\"call\",\"name\":\"search\",\"arguments\":\"{}\"}}\n\ndata: [DONE]\n\n")) {
             val error = assertFailsWith<StreamInterruptedException> { readCodexResponse(ByteReadChannel(body.encodeToByteArray())) }
             assertFalse(error.message.orEmpty().contains("SECRET"))
             assertNull(error.cause)

@@ -70,6 +70,7 @@ import maxit.composeapp.generated.resources.settings_import_section_services
 import maxit.composeapp.generated.resources.settings_import_section_tools
 import maxit.composeapp.generated.resources.settings_import_success
 import maxit.composeapp.generated.resources.settings_mcp_cancel
+import maxit.composeapp.generated.resources.settings_profile
 import maxit.composeapp.generated.resources.settings_sms
 import org.jetbrains.compose.resources.stringResource
 
@@ -380,6 +381,7 @@ private fun ExportPreviewDialog(
 private fun sectionDisplayName(section: ImportSection): String = when (section) {
     ImportSection.SERVICES -> stringResource(Res.string.settings_import_section_services)
     ImportSection.SOUL -> stringResource(Res.string.settings_agent_instructions)
+    ImportSection.PROFILE -> stringResource(Res.string.settings_profile)
     ImportSection.MEMORY -> stringResource(Res.string.settings_import_section_memory)
     ImportSection.SCHEDULING -> stringResource(Res.string.settings_import_section_scheduling)
     ImportSection.HEARTBEAT -> stringResource(Res.string.settings_import_section_heartbeat)
